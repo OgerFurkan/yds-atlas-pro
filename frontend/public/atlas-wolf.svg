@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 420 440" fill="none">
+  <defs>
+    <linearGradient id="sticker" x1="45" y1="18" x2="362" y2="414" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff"/>
+      <stop offset="1" stop-color="#eaf2f4"/>
+    </linearGradient>
+    <linearGradient id="fur" x1="120" y1="52" x2="288" y2="288" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#eef0ec"/>
+      <stop offset="1" stop-color="#c4d0d0"/>
+    </linearGradient>
+    <linearGradient id="hoodie" x1="97" y1="256" x2="314" y2="429" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#246181"/>
+      <stop offset="1" stop-color="#123b59"/>
+    </linearGradient>
+    <filter id="stickerShadow" x="0" y="0" width="420" height="440" color-interpolation-filters="sRGB" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="7" stdDeviation="7" flood-color="#123b59" flood-opacity=".2"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#stickerShadow)">
+    <path d="M77 18c22-8 43-5 67 0l188 7c38 2 65 29 69 67l9 250c2 42-25 73-67 77l-256 9c-42 2-72-25-75-67L7 91C4 54 35 23 77 18Z" fill="url(#sticker)" stroke="#123b59" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M41 102c7-41 36-67 77-69l184 6c38 2 62 25 68 61" stroke="#fff" stroke-width="5" stroke-linecap="round" opacity=".8"/>
+
+    <path d="M88 313c8-39 29-63 66-74l53-16 54 14c40 11 63 36 73 78l13 89H77l11-91Z" fill="url(#hoodie)" stroke="#123b59" stroke-width="9" stroke-linejoin="round"/>
+    <path d="M114 254c16-16 39-27 69-31h47c27 5 49 15 65 32l-29 46H141l-27-47Z" fill="#f0783c" stroke="#123b59" stroke-width="8" stroke-linejoin="round"/>
+    <path d="M145 245c0 25 22 42 65 42s65-17 65-42l-16-26H161l-16 26Z" fill="#d3dcda" stroke="#123b59" stroke-width="7"/>
+
+    <path d="M119 286c-18 1-32 11-42 27l-27-6c-17-4-29-17-31-34l-4-38c-1-12 5-20 15-21 11-1 18 7 19 18l3 18 5-32c2-12 9-17 19-16 11 2 15 11 13 22l-3 24 11-17c6-9 16-10 23-5 9 6 9 16 3 26l-15 24Z" fill="#f1e7d8" stroke="#123b59" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m37 233 4-25c2-10 10-16 19-13 9 2 13 10 11 20l-3 23" fill="#f1e7d8" stroke="#123b59" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="m48 275 21 3" stroke="#d19b76" stroke-width="5" stroke-linecap="round"/>
+    <path d="m44 178 9-21m14 18 3-24m15 28 12-17" stroke="#f0783c" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="m167 277 43 23 43-23v57c-15-9-29-14-43-14s-28 5-43 14v-57Z" fill="#eaf7f7" stroke="#123b59" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M210 300v20m-32-29 19 10m45-10-19 10" stroke="#38a7b3" stroke-width="5" stroke-linecap="round"/>
+    <path d="M197 337h26" stroke="#f0783c" stroke-width="6" stroke-linecap="round"/>
+
+    <path d="M113 143 96 65l66 31 48-59 46 58 67-28-16 86c8 17 12 36 10 57-5 65-47 107-106 111-59 4-108-34-117-98-4-28 2-56 19-80Z" fill="url(#fur)" stroke="#123b59" stroke-width="10" stroke-linejoin="round"/>
+    <path d="m108 79 42 20 34-40-19 79-49 14-8-73Zm205-7-47 20-35-41 20 81 53 12 9-72Z" fill="#f0783c" stroke="#123b59" stroke-width="8" stroke-linejoin="round"/>
+    <path d="m119 90 28 13-16 24-12-37Zm180-1-29 13 16 24 13-37Z" fill="#254f73"/>
+    <path d="M125 160c16-14 34-18 53-10m63-1c19-9 38-5 53 10" stroke="#123b59" stroke-width="9" stroke-linecap="round"/>
+
+    <path d="M120 179c0-23 13-38 34-38 21 0 35 15 35 38s-14 37-35 37c-21 0-34-14-34-37Z" fill="#fff" stroke="#123b59" stroke-width="8"/>
+    <path d="M201 179c0-23 14-38 35-38 21 0 35 15 35 38s-14 37-35 37c-21 0-35-14-35-37Z" fill="#fff" stroke="#123b59" stroke-width="8"/>
+    <path d="M188 173c5-6 10-8 16-8s11 2 16 8" stroke="#123b59" stroke-width="8" stroke-linecap="round"/>
+    <path d="M139 183c9-12 21-12 31 0m47 0c10-12 22-12 31 0" stroke="#123b59" stroke-width="6" stroke-linecap="round"/>
+    <path d="m139 183 8 4m-5-10 9 2m64 4 8 4m-5-10 9 2" stroke="#244f6a" stroke-width="3" stroke-linecap="round"/>
+    <path d="M116 174c-14-8-25-6-34 2m196-2c14-8 25-6 34 2" stroke="#123b59" stroke-width="8" stroke-linecap="round"/>
+
+    <path d="M155 216c13-14 31-20 55-20s42 6 55 20l-14 35c-11 13-24 20-41 20s-30-7-41-20l-14-35Z" fill="#fffaf1"/>
+    <path d="M193 218c5-7 11-10 17-10s12 3 17 10l-17 15-17-15Z" fill="#123b59"/>
+    <path d="M210 233v12m0 0c-10 13-25 16-38 5m38-5c10 13 25 16 38 5" stroke="#123b59" stroke-width="5" stroke-linecap="round"/>
+    <path d="M178 244c8 7 18 10 32 10s24-3 32-10" stroke="#edb18f" stroke-width="4" stroke-linecap="round"/>
+
+    <path d="M282 291c17-7 33-3 44 10l40 39c8 8 8 19 0 27-9 8-20 7-28-1l-14-13 16 29c6 10 3 20-6 25-9 5-19 2-25-8l-18-28 5 21c3 11-3 20-13 21-10 1-17-6-19-17l-10-52 28-53Z" fill="#f1e7d8" stroke="#123b59" stroke-width="8" stroke-linecap="round" stroke-linejoin="round"/>
+    <g transform="rotate(-8 326 327)">
+      <path d="M278 272h101c9 0 16 7 16 16v89H278V272Z" fill="#f0783c" stroke="#123b59" stroke-width="8" stroke-linejoin="round"/>
+      <path d="M291 282h88v80h-88c-7 0-12-5-12-12v-56c0-7 5-12 12-12Z" fill="#173f5b"/>
+      <path d="M293 290h6v64h-6z" fill="#e7f2f1"/>
+      <path d="M310 302h52" stroke="#a9d8db" stroke-width="5" stroke-linecap="round"/>
+      <text x="311" y="337" fill="#fff" font-family="Arial,sans-serif" font-size="25" font-weight="800">YDS</text>
+    </g>
+  </g>
+</svg>

@@ -1,0 +1,31 @@
+{
+  "name": "yds-atlas-pro",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --cwd=frontend dev",
+    "dev:api": "bun run --cwd=backend dev",
+    "build": "bun run --cwd=frontend build && bun run typecheck:api",
+    "lint": "bun run --cwd=frontend lint && bun run lint:api",
+    "test": "bun run test:unit && bun run test:api",
+    "test:e2e": "bun run --cwd=frontend test:e2e",
+    "test:dev": "bun run --cwd=frontend test:dev",
+    "format": "biome format --write frontend/src frontend/tests frontend/playwright.config.ts frontend/playwright.dev.config.ts frontend/vite.config.ts frontend/components.json backend/src packages/shared/src frontend/playwright.cloud.config.ts backend/tests backend/tsconfig.json package.json backend/package.json frontend/package.json frontend/config vercel.json",
+    "format:check": "biome format frontend/src frontend/tests frontend/playwright.config.ts frontend/playwright.dev.config.ts frontend/vite.config.ts frontend/components.json backend/src packages/shared/src frontend/playwright.cloud.config.ts backend/tests backend/tsconfig.json package.json backend/package.json frontend/package.json frontend/config vercel.json",
+    "lint:api": "bun run --cwd=backend lint",
+    "test:unit": "bun run --cwd=frontend test",
+    "test:api": "bun run --cwd=backend test",
+    "typecheck:api": "bun run --cwd=backend typecheck",
+    "test:cloud": "bun run --cwd=frontend test:cloud"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@electric-sql/pglite": "0.5.16",
+    "supabase": "3.1.0"
+  }
+}

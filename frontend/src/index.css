@@ -1,0 +1,112 @@
+@import "tailwindcss";
+@import "./app/styles/onboarding.css";
+@import "@fontsource/dm-sans/400.css";
+@import "@fontsource/dm-sans/500.css";
+@import "@fontsource/dm-sans/600.css";
+@import "@fontsource/dm-sans/700.css";
+@import "@fontsource/fraunces/500.css";
+@import "@fontsource/fraunces/600.css";
+
+:root {
+  font-family: "DM Sans", sans-serif;
+  color: #17212b;
+  background: #f5f6f7;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-optical-sizing: auto;
+  font-weight: 400;
+}
+
+@theme {
+  --animate-guide-tap: guide-tap 1.4s ease-in-out infinite;
+  --color-background: #f5f6f7;
+  --color-foreground: #17212b;
+  --color-card: #ffffff;
+  --color-card-foreground: #17212b;
+  --color-popover: #ffffff;
+  --color-popover-foreground: #17212b;
+  --color-primary: #123b59;
+  --color-primary-foreground: #ffffff;
+  --color-secondary: #e9f2f7;
+  --color-secondary-foreground: #123b59;
+  --color-muted: #f1f5f9;
+  --color-muted-foreground: #64748b;
+  --color-accent: #fff1e9;
+  --color-accent-foreground: #123b59;
+  --color-destructive: #b93832;
+  --color-border: #e2e8f0;
+  --color-input: #cbd5e1;
+  --color-ring: #2876a6;
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.75rem;
+  --radius-xl: 1rem;
+  --color-atlas-ink: #17212b;
+  --color-atlas-muted: #6f7a82;
+  --color-atlas-quiet: #98a1a7;
+  --color-atlas-line: #e6e9e9;
+  --color-atlas-paper: #ffffff;
+  --color-atlas-canvas: #f5f6f7;
+  --color-atlas-orange: #f27637;
+  --color-atlas-orange-dark: #d65b24;
+  --color-atlas-orange-pale: #fff1e9;
+  --color-atlas-blue: #2876a6;
+  --color-atlas-navy: #123b59;
+  --color-atlas-blue-pale: #e9f2f7;
+  --color-atlas-green: #358267;
+  --color-atlas-green-pale: #eaf5ef;
+  --font-display: "Fraunces", Georgia, serif;
+  --font-sans: "DM Sans", sans-serif;
+}
+
+@keyframes guide-tap {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(0.9);
+  }
+}
+
+@layer base {
+  * {
+    box-sizing: border-box;
+    border-color: var(--color-border);
+  }
+  body {
+    min-width: 320px;
+    min-height: 100vh;
+    margin: 0;
+    background: #f5f6f7;
+    color: #17212b;
+    font-family: "DM Sans", sans-serif;
+  }
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+  button:not(:disabled),
+  [role="button"],
+  summary,
+  [role="tab"],
+  [role="menuitem"] {
+    cursor: pointer;
+  }
+  button:focus-visible,
+  a:focus-visible,
+  input:focus-visible,
+  select:focus-visible,
+  textarea:focus-visible {
+    outline: 3px solid rgba(40, 118, 166, 0.28);
+    outline-offset: 2px;
+  }
+  ::selection {
+    color: #fff;
+    background: #2876a6;
+  }
+}

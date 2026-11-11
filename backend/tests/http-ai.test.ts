@@ -218,9 +218,28 @@ describe("Gemini provider", () => {
     );
     expect(result.reply).toBe("Indicate means to show.");
     expect(new Headers(input!.headers).get("x-goog-api-key")).toBe(config.GEMINI_API_KEY!);
+    expect(JSON.parse(input!.body as string).generationConfig.thinkingConfig).toEqual({
+      thinkingLevel: "low",
+    });
     expect(
       JSON.parse(input!.body as string).contents.map((message: { role: string }) => message.role),
     ).toEqual(["user", "model", "user"]);
+  });
+  test("chat does not send thinking levels to Gemini 2.5", async () => {
+    let requestBody = "";
+    const fetcher = (async (_url: unknown, init: RequestInit) => {
+      requestBody = String(init.body);
+      return Response.json({
+        candidates: [{ finishReason: "STOP", content: { parts: [{ text: "Hello" }] } }],
+      });
+    }) as unknown as typeof fetch;
+    await generateChatReply(
+      { messages: [{ role: "user", content: "Hello" }] },
+      { ...config, GEMINI_MODEL: "gemini-2.5-flash" },
+      undefined,
+      fetcher,
+    );
+    expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
   });
   test("chat reports actionable provider error categories without exposing upstream details", async () => {
     const messages = [{ role: "user" as const, content: "Explain indicate." }];

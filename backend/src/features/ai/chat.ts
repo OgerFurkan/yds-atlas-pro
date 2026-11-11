@@ -1,6 +1,7 @@
 import { type AiChatRequest, type AiChatResponse, aiChatResponseSchema } from "@yds-atlas/shared";
 import type { ServerConfig } from "../../config/env";
 import { HttpError } from "../../shared/errors";
+import { assertGeminiResponse } from "./gemini-errors";
 
 export async function generateChatReply(
   input: AiChatRequest,
@@ -33,7 +34,12 @@ export async function generateChatReply(
             role: message.role === "assistant" ? "model" : "user",
             parts: [{ text: message.content }],
           })),
-          generationConfig: { temperature: 0.6, maxOutputTokens: 1200 },
+          generationConfig: {
+            maxOutputTokens: 1200,
+            ...(/^gemini-3[.-]/.test(config.GEMINI_MODEL)
+              ? { thinkingConfig: { thinkingLevel: "low" } }
+              : {}),
+          },
         }),
       },
     );
@@ -53,40 +59,7 @@ export async function generateChatReply(
     );
   }
 
-  if (!response.ok) {
-    if (response.status === 400) {
-      const payload = (await response.json().catch(() => null)) as {
-        error?: { details?: { reason?: string }[] };
-      } | null;
-      if (
-        payload?.error?.details?.some(
-          (detail) => detail.reason === "API_KEY_INVALID" || detail.reason === "API_KEY_EXPIRED",
-        )
-      )
-        throw new HttpError(
-          503,
-          "Gemini API anahtarı veya proje erişimi reddedildi.",
-          "AI_AUTH_ERROR",
-        );
-    }
-    if (response.status === 429)
-      throw new HttpError(
-        429,
-        "AI kullanım sınırına ulaşıldı. Daha sonra tekrar dene.",
-        "AI_QUOTA_EXCEEDED",
-      );
-    if (response.status === 401 || response.status === 403)
-      throw new HttpError(
-        503,
-        "Gemini API anahtarı veya proje erişimi reddedildi.",
-        "AI_AUTH_ERROR",
-      );
-    if (response.status === 404)
-      throw new HttpError(503, "Gemini modeline erişilemiyor.", "AI_MODEL_NOT_FOUND");
-    if (response.status === 400)
-      throw new HttpError(502, "Gemini isteği kabul etmedi.", "AI_REQUEST_REJECTED");
-    throw new HttpError(502, "Atlas şu anda yanıt veremiyor.", "AI_UPSTREAM_ERROR");
-  }
+  await assertGeminiResponse(response);
 
   try {
     const payload = (await response.json()) as {

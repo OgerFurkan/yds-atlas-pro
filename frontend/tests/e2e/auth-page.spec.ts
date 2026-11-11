@@ -41,6 +41,7 @@ test("sign-up slides the Atlas panel to the right and sign-in slides it back", a
 }, testInfo) => {
   test.skip(testInfo.project.name === "mobile", "Panel slide is a desktop interaction.");
   await page.setViewportSize({ width: 1280, height: 900 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/#login");
   const shell = page.locator(".auth-layout");
   const brand = page.locator(".auth-brand");
@@ -51,7 +52,7 @@ test("sign-up slides the Atlas panel to the right and sign-in slides it back", a
   expect(await brand.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe(
     "0.7s",
   );
-  await brand.getByRole("button", { name: "Hesap oluştur", exact: true }).click();
+  await form.getByRole("button", { name: "Hesap oluştur", exact: true }).click();
   expect(await brand.evaluate((element) => element.getAnimations().length)).toBeGreaterThan(0);
   const midpoint = await brand.evaluate((element) => {
     const animation = element.getAnimations()[0];

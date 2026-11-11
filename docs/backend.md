@@ -127,6 +127,7 @@ words içinde lower/boşluk normalize edilmiş kullanıcı başına benzersiz in
 | POST         | /api/ai/words/enrich                | Gemini önerisi; kendiliğinden kaydetmez                            |
 | POST         | /api/ai/words/suggest               | En fazla beş yeni kelime önerisi; kaydetmez                        |
 | POST         | /api/ai/words/complete              | En fazla beş seçilmiş kelimenin eksik alanlarını üretir; kaydetmez |
+| POST         | /api/ai/chat                        | Atlas YDS sohbeti; giriş ve kullanıcı AI kotası gerekir            |
 
 Hatalar error, code ve requestId alanları taşır. SQL/provider hataları ve anahtarlar yanıta yazılmaz. Loglar requestId/kod/durum içerir. Origin izin listesi, JSON gövde sınırı, Zod doğrulaması, zaman aşımı ve no-store uygulanır. Liste ve tarihçe, Supabase'in satır sınırında sessizce kesilmemesi için sayfalanır.
 
@@ -137,6 +138,8 @@ Kelime formundaki “Öneri oluştur” yalnızca İngilizce başlığı gönder
 Kullanıcı öneriyi inceler, “İnceledim, öneriyi forma aktar” ile formu doldurur ve ayrıca kaydeder. Mevcut puan ve kullanıcı URL/ses alanları korunur. Örneklerin Gemini kaynak bilgisi ve Türkçe odak parçaları saklanır. AI önerileri doğrulanmış sözlük verisi olarak sunulmaz; başlangıç seti editoryal içerik olarak kalır.
 
 Yeni tekli/toplu kelime eklemelerinde girişli kullanıcı için önce ücretsiz sözlük endpoint'i denenir; eksik alanlar ve örneklerin çevirileri Gemini ile tamamlanır. Kullanıcının girdiği dolu alanlar üzerine yazılmaz. AI günlük listesi açıkça seçildiğinde oluşturulur, önizlenir ve görev başlatılınca kaydedilir. Bu akışlar kimlik doğrulama, JSON şema doğrulaması, istek boyutu ve mevcut kullanıcı kotasını kullanır.
+
+Atlas sohbeti `/api/ai/chat` üzerinden çalışır. İstek son 12 mesaj ve toplam 9000 karakterle sınırlandırılır; yalnızca son mesaj kullanıcıdan olabilir. Mesajlar veritabanına kaydedilmez; yanıt Gemini'den gelir ve her sohbet isteği aynı kullanıcı başına AI kotasından bir kullanım tüketir. Chat için istemciden API anahtarı alınmaz ve kota dolduğunda anahtar/model değiştirilmez.
 
 Kota: kullanıcı başına dakikada 5, UTC gününde 40 çağrı; eşzamanlı talepler PostgreSQL satır kilidiyle sayılır. Başarısız sağlayıcı çağrıları da kotadan tüketir. Gemini zaman aşımı 30 saniyedir. Sağlayıcı/model değişkeni istemciden alınmaz. Otomatik ücretli tekrar veya tarayıcıdan Gemini çağrısı yapılmaz.
 

@@ -218,7 +218,7 @@ describe("Gemini provider", () => {
     );
     expect(result.reply).toBe("Indicate means to show.");
     expect(new Headers(input!.headers).get("x-goog-api-key")).toBe(config.GEMINI_API_KEY!);
-    expect(JSON.parse(input!.body as string).generationConfig.thinkingConfig).toEqual({
+    expect(JSON.parse(input?.body as string).generationConfig.thinkingConfig).toEqual({
       thinkingLevel: "low",
     });
     expect(

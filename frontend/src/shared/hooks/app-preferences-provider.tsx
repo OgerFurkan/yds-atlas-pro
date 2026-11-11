@@ -30,6 +30,10 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     document.documentElement.lang = language;
+    document.title =
+      language === "en"
+        ? "YDS Atlas Pro | YDS Vocabulary Coach"
+        : "YDS Atlas Pro | YDS Kelime Öğrenme";
     try {
       localStorage.setItem("yds-atlas-language", language);
     } catch {

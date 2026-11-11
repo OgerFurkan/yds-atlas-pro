@@ -48,6 +48,17 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       );
     } catch (reason) {
       if (reason instanceof ApiError && reason.code === "UNAUTHENTICATED") setNeedsSignIn(true);
+      else if (
+        reason instanceof ApiError &&
+        (reason.code === "NETWORK_ERROR" || reason.code === "INVALID_RESPONSE")
+      )
+        setError(t("chat.apiUnavailable"));
+      else if (reason instanceof ApiError && reason.code === "AI_NOT_CONFIGURED")
+        setError(t("chat.notConfigured"));
+      else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
+        setError(t("chat.timeout"));
+      else if (reason instanceof ApiError && reason.code === "AI_UPSTREAM_ERROR")
+        setError(t("chat.providerUnavailable"));
       else setError(reason instanceof Error ? reason.message : t("chat.error"));
     } finally {
       setBusy(false);

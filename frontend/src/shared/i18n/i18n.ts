@@ -136,6 +136,13 @@ const resources = {
         loginRequired: "Atlas ile sohbet etmek için hesabına giriş yap.",
         signIn: "Giriş yap",
         error: "Şu an yanıt veremiyorum. Biraz sonra tekrar dene.",
+        apiUnavailable:
+          "AI sunucusuna ulaşılamıyor. Yerelde bun run dev:api çalıştır veya VITE_API_URL'i Render API adresine ayarla.",
+        notConfigured:
+          "AI sunucusu yapılandırılmamış. GEMINI_API_KEY ve SUPABASE_SECRET_KEY yalnızca backend ortamında olmalı.",
+        providerUnavailable:
+          "Gemini yanıt veremedi. Render'daki GEMINI_MODEL ve Gemini API ayarlarını kontrol et.",
+        timeout: "Gemini yanıtı zaman aşımına uğradı. Biraz sonra yeniden dene.",
         footer: "Atlas yanıtları AI tarafından oluşturulur.",
       },
       auth: {
@@ -565,6 +572,13 @@ const resources = {
         loginRequired: "Sign in to chat with Atlas.",
         signIn: "Sign in",
         error: "I can't answer right now. Please try again shortly.",
+        apiUnavailable:
+          "The AI server can't be reached. Run bun run dev:api locally or set VITE_API_URL to your Render API URL.",
+        notConfigured:
+          "The AI server isn't configured. Set GEMINI_API_KEY and SUPABASE_SECRET_KEY only in the backend environment.",
+        providerUnavailable:
+          "Gemini couldn't respond. Check GEMINI_MODEL and the Gemini API settings in Render.",
+        timeout: "Gemini timed out. Please try again shortly.",
         footer: "Atlas answers are AI-generated.",
       },
       auth: {

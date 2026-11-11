@@ -37,7 +37,11 @@ export async function apiRequest<T>(
   }
   const payload = await response.json().catch(() => null);
   if (!response.ok)
-    throw new ApiError(payload?.error ?? "İşlem tamamlanamadı.", response.status, payload?.code);
+    throw new ApiError(
+      payload?.error ?? "API sunucusundan geçerli yanıt alınamadı.",
+      response.status,
+      payload?.code ?? (payload === null ? "INVALID_RESPONSE" : "REQUEST_FAILED"),
+    );
   if (payload === null)
     throw new ApiError("Sunucudan geçersiz yanıt alındı.", 502, "INVALID_RESPONSE");
   return payload as T;

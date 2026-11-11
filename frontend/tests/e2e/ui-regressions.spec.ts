@@ -156,6 +156,8 @@ test("appearance and language preferences persist and library cards stay distinc
     );
   });
   await page.goto("/");
+  await expect(page).toHaveTitle("YDS Atlas Pro | YDS Kelime Öğrenme");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "/atlas-pro-mark.svg");
   await page.getByRole("button", { name: "Menüyü aç" }).click();
   await page.getByRole("button", { name: "Ayarlar" }).click();
   const dialog = page.getByRole("dialog");
@@ -165,6 +167,7 @@ test("appearance and language preferences persist and library cards stay distinc
   expect(title!.x + title!.width).toBeLessThan(close!.x);
 
   await dialog.getByRole("button", { name: "English", exact: true }).click();
+  await expect(page).toHaveTitle("YDS Atlas Pro | YDS Vocabulary Coach");
   await expect(dialog.getByRole("heading", { name: "Appearance and language" })).toBeVisible();
   await dialog.getByRole("button", { name: "Dark", exact: true }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");

@@ -331,10 +331,14 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
 test("Atlas chat opens as a branded assistant and asks guests to sign in before sending", async ({
   page,
 }) => {
+  await page.addInitScript(() => localStorage.setItem("yds-atlas-theme", "dark"));
   await page.goto("/");
   await page.getByRole("button", { name: "Atlas'a sor" }).click();
   const chat = page.getByRole("dialog", { name: "YDS Atlas Pro Asistanı" });
   await expect(chat).toBeVisible();
+  expect(
+    await chat.locator("form").evaluate((element) => getComputedStyle(element).backgroundColor),
+  ).toBe("rgb(255, 255, 255)");
   await expect(page.getByRole("button", { name: "Atlas'a sor" })).toHaveCount(0);
   await page.screenshot({
     path: `test-results/atlas-chat-${test.info().project.name}.png`,
@@ -343,6 +347,19 @@ test("Atlas chat opens as a branded assistant and asks guests to sign in before 
   await expect(
     chat.getByText("Merhaba! Bir kelime, çeviri veya YDS sorusu sorabilirsin."),
   ).toBeVisible();
+  await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+  await expect(chat.getByText("Atlas ile sohbet etmek için hesabına giriş yap.")).toBeVisible();
+  await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
+  await chat.getByRole("button", { name: "Yeni sohbet" }).click();
+  await expect(
+    chat.getByRole("heading", { name: "Merhaba, nasıl yardımcı olabilirim?" }),
+  ).toBeVisible();
+  await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
+  await chat.getByRole("button", { name: "Sohbet geçmişi" }).click();
+  await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+  await expect(chat.getByText("Indicate ne demek?", { exact: true })).toBeVisible();
+  await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
+  await chat.getByRole("button", { name: "Yeni sohbet" }).click();
   await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
   await expect(chat.getByText("Atlas ile sohbet etmek için hesabına giriş yap.")).toBeVisible();
   await chat.getByRole("button", { name: "Giriş yap" }).click();

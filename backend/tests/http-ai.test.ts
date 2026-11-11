@@ -239,6 +239,37 @@ describe("Gemini provider", () => {
       ).rejects.toMatchObject({ code });
     }
   });
+  test("chat distinguishes provider network failures from cancellation", async () => {
+    const messages = [{ role: "user" as const, content: "Explain indicate." }];
+    const fetcher = (async () => {
+      throw new Error("network secret");
+    }) as unknown as typeof fetch;
+    await expect(generateChatReply({ messages }, config, undefined, fetcher)).rejects.toMatchObject(
+      {
+        code: "AI_NETWORK_ERROR",
+      },
+    );
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      generateChatReply({ messages }, config, controller.signal, fetcher),
+    ).rejects.toMatchObject({ code: "AI_TIMEOUT" });
+  });
+  test("chat recognizes invalid API keys returned as HTTP 400", async () => {
+    const fetcher = (async () =>
+      Response.json(
+        { error: { details: [{ reason: "API_KEY_INVALID" }] } },
+        { status: 400 },
+      )) as unknown as typeof fetch;
+    await expect(
+      generateChatReply(
+        { messages: [{ role: "user", content: "Hello" }] },
+        config,
+        undefined,
+        fetcher,
+      ),
+    ).rejects.toMatchObject({ code: "AI_AUTH_ERROR" });
+  });
   test("dictionary adapter uses only attributable Wiktionary data and at most two examples", async () => {
     const fetcher = (async () => Response.json(dictionaryEntry)) as unknown as typeof fetch;
     const source = await lookupDictionaryWord("Expand", undefined, fetcher);

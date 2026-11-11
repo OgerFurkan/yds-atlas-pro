@@ -46,12 +46,12 @@ export function LoginPage({
         </Button>
       </header>
       <main
-        className="auth-layout relative mx-auto grid w-full max-w-6xl flex-1 items-stretch overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(9,38,59,0.12)] lg:min-h-[620px] lg:grid-cols-2"
+        className="auth-layout relative mx-auto my-auto grid w-[calc(100%-2rem)] max-w-5xl items-stretch overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(9,38,59,0.12)] lg:min-h-[620px] lg:grid-cols-2"
         data-auth-mode={signup ? "signup" : "signin"}
       >
         <section
           aria-label={t("auth.brandDescription")}
-          className={`auth-brand relative hidden overflow-hidden p-8 text-white transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:block lg:p-10 ${signup ? "lg:translate-x-full" : ""}`}
+          className={`auth-brand relative z-20 hidden overflow-hidden p-8 text-white transition-transform duration-700 ease-[cubic-bezier(.65,0,.35,1)] motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:block lg:p-10 ${signup ? "lg:translate-x-full" : ""}`}
         >
           <p className="text-xs font-semibold tracking-[0.16em] text-orange-200">
             {t("brand.tagline").toLocaleUpperCase()}
@@ -102,7 +102,7 @@ export function LoginPage({
         </section>
         <section
           aria-label={t("auth.formAria")}
-          className={`auth-form-panel relative z-10 flex w-full items-center justify-center bg-white p-5 transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none sm:p-8 lg:col-start-2 lg:row-start-1 lg:p-10 ${signup ? "lg:-translate-x-full" : ""}`}
+          className={`auth-form-panel relative z-10 flex w-full items-center justify-center bg-white p-5 transition-transform duration-700 ease-[cubic-bezier(.65,0,.35,1)] motion-reduce:transition-none sm:p-8 lg:col-start-2 lg:row-start-1 lg:p-10 ${signup ? "lg:-translate-x-full" : ""}`}
         >
           <AuthForm
             key={recovering ? "recovery" : "signin"}

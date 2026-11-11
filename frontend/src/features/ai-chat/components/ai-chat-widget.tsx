@@ -1,9 +1,17 @@
 import type { AiChatRequest } from "@yds-atlas/shared";
-import { ArrowUp, LoaderCircle, X } from "lucide-react";
+import {
+  ArrowUp,
+  BookOpen,
+  ChevronDown,
+  History,
+  LoaderCircle,
+  Plus,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@/shared/api/api-client";
-import { AtlasLogo } from "@/shared/brand/atlas-logo";
 import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
 import { sendChat } from "../api/ai-chat-api";
@@ -16,6 +24,9 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const [busy, setBusy] = useState(false);
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [error, setError] = useState("");
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<AiChatRequest["messages"][]>([]);
   const messageEnd = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -40,6 +51,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     setDraft("");
     setError("");
     setNeedsSignIn(false);
+    setShowHistory(false);
     setBusy(true);
     try {
       const response = await sendChat(history);
@@ -57,6 +69,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         setError(t("chat.notConfigured"));
       else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
         setError(t("chat.timeout"));
+      else if (reason instanceof ApiError && reason.code === "AI_NETWORK_ERROR")
+        setError(t("chat.networkError"));
       else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
         setError(t("chat.providerAuth"));
       else if (reason instanceof ApiError && reason.code === "AI_MODEL_NOT_FOUND")
@@ -84,101 +98,188 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   }
 
   const suggestions = t("chat.suggestions", { returnObjects: true }) as string[];
+  const suggestionIcons = [BookOpen, Sparkles, History];
+
+  function newChat() {
+    if (messages.length) setHistory((previous) => [messages, ...previous].slice(0, 10));
+    setMessages([]);
+    setDraft("");
+    setError("");
+    setNeedsSignIn(false);
+    setMenuOpen(false);
+    setShowHistory(false);
+  }
 
   return (
     <div className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
       {open && (
         <section
-          className="atlas-chat-panel flex h-[min(620px,calc(100dvh-112px))] w-[min(390px,calc(100vw-32px))] flex-col overflow-hidden rounded-xl border border-slate-200 bg-white shadow-[0_20px_70px_rgba(7,28,45,0.28)]"
+          className="atlas-chat-panel flex h-[min(590px,calc(100dvh-32px))] w-[min(390px,calc(100vw-32px))] flex-col gap-3"
           role="dialog"
           aria-label={t("chat.title")}
           aria-modal="false"
         >
-          <header className="flex shrink-0 items-center gap-3 bg-[#123b59] px-4 py-3 text-white">
-            <AtlasLogo className="size-10 rounded-full border border-white/40 bg-white p-1 shadow-sm" />
-            <div className="min-w-0 flex-1">
-              <h2 className="truncate text-sm font-bold">{t("chat.title")}</h2>
-              <p className="text-[11px] text-blue-100">{t("chat.subtitle")}</p>
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="text-white hover:bg-white/15 hover:text-white"
-              aria-label={t("chat.close")}
-              onClick={() => setOpen(false)}
-            >
-              <X size={19} />
-            </Button>
-          </header>
-
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-slate-50 px-3 py-4 sm:px-4">
-            <div className="max-w-[88%] rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm leading-6 text-slate-700 shadow-sm">
-              {t("chat.welcome")}
-            </div>
-            {!messages.length && !busy && (
-              <div className="flex flex-wrap gap-2 pt-1">
-                {suggestions.map((suggestion) => (
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl bg-[#f7f9fc] text-[#123b59] shadow-[0_12px_42px_rgba(9,38,59,0.22)]">
+            <header className="relative z-10 flex shrink-0 items-center justify-between bg-[#dcecf4] px-5 py-3">
+              <button
+                type="button"
+                className="flex items-center gap-2 rounded-full px-2 py-1 text-sm font-bold hover:bg-white/70"
+                aria-expanded={menuOpen}
+                onClick={() => setMenuOpen(!menuOpen)}
+              >
+                YDS Atlas <span className="rounded bg-[#f27637] px-1 text-xs text-white">AI</span>
+                <ChevronDown size={16} />
+              </button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="text-[#123b59]"
+                aria-label={t("chat.close")}
+                onClick={() => setOpen(false)}
+              >
+                <X size={19} />
+              </Button>
+              {menuOpen && (
+                <div className="absolute top-14 right-4 left-4 rounded-xl bg-[#ffffff] p-2 text-[#123b59] shadow-lg">
                   <button
                     type="button"
-                    key={suggestion}
                     disabled={busy}
-                    className="rounded-full border border-atlas-blue/30 bg-white px-3 py-1.5 text-left text-xs text-atlas-navy transition-colors hover:border-atlas-orange hover:bg-orange-50"
-                    onClick={() => void send(suggestion)}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8] disabled:opacity-50"
+                    onClick={newChat}
                   >
-                    {suggestion}
+                    <Plus size={17} />
+                    {t("chat.newChat")}
                   </button>
+                  <button
+                    type="button"
+                    disabled={busy}
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8] disabled:opacity-50"
+                    onClick={() => {
+                      setShowHistory(true);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    <History size={17} />
+                    {t("chat.history")}
+                  </button>
+                </div>
+              )}
+            </header>
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+              {showHistory ? (
+                <div className="space-y-2">
+                  <h2 className="font-bold">{t("chat.history")}</h2>
+                  {history.length ? (
+                    history.map((conversation, index) => (
+                      <button
+                        type="button"
+                        key={index}
+                        className="block w-full truncate rounded-lg bg-[#ffffff] p-3 text-left text-sm"
+                        onClick={() => {
+                          if (messages.length)
+                            setHistory((previous) => [
+                              messages,
+                              ...previous.filter((_, itemIndex) => itemIndex !== index),
+                            ]);
+                          else
+                            setHistory((previous) =>
+                              previous.filter((_, itemIndex) => itemIndex !== index),
+                            );
+                          setMessages(conversation);
+                          setShowHistory(false);
+                          setNeedsSignIn(false);
+                          setError("");
+                        }}
+                      >
+                        {conversation[0]?.content}
+                      </button>
+                    ))
+                  ) : (
+                    <p className="text-sm">{t("chat.historyEmpty")}</p>
+                  )}
+                </div>
+              ) : null}
+              {!showHistory && !messages.length && !busy && (
+                <div className="flex min-h-full flex-col">
+                  <h2 className="mt-8 text-center text-2xl font-bold">{t("chat.greeting")}</h2>
+                  <p className="mt-2 text-center text-sm text-[#536b7d]">{t("chat.welcome")}</p>
+                  <div className="mt-6">
+                    {suggestions.map((suggestion, index) => {
+                      const Icon = suggestionIcons[index] ?? Sparkles;
+                      return (
+                        <button
+                          type="button"
+                          key={suggestion}
+                          className="flex w-full items-center gap-4 border-b border-[#dce6ec] px-2 py-4 text-left text-sm hover:bg-white/70"
+                          onClick={() => void send(suggestion)}
+                        >
+                          <Icon size={20} className="shrink-0 text-[#f27637]" />
+                          {suggestion}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <img
+                    src="/brand/atlas-mascot.png"
+                    alt=""
+                    className="mx-auto mt-auto h-32 w-40 object-contain object-bottom"
+                  />
+                </div>
+              )}
+              {!showHistory &&
+                messages.map((message, index) => (
+                  <div
+                    key={`${index}-${message.role}`}
+                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
+                  >
+                    <p
+                      className={`max-w-[88%] whitespace-pre-wrap rounded-xl px-3 py-2.5 text-sm leading-6 ${message.role === "user" ? "bg-[#123b59] text-white" : "bg-[#ffffff] text-[#123b59] shadow-sm"}`}
+                    >
+                      {message.content}
+                    </p>
+                  </div>
                 ))}
-              </div>
-            )}
-            {messages.map((message, index) => (
-              <div
-                key={`${index}-${message.role}`}
-                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-              >
-                <p
-                  className={`max-w-[88%] whitespace-pre-wrap rounded-lg px-3 py-2.5 text-sm leading-6 ${message.role === "user" ? "bg-[#123b59] text-white" : "border border-slate-200 bg-white text-slate-700 shadow-sm"}`}
-                >
-                  {message.content}
+              {busy && (
+                <div className="flex items-center gap-2 text-xs text-slate-500" role="status">
+                  <LoaderCircle size={15} className="animate-spin" /> {t("chat.thinking")}
+                </div>
+              )}
+              {error && (
+                <p className="text-xs leading-5 text-red-700" role="alert">
+                  {error}
                 </p>
-              </div>
-            ))}
-            {busy && (
-              <div className="flex items-center gap-2 text-xs text-slate-500" role="status">
-                <LoaderCircle size={15} className="animate-spin" /> {t("chat.thinking")}
-              </div>
-            )}
-            {error && (
-              <p className="text-xs leading-5 text-red-700" role="alert">
-                {error}
-              </p>
-            )}
-            {needsSignIn && (
-              <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-950">
-                <p>{t("chat.loginRequired")}</p>
-                <Button
-                  className="mt-2"
-                  size="sm"
-                  onClick={() => {
-                    setOpen(false);
-                    onLogin();
-                  }}
-                >
-                  {t("chat.signIn")}
-                </Button>
-              </div>
-            )}
-            <div ref={messageEnd} />
+              )}
+              {needsSignIn && (
+                <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-950">
+                  <p>{t("chat.loginRequired")}</p>
+                  <Button
+                    className="mt-2"
+                    size="sm"
+                    onClick={() => {
+                      setOpen(false);
+                      onLogin();
+                    }}
+                  >
+                    {t("chat.signIn")}
+                  </Button>
+                </div>
+              )}
+              <div ref={messageEnd} />
+            </div>
           </div>
 
-          <form onSubmit={submit} className="shrink-0 border-t border-slate-200 bg-white p-3">
-            <div className="flex items-end gap-2 rounded-lg border border-slate-200 bg-white p-2 focus-within:border-atlas-blue/60 focus-within:ring-2 focus-within:ring-atlas-blue/15">
+          <form
+            onSubmit={submit}
+            className="shrink-0 rounded-3xl border border-[#dce6ec] bg-[#ffffff] p-3 shadow-[0_8px_30px_rgba(18,59,89,0.20)]"
+          >
+            <div className="flex items-end gap-2">
               <Textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
                 onKeyDown={handleKeyDown}
                 aria-label={t("chat.placeholder")}
                 placeholder={t("chat.placeholder")}
-                className="max-h-24 min-h-10 resize-none border-0 bg-transparent px-1 py-2 text-sm shadow-none focus-visible:ring-0"
+                className="max-h-24 min-h-10 resize-none border-0 bg-transparent px-1 py-2 text-sm text-[#123b59] shadow-none placeholder:text-[#536b7d] focus-visible:ring-0"
                 maxLength={1800}
                 rows={1}
                 disabled={busy || needsSignIn}
@@ -193,19 +294,25 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 <ArrowUp size={18} />
               </Button>
             </div>
-            <p className="mt-1.5 text-center text-[10px] text-slate-400">{t("chat.footer")}</p>
           </form>
         </section>
       )}
       {!open && (
         <Button
-          className="h-12 gap-2 rounded-full bg-[#123b59] px-4 text-white shadow-lg hover:bg-[#0c2e46]"
+          className="h-16 w-[min(350px,calc(100vw-32px))] justify-start gap-3 rounded-full border border-[#dce6ec] bg-[#ffffff] px-3 text-[#123b59] shadow-[0_8px_32px_rgba(18,59,89,0.22)] hover:bg-[#ffffff]"
           aria-expanded={false}
           aria-label={t("chat.launcher")}
           onClick={() => setOpen(true)}
         >
-          <AtlasLogo className="size-8 rounded-full border border-white/50 bg-white p-1" />
-          <span>{t("chat.launcher")}</span>
+          <img
+            src="/brand/atlas-mascot.png"
+            alt=""
+            className="size-11 rounded-full bg-[#e8f2f7] object-cover"
+          />
+          <span className="flex-1 text-left">{t("chat.placeholder")}</span>
+          <span className="rounded-full bg-[#123b59] px-4 py-2 text-white">
+            {t("chat.launcher")}
+          </span>
         </Button>
       )}
     </div>

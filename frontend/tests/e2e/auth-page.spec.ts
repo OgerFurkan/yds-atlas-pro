@@ -48,7 +48,11 @@ test("sign-up slides the Atlas panel to the right and sign-in slides it back", a
   await expect(shell).toHaveAttribute("data-auth-mode", "signin");
   const shellBox = await shell.boundingBox();
   expect(shellBox).not.toBeNull();
+  expect(await brand.evaluate((element) => getComputedStyle(element).transitionDuration)).toBe(
+    "0.7s",
+  );
   await brand.getByRole("button", { name: "Hesap oluştur", exact: true }).click();
+  expect(await brand.evaluate((element) => element.getAnimations().length)).toBeGreaterThan(0);
   await expect(shell).toHaveAttribute("data-auth-mode", "signup");
   await expect
     .poll(async () => {

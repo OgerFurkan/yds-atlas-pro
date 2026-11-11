@@ -11,6 +11,7 @@ export async function generateChatReply(
   if (!config.GEMINI_API_KEY)
     throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
 
+  const timeout = AbortSignal.timeout(30_000);
   let response: Response;
   try {
     response = await fetcher(
@@ -18,9 +19,7 @@ export async function generateChatReply(
       {
         method: "POST",
         headers: { "Content-Type": "application/json", "x-goog-api-key": config.GEMINI_API_KEY },
-        signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(30_000)])
-          : AbortSignal.timeout(30_000),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         body: JSON.stringify({
           systemInstruction: {
             parts: [
@@ -38,6 +37,8 @@ export async function generateChatReply(
       },
     );
   } catch {
+    if (!timeout.aborted && !signal?.aborted)
+      throw new HttpError(503, "Gemini sunucusuna bağlanılamadı.", "AI_NETWORK_ERROR");
     throw new HttpError(
       504,
       "Atlas şu anda yanıt veremiyor. Biraz sonra yeniden dene.",
@@ -46,6 +47,21 @@ export async function generateChatReply(
   }
 
   if (!response.ok) {
+    if (response.status === 400) {
+      const payload = (await response.json().catch(() => null)) as {
+        error?: { details?: { reason?: string }[] };
+      } | null;
+      if (
+        payload?.error?.details?.some(
+          (detail) => detail.reason === "API_KEY_INVALID" || detail.reason === "API_KEY_EXPIRED",
+        )
+      )
+        throw new HttpError(
+          503,
+          "Gemini API anahtarı veya proje erişimi reddedildi.",
+          "AI_AUTH_ERROR",
+        );
+    }
     if (response.status === 429)
       throw new HttpError(
         429,

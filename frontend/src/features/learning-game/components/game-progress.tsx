@@ -1,4 +1,5 @@
 ﻿import { Check } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import { Badge } from "@/shared/ui/badge";
 import { Progress } from "@/shared/ui/progress";
@@ -6,23 +7,26 @@ import { gameProgress } from "../model/game-progress";
 import { type GameSession, phaseLabels } from "../model/game-session";
 
 export function GameProgress({ session }: { session: GameSession }) {
+  const { t } = useTranslation();
   const { groups, final, active, percent } = gameProgress(session);
+  const steps = t("game.progressSteps", { returnObjects: true }) as string[];
+  const labels = [steps[0], ...(session.groupMatching ? [steps[1]] : []), ...steps.slice(2)];
   return (
     <div id="game-progress" className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="font-semibold text-atlas-navy">
           {final
-            ? "Bütün kelimeler · Genel değerlendirme"
-            : `Grup ${session.groupIndex + 1} / ${groups}`}
+            ? t("game.allWordsAssessment")
+            : t("game.group", { current: session.groupIndex + 1, count: groups })}
           <span className="ml-2 font-normal text-slate-500">
-            {session.words.length} kelimelik görev
+            {t("game.taskCount", { count: session.words.length })}
           </span>
         </span>
-        <Badge variant="outline">%{percent} tamamlandı</Badge>
+        <Badge variant="outline">{t("game.percent", { percent })}</Badge>
       </div>
-      <Progress value={percent} aria-label="Oyun ilerlemesi" />
-      <ol className="grid grid-cols-4 gap-1.5">
-        {["Keşfet", "Anlamı bul", "Bağlamda öğren", "Genel değerlendirme"].map((label, index) => (
+      <Progress value={percent} aria-label={t("game.progressAria")} />
+      <ol className={cn("grid gap-1.5", session.groupMatching ? "grid-cols-5" : "grid-cols-4")}>
+        {labels.map((label, index) => (
           <li
             key={label}
             aria-current={index === active ? "step" : undefined}
@@ -52,7 +56,7 @@ export function GameProgress({ session }: { session: GameSession }) {
       {final && session.version === 3 && (
         <ol
           className="flex flex-wrap justify-center gap-2 text-xs"
-          aria-label="Genel değerlendirme adımları"
+          aria-label={t("game.finalAria")}
         >
           {["final-matching", "final-meaning", "final-context"].map((phase, index) => (
             <li
@@ -65,13 +69,14 @@ export function GameProgress({ session }: { session: GameSession }) {
                   : "bg-white text-slate-500",
               )}
             >
-              {index + 1}.{" "}
-              {index === 0 ? "Eşleştir" : index === 1 ? "Anlamı hatırla" : "Cümlede kullan"}
+              {index + 1}. {(t("game.finalSteps", { returnObjects: true }) as string[])[index]}
             </li>
           ))}
         </ol>
       )}
-      <p className="sr-only">{phaseLabels[session.phase]}</p>
+      <p className="sr-only">
+        {t(`game.phases.${session.phase}`, { defaultValue: phaseLabels[session.phase] })}
+      </p>
     </div>
   );
 }

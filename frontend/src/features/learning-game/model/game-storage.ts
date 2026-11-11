@@ -9,10 +9,10 @@ export function readSession(): GameSession | null {
   if (
     session.queue.some((id) => !ids.has(id)) ||
     session.groupIndex * session.batchSize >= session.words.length ||
-    (session.phase !== "complete" && session.phase !== "final-matching" && !session.queue.length)
+    (session.phase !== "complete" && !session.phase.endsWith("matching") && !session.queue.length)
   )
     return null;
-  if (session.phase === "final-matching") {
+  if (session.phase.endsWith("matching")) {
     const board = session.matching;
     if (!board || session.version !== 3) return null;
     const left = new Set(board.left);

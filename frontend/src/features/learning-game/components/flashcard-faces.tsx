@@ -1,6 +1,7 @@
 import type { WordEntry } from "@yds-atlas/shared";
 import { FlipHorizontal2, Sparkles } from "lucide-react";
 import type { CSSProperties } from "react";
+import { useTranslation } from "react-i18next";
 import { FittedWord } from "@/features/learning-game/components/fitted-word";
 import { formatWordType } from "@/features/word-library/model/word-normalization";
 import { AtlasLogo } from "@/shared/brand/atlas-logo";
@@ -20,6 +21,7 @@ const frontBackground = {
 };
 
 export function FlashcardFront({ word, hidden }: { word: WordEntry; hidden: boolean }) {
+  const { t } = useTranslation();
   return (
     <span
       aria-hidden={hidden}
@@ -55,7 +57,7 @@ export function FlashcardFront({ word, hidden }: { word: WordEntry; hidden: bool
       <span className="relative z-10 flex min-w-0 flex-1 flex-col items-center justify-center gap-5 py-8 text-center">
         <span className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.30em] text-blue-100/75">
           <span className="h-px w-5 bg-orange-300/70" />
-          Vocabulary card
+          {t("game.cardTitle")}
           <span className="h-px w-5 bg-orange-300/70" />
         </span>
         <FittedWord
@@ -65,15 +67,15 @@ export function FlashcardFront({ word, hidden }: { word: WordEntry; hidden: bool
           className="font-display font-semibold leading-[1.13] tracking-tight text-white"
         />
         <span className="h-0.75 w-11 rounded-full bg-atlas-orange shadow-[0_0_16px_rgba(242,118,55,0.30)]" />
-        <span className="text-sm leading-6 text-[#C9DAE7]">Anlamını görmek için kartı çevir</span>
+        <span className="text-sm leading-6 text-[#C9DAE7]">{t("game.flipHint")}</span>
       </span>
 
       <span className="relative z-10 flex items-center justify-between gap-3 border-t border-white/15 pt-5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.20em] text-blue-100/65">
-          Her kelime bir keşif
+          {t("brand.tagline")}
         </span>
         <span className="flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-2 text-xs font-semibold text-white transition-colors duration-200 group-hover:bg-white/20">
-          <FlipHorizontal2 size={16} /> Kartı çevir
+          <FlipHorizontal2 size={16} /> {t("game.flip")}
         </span>
       </span>
     </span>
@@ -81,6 +83,7 @@ export function FlashcardFront({ word, hidden }: { word: WordEntry; hidden: bool
 }
 
 export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boolean }) {
+  const { t } = useTranslation();
   const meaning = word.meanings.join(" · ");
   const hasCefr = word.cefr && word.cefr !== "Belirtilmedi";
 
@@ -88,7 +91,7 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
     <span
       id="word-information"
       aria-hidden={hidden}
-      className={`${FACE_SIZE} border-slate-200 text-atlas-navy shadow-[0_14px_38px_rgba(8,36,56,0.16),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-5px_0_rgba(16,50,70,0.055)]`}
+      className={`${FACE_SIZE} atlas-card-back border-slate-200 text-atlas-navy shadow-[0_14px_38px_rgba(8,36,56,0.16),inset_0_1px_0_rgba(255,255,255,0.95),inset_0_-5px_0_rgba(16,50,70,0.055)]`}
       style={{
         ...hiddenBackface,
         transform: "rotateY(180deg)",
@@ -109,7 +112,7 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
           <AtlasLogo className="size-6" /> ATLAS
         </span>
         <span className="flex items-center gap-1 rounded-full bg-atlas-orange-pale px-3 py-1 text-[10px] font-bold tracking-[0.12em] text-atlas-orange-dark">
-          <Sparkles size={12} /> KELİME KARTI
+          <Sparkles size={12} /> {t("game.cardTitle")}
         </span>
       </span>
 
@@ -122,7 +125,7 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
         />
         <span className="flex flex-wrap justify-center gap-2">
           <Badge variant="outline" className="border-slate-200 bg-white/80 text-atlas-navy">
-            {formatWordType(word.partOfSpeech) || "Tür belirtilmedi"}
+            {formatWordType(word.partOfSpeech) || t("game.undefinedType")}
           </Badge>
           {hasCefr && (
             <Badge
@@ -143,15 +146,15 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
 
       <span className="relative z-10 flex flex-1 flex-col items-center justify-center gap-3 text-center">
         <span className="text-[10px] font-bold uppercase tracking-[0.23em] text-slate-500">
-          Türkçe anlamı
+          {t("game.turkishMeaning")}
         </span>
         <span className="w-full wrap-break-word text-[clamp(1.25rem,4.2vw,1.55rem)] font-semibold leading-[1.45]">
-          {meaning || "Anlam henüz eklenmedi"}
+          {meaning || t("game.meaningMissing")}
         </span>
         {word.usageNote && (
           <span className="mt-3 w-full rounded-xl border border-slate-200 bg-white/75 px-4 py-3 text-left">
             <span className="mb-1.5 block text-[10px] font-bold uppercase tracking-[0.17em] text-slate-500">
-              Kullanım notu
+              {t("game.usageNote")}
             </span>
             <span className="block wrap-break-word text-xs leading-5 text-slate-600 sm:text-sm sm:leading-6">
               {word.usageNote}
@@ -162,10 +165,10 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
 
       <span className="relative z-10 mt-7 flex items-center justify-between gap-3 border-t border-slate-200 pt-5">
         <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-slate-500">
-          Keşfet • Öğren
+          {t("game.cardFooter")}
         </span>
         <span className="flex items-center gap-2 rounded-full bg-atlas-blue-pale px-3 py-2 text-xs font-semibold text-atlas-navy">
-          <FlipHorizontal2 size={16} /> Ön yüze dön
+          <FlipHorizontal2 size={16} /> {t("game.flipBack")}
         </span>
       </span>
     </span>

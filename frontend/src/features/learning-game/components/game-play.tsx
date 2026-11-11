@@ -30,7 +30,7 @@ export function GamePlay({
   onMatchNext: () => void;
 }) {
   const word = currentWord(session);
-  if (!word && session.phase !== "final-matching") return null;
+  if (!word && !session.phase.endsWith("matching")) return null;
   const total = isFinal(session) ? session.words.length : groupWords(session).length;
   return (
     <div className="space-y-4">
@@ -42,7 +42,7 @@ export function GamePlay({
               {session.stageCompleted} / {total} tamamlandı
             </span>
           </div>
-          {session.phase === "final-matching" ? (
+          {session.phase.endsWith("matching") ? (
             <MatchingPanel
               session={session}
               onSelect={onMatch}

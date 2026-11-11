@@ -1,4 +1,5 @@
 import { CalendarCheck2, CircleHelp, GraduationCap, Play } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import type { GameSession } from "../model/game-session";
@@ -16,6 +17,7 @@ export function SetupIntro({
   onTutorial: () => void;
   onResume: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <>
       <section
@@ -27,43 +29,42 @@ export function SetupIntro({
             <CalendarCheck2 size={29} />
           </span>
           <div>
-            <Badge variant="secondary">GÜNLÜK HEDEFİN İÇİN</Badge>
-            <h1 className="mt-2 text-3xl font-bold tracking-tight text-atlas-navy">Günlük Görev</h1>
+            <Badge variant="secondary">{t("taskIntro.badge")}</Badge>
+            <h1 className="mt-2 text-3xl font-bold tracking-tight text-atlas-navy">
+              {t("taskIntro.title")}
+            </h1>
             <p className="mt-2 max-w-xl text-sm leading-7 text-slate-500">
-              Bugün çalışacağın kelimeleri seç. Kelimeleri küçük gruplarla öğren, ardından genel
-              değerlendirmeyi tamamla.
+              {t("taskIntro.description")}
             </p>
           </div>
         </div>
         <div className="flex w-full flex-wrap gap-2 sm:w-auto">
           <Button variant="outline" onClick={onStartGuide}>
-            <CircleHelp size={17} /> Hazırlık rehberi
+            <CircleHelp size={17} /> {t("taskIntro.guide")}
           </Button>
           <Button variant="secondary" onClick={onTutorial}>
-            <GraduationCap size={18} /> Oyunu dene
+            <GraduationCap size={18} /> {t("taskIntro.tryGame")}
           </Button>
         </div>
       </section>
       {saved && !saved.saved && (
         <div className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-orange-200 bg-orange-50 p-5">
           <div>
-            <strong className="text-atlas-navy">Yarım kalan görevin hazır</strong>
+            <strong className="text-atlas-navy">{t("taskIntro.unfinished")}</strong>
             <p className="mt-1 text-sm text-slate-600">
-              {saved.words.length} kelimelik çalışmana kaldığın yerden devam edebilirsin.
+              {t("taskIntro.resume", { count: saved.words.length })}
             </p>
           </div>
           <Button onClick={onResume}>
-            <Play size={16} /> Kaldığım yerden devam et
+            <Play size={16} /> {t("taskIntro.continue")}
           </Button>
         </div>
       )}
       {saved?.saved && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
-          <p className="text-sm text-emerald-900">
-            Son günlük görevin tamamlandı. Öğrenme gruplarını yeniden inceleyebilirsin.
-          </p>
+          <p className="text-sm text-emerald-900">{t("taskIntro.completed")}</p>
           <Button variant="outline" onClick={onResume}>
-            Son sonuçlarımı gör
+            {t("taskIntro.results")}
           </Button>
         </div>
       )}
@@ -72,7 +73,7 @@ export function SetupIntro({
           role="status"
           className="flex items-center gap-3 rounded-xl bg-atlas-navy px-4 py-3 text-sm text-white"
         >
-          <GraduationCap size={20} /> HAZIRLIK REHBERİ · Deneme alanı, değişikliklerin kaydedilmez.
+          <GraduationCap size={20} /> {t("taskIntro.guideActive")}
         </div>
       )}
     </>

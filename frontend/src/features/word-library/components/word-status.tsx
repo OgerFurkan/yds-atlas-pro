@@ -1,11 +1,6 @@
 import { getWordGroup, type WordGroup } from "@yds-atlas/shared";
 import { CircleCheck } from "lucide-react";
-
-const groupNames: Record<WordGroup, string> = {
-  hard: "Zorlanılan",
-  review: "Tekrar gerekli",
-  learned: "Öğrenildi",
-};
+import { useTranslation } from "react-i18next";
 
 const tones: Record<WordGroup, string> = {
   hard: "bg-orange-50 text-orange-800",
@@ -14,6 +9,7 @@ const tones: Record<WordGroup, string> = {
 };
 
 export function WordStatus({ score }: { score: number }) {
+  const { t } = useTranslation();
   const group = getWordGroup(score);
   return (
     <span
@@ -24,7 +20,7 @@ export function WordStatus({ score }: { score: number }) {
       ) : (
         <span className="size-1.5 rounded-full bg-current" />
       )}
-      {groupNames[group]}
+      {t(`wordStatus.${group}`)}
     </span>
   );
 }

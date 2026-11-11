@@ -1,4 +1,6 @@
 ﻿import { createClient } from "@supabase/supabase-js";
+import { authStorage } from "@/features/auth/model/auth-storage";
+
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = (
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -41,6 +43,7 @@ export const supabase =
         auth: {
           flowType: "pkce",
           persistSession: true,
+          storage: authStorage,
           autoRefreshToken: true,
           detectSessionInUrl: true,
         },

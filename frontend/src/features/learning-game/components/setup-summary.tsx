@@ -1,4 +1,5 @@
 import { ArrowRight, CalendarCheck2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import type { GameSession } from "../model/game-session";
 import { taskGroupCount } from "../model/game-setup";
@@ -18,6 +19,7 @@ export function SetupSummary({
   saved: GameSession | null;
   onStart: (short?: boolean) => void;
 }) {
+  const { t } = useTranslation();
   const groups = taskGroupCount(target, candidateCount, batch);
   return (
     <aside
@@ -26,33 +28,28 @@ export function SetupSummary({
     >
       <div className="flex items-center gap-2">
         <CalendarCheck2 size={21} className="text-atlas-orange" />
-        <h2 className="text-lg font-semibold text-atlas-navy">Görevinin özeti</h2>
+        <h2 className="text-lg font-semibold text-atlas-navy">{t("setup.summary")}</h2>
       </div>
       <dl className="space-y-3 text-sm">
         <div className="flex justify-between gap-3">
-          <dt className="text-slate-500">Hedef</dt>
-          <dd className="font-semibold text-atlas-navy">{target} kelime</dd>
+          <dt className="text-slate-500">{t("goal.eyebrow")}</dt>
+          <dd className="font-semibold text-atlas-navy">
+            {target} {t("library.word", { count: target })}
+          </dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-slate-500">Hazır kelime</dt>
+          <dt className="text-slate-500">{t("setup.readyCount")}</dt>
           <dd className="font-semibold text-atlas-navy">{candidateCount}</dd>
         </div>
         <div className="flex justify-between gap-3">
-          <dt className="text-slate-500">Çalışma düzeni</dt>
+          <dt className="text-slate-500">{t("setup.configure")}</dt>
           <dd className="text-right font-semibold text-atlas-navy">
-            {groups} grup · {batch}'li
+            {groups} {t("setup.groups", { count: batch })}
           </dd>
         </div>
       </dl>
       <div className="space-y-3 border-t pt-5">
-        {[
-          ["Kelimeleri keşfet", "Kartlar, telaffuz ve çevrilmiş örnekler."],
-          ["Öğrendiklerini pekiştir", "Anlam ve cümle tamamlama soruları."],
-          [
-            "Görevi tamamla",
-            "Eşleştir, anlamı hatırla, cümlede kullan. Sonunda öğrenme grupların.",
-          ],
-        ].map(([title, text], index) => (
+        {(t("setup.stages", { returnObjects: true }) as string[][]).map(([title, text], index) => (
           <div key={title} className="flex gap-3">
             <span className="grid size-6 shrink-0 place-items-center rounded-full bg-blue-50 text-xs font-bold text-atlas-blue">
               {index + 1}
@@ -70,12 +67,12 @@ export function SetupSummary({
         disabled={busy || candidateCount < target}
         onClick={() => onStart()}
       >
-        {busy ? "Hazırlanıyor…" : "Günlük göreve başla"}
+        {busy ? t("setup.preparing") : t("setup.startTask")}
         <ArrowRight size={17} />
       </Button>
       {candidateCount < target && (
         <div className="rounded-lg bg-orange-50 p-3 text-sm leading-6 text-orange-900">
-          Hedefin için {target - candidateCount} hazır kelime daha gerekiyor.
+          {t("setup.insufficient", { count: target - candidateCount })}
           {candidateCount > 0 && (
             <Button
               variant="link"
@@ -83,19 +80,15 @@ export function SetupSummary({
               disabled={busy}
               onClick={() => onStart(true)}
             >
-              Mevcut {candidateCount} kelimeyle kısa görev başlat
+              {t("setup.shortTask", { count: candidateCount })}
             </Button>
           )}
         </div>
       )}
       {saved && !saved.saved && (
-        <p className="text-xs leading-6 text-slate-500">
-          Yeni bir görev başlatırsan yarım kalan görevin yerine kaydedilir.
-        </p>
+        <p className="text-xs leading-6 text-slate-500">{t("setup.resumeNotice")}</p>
       )}
-      <p className="text-xs leading-6 text-slate-400">
-        İstediğin zaman ara verebilirsin. İlerlemen bu tarayıcıda saklanır.
-      </p>
+      <p className="text-xs leading-6 text-slate-400">{t("setup.pauseNotice")}</p>
     </aside>
   );
 }

@@ -1,4 +1,5 @@
 ﻿import { ChevronDown, GraduationCap } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import {
   DropdownMenu,
@@ -17,6 +18,7 @@ export function LearningMenu({
   active: boolean;
   onChoose: (screen: (typeof learningActivities)[number]["screen"]) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -25,7 +27,7 @@ export function LearningMenu({
           className={`group h-11 w-full justify-start text-sm xl:w-auto ${active ? "bg-blue-50 text-atlas-navy" : ""}`}
         >
           <GraduationCap size={18} />
-          Öğren
+          {t("nav.learn")}
           <ChevronDown
             size={14}
             className="ml-auto transition-transform group-data-[state=open]:rotate-180 xl:ml-1"
@@ -38,7 +40,7 @@ export function LearningMenu({
         className="w-[min(340px,calc(100vw-24px))] rounded-xl p-2 shadow-lg"
       >
         <DropdownMenuLabel className="px-3 py-2 text-xs font-semibold tracking-wider text-slate-400">
-          ÖĞRENME OYUNLARI
+          {t("nav.learningGames")}
         </DropdownMenuLabel>
         {learningActivities.map((activity) => (
           <DropdownMenuItem
@@ -51,21 +53,19 @@ export function LearningMenu({
             </span>
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2 font-semibold text-atlas-navy">
-                {activity.title}
+                {t("nav.dailyTask")}
                 <span className="rounded bg-blue-50 px-1.5 py-0.5 text-[10px] text-atlas-blue">
-                  {activity.badge}
+                  {t("nav.new")}
                 </span>
               </span>
               <span className="mt-1 block text-xs leading-5 text-slate-500">
-                {activity.description}
+                {t("nav.learnWords")}
               </span>
             </span>
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <p className="px-3 py-2 text-xs leading-5 text-slate-400">
-          Yeni öğrenme oyunları burada yerini alacak.
-        </p>
+        <p className="px-3 py-2 text-xs leading-5 text-slate-400">{t("nav.moreGames")}</p>
       </DropdownMenuContent>
     </DropdownMenu>
   );

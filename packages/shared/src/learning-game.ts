@@ -3,6 +3,7 @@ import { z } from "zod";
 
 export const phases = [
   "flashcards",
+  "matching",
   "meaning",
   "context",
   "final-matching",
@@ -13,6 +14,7 @@ export const phases = [
 export type GamePhase = (typeof phases)[number];
 export const phaseLabels: Record<GamePhase, string> = {
   flashcards: "Keşfet",
+  matching: "Eşleştir",
   meaning: "Anlamı bul",
   context: "Bağlamda öğren",
   "final-matching": "Genel değerlendirme · Eşleştirme",
@@ -45,6 +47,7 @@ export const matchingSchema = z.object({
 });
 export const gameSessionSchema = z.object({
   version: z.union([z.literal(2), z.literal(3)]),
+  groupMatching: z.boolean().default(false),
   id: z.string(),
   words: z.array(sessionWordSchema).min(1),
   batchSize: z.union([z.literal(5), z.literal(10)]),

@@ -1,15 +1,33 @@
-﻿import { z } from "zod";
-import { aiWordRequestSchema, gameSessionSchema, wordInputSchema } from "@yds-atlas/shared";
+﻿import {
+  aiChatRequestSchema,
+  aiNamedWordsRequestSchema,
+  aiWordListRequestSchema,
+  aiWordRequestSchema,
+  gameSessionSchema,
+  wordInputSchema,
+} from "@yds-atlas/shared";
+import { z } from "zod";
 import type { ServerConfig } from "./config/env";
-import { authenticate, quotaClient, type RequestContext } from "./shared/supabase";
+import { generateChatReply } from "./features/ai/chat";
+import {
+  generateEnrichedWord,
+  generateNamedWords,
+  generateNamedWordsWithDictionary,
+  generateWord,
+  generateWordList,
+} from "./features/ai/gemini";
+import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
+import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
-import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
-import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
-import { generateWord } from "./features/ai/gemini";
+import { authenticate, quotaClient, type RequestContext } from "./shared/supabase";
+
 type Dependencies = {
   authenticate?: (request: Request) => Promise<RequestContext>;
   generate?: typeof generateWord;
+  generateList?: typeof generateWordList;
+  generateNamed?: typeof generateNamedWords;
+  generateChat?: typeof generateChatReply;
   consumeQuota?: (userId: string) => Promise<boolean>;
 };
 const uuid = z.uuid();
@@ -110,8 +128,24 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         request.method === "POST"
       )
         result = await completeSession(ctx, uuid.parse(path.split("/")[4]));
-      else if (path === "/api/ai/words/enrich" && request.method === "POST") {
-        const { word } = aiWordRequestSchema.parse(await readJson(request, 2048));
+      else if (
+        (path === "/api/ai/words/enrich" ||
+          path === "/api/ai/words/suggest" ||
+          path === "/api/ai/words/complete" ||
+          path === "/api/ai/chat") &&
+        request.method === "POST"
+      ) {
+        const body = await readJson(
+          request,
+          path.endsWith("/suggest") || path.endsWith("/chat") ? 32768 : 2048,
+        );
+        const input = path.endsWith("/suggest")
+          ? aiWordListRequestSchema.parse(body)
+          : path.endsWith("/complete")
+            ? aiNamedWordsRequestSchema.parse(body)
+            : path.endsWith("/chat")
+              ? aiChatRequestSchema.parse(body)
+              : aiWordRequestSchema.parse(body);
         if (!config.GEMINI_API_KEY)
           throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
         const allowed = dependencies.consumeQuota
@@ -129,7 +163,27 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             "AI kullanım sınırına ulaşıldı. Daha sonra tekrar dene.",
             "AI_QUOTA_EXCEEDED",
           );
-        result = await (dependencies.generate ?? generateWord)(word, config, request.signal);
+        result =
+          "messages" in input
+            ? await (dependencies.generateChat ?? generateChatReply)(input, config, request.signal)
+            : "word" in input
+              ? await (dependencies.generate ?? generateEnrichedWord)(
+                  input.word,
+                  config,
+                  request.signal,
+                )
+              : "words" in input
+                ? await (dependencies.generateNamed ?? generateNamedWordsWithDictionary)(
+                    input.words,
+                    config,
+                    request.signal,
+                  )
+                : await (dependencies.generateList ?? generateWordList)(
+                    input.count,
+                    input.exclude,
+                    config,
+                    request.signal,
+                  );
       } else throw new HttpError(404, "İstek bulunamadı.", "NOT_FOUND");
       return Response.json(result, { headers });
     } catch (error) {

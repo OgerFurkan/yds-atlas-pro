@@ -1,6 +1,7 @@
 ﻿import type { WordEntry } from "@yds-atlas/shared";
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { WordDetails } from "@/features/word-library/components/word-details";
 import { WordStatus } from "@/features/word-library/components/word-status";
 import { Button } from "@/shared/ui/button";
@@ -21,6 +22,7 @@ interface WordListProps extends WordListActions {
 }
 
 function WordActions({ word, onEdit, onDelete }: WordListActions & { word: WordEntry }) {
+  const { t } = useTranslation();
   return (
     <div className="inline-flex items-center justify-end gap-0.5">
       <Button
@@ -28,8 +30,8 @@ function WordActions({ word, onEdit, onDelete }: WordListActions & { word: WordE
         size="icon"
         type="button"
         onClick={() => onEdit(word)}
-        aria-label={`${word.word} kelimesini düzenle`}
-        title="Düzenle"
+        aria-label={t("library.editWord", { word: word.word })}
+        title={t("library.edit")}
       >
         <Pencil size={15} />
       </Button>
@@ -39,8 +41,8 @@ function WordActions({ word, onEdit, onDelete }: WordListActions & { word: WordE
         className="text-slate-500 hover:bg-red-50 hover:text-red-700"
         type="button"
         onClick={() => onDelete(word)}
-        aria-label={`${word.word} kelimesini sil`}
-        title="Sil"
+        aria-label={t("library.deleteWord", { word: word.word })}
+        title={t("library.delete")}
       >
         <Trash2 size={15} />
       </Button>
@@ -59,9 +61,10 @@ function WordTableRow({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <tr
-      className="border-t border-slate-100 transition-colors hover:bg-slate-50/70 data-[selected=true]:bg-sky-50/50"
+      className={`word-table-row border-t border-slate-100 transition-[border-color] hover:bg-slate-50/70 ${selected ? "is-selected" : ""}`}
       data-selected={selected}
     >
       <td className="w-10 pl-4 pr-1">
@@ -69,7 +72,7 @@ function WordTableRow({
           className="size-4"
           checked={selected}
           onCheckedChange={onToggle}
-          aria-label={`${word.word} kelimesini seç`}
+          aria-label={t("library.selectWord", { word: word.word })}
         />
       </td>
       <td className="px-2.5 py-3 align-middle">
@@ -86,7 +89,7 @@ function WordTableRow({
           {word.meanings.length ? (
             word.meanings.join(" · ")
           ) : (
-            <span className="text-sm italic text-slate-400">Henüz eklenmedi</span>
+            <span className="text-sm italic text-slate-400">{t("library.meaningMissing")}</span>
           )}
           {word.usageNote && (
             <small className="mt-0.5 block text-sm text-slate-400">{word.usageNote}</small>
@@ -130,15 +133,19 @@ function WordCard({
   selected: boolean;
   onToggle: () => void;
 }) {
+  const { t } = useTranslation();
   return (
-    <article className={`border-b border-slate-100 p-3 ${selected ? "bg-sky-50/50" : ""}`}>
+    <article
+      className={`library-word-card min-w-0 rounded-lg border p-4 shadow-sm transition-[border-color,box-shadow] ${selected ? "is-selected border-atlas-orange" : "border-slate-200 bg-white hover:border-atlas-orange/70"}`}
+      data-selected={selected}
+    >
       <div className="flex min-w-0 items-center gap-2">
         <label className="grid size-4 shrink-0 place-items-center">
           <Checkbox
             className="size-4"
             checked={selected}
             onCheckedChange={onToggle}
-            aria-label={`${word.word} kelimesini seç`}
+            aria-label={t("library.selectWord", { word: word.word })}
           />
         </label>
         <strong className="min-w-0 flex-1 break-words text-base text-slate-800">{word.word}</strong>
@@ -150,7 +157,7 @@ function WordCard({
         <WordActions word={word} onEdit={onEdit} onDelete={onDelete} />
       </div>
       <p className="ml-6 mt-2 text-sm leading-6 text-slate-600">
-        {word.meanings.length ? word.meanings.join(" · ") : "Türkçe anlam eklenmedi"}
+        {word.meanings.length ? word.meanings.join(" · ") : t("library.meaningMissingCard")}
       </p>
       {word.usageNote && <p className="ml-6 mt-1 text-sm text-slate-400">{word.usageNote}</p>}
       <div className="ml-6 mt-2 flex items-center gap-3">
@@ -173,6 +180,7 @@ export function WordList({
   onEdit,
   onDelete,
 }: WordListProps) {
+  const { t } = useTranslation();
   const [view, setView] = useState("list");
   const allVisibleSelected =
     words.length > 0 && words.every((word) => selectedIds.includes(word.id));
@@ -183,14 +191,14 @@ export function WordList({
           <Checkbox
             checked={allVisibleSelected}
             onCheckedChange={onToggleAll}
-            aria-label="Görünen tüm kelimeleri seç"
+            aria-label={t("library.allVisible")}
           />{" "}
-          Tümünü seç
+          {t("library.selectAll")}
         </label>
         <Tabs value={view} onValueChange={setView} className="hidden min-[1100px]:block">
           <TabsList>
-            <TabsTrigger value="list">Liste</TabsTrigger>
-            <TabsTrigger value="cards">Kartlar</TabsTrigger>
+            <TabsTrigger value="list">{t("library.listView")}</TabsTrigger>
+            <TabsTrigger value="cards">{t("library.cardView")}</TabsTrigger>
           </TabsList>
         </Tabs>
       </div>
@@ -199,16 +207,16 @@ export function WordList({
           <thead>
             <tr className="h-9 bg-slate-50 text-sm font-semibold text-slate-400">
               <th className="w-10 pl-4 pr-1">
-                <span className="sr-only">Seçim</span>
+                <span className="sr-only">{t("library.selection")}</span>
               </th>
-              <th className="px-2.5">Kelime</th>
-              <th className="px-2.5">Türkçe anlamı</th>
-              <th className="px-2.5">Tür</th>
-              <th className="px-2.5">Seviye</th>
-              <th className="px-2.5">Öğrenme durumu</th>
-              <th className="px-2.5">Puan</th>
+              <th className="px-2.5">{t("library.wordColumn")}</th>
+              <th className="px-2.5">{t("library.meaningColumn")}</th>
+              <th className="px-2.5">{t("library.typeColumn")}</th>
+              <th className="px-2.5">{t("library.level")}</th>
+              <th className="px-2.5">{t("library.statusColumn")}</th>
+              <th className="px-2.5">{t("library.scoreColumn")}</th>
               <th className="px-2.5">
-                <span className="sr-only">İşlemler</span>
+                <span className="sr-only">{t("library.actions")}</span>
               </th>
             </tr>
           </thead>
@@ -230,7 +238,7 @@ export function WordList({
         className={
           view === "cards"
             ? "grid gap-3 p-3 sm:grid-cols-2 xl:grid-cols-3"
-            : "flex flex-col min-[1100px]:hidden"
+            : "grid gap-3 p-3 sm:grid-cols-2 min-[1100px]:hidden"
         }
       >
         {words.map((word) => (
@@ -245,8 +253,8 @@ export function WordList({
         ))}
       </div>
       <div className="flex min-h-10 items-center justify-between border-t border-slate-100 px-3 text-sm text-slate-400 sm:px-4">
-        <span>{words.length} kelime gösteriliyor</span>
-        <span className="hidden sm:inline">Kelime puanı 0–100 aralığında hesaplanır</span>
+        <span>{t("library.countShown", { count: words.length })}</span>
+        <span className="hidden sm:inline">{t("library.scoreHint")}</span>
       </div>
     </>
   );

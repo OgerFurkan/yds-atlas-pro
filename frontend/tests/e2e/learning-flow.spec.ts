@@ -79,7 +79,7 @@ test("daily task survives reload, shows translated cards and automatically saves
     if (session.phase === "flashcards") {
       await page.getByRole("button", { name: "Kartı çevir ve anlamı göster" }).click();
       await page.getByRole("button", { name: "Bir sonraki kelime", exact: true }).click();
-    } else if (session.phase === "final-matching") {
+    } else if (session.phase.endsWith("matching")) {
       const ids: string[] = session.matching.left;
       for (const id of ids) {
         await page.locator(`[data-matching-side="left"][data-word-id="${id}"]`).click();

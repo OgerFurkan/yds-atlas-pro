@@ -19,19 +19,19 @@ export function dayOffset(key: string, offset: number) {
   return date.toISOString().slice(0, 10);
 }
 
-export function formatDateLabel(date: Date) {
-  return new Intl.DateTimeFormat("tr-TR", {
+export function formatDateLabel(date: Date, locale = "tr-TR") {
+  return new Intl.DateTimeFormat(locale, {
     timeZone,
     weekday: "long",
     day: "numeric",
     month: "long",
   })
     .format(date)
-    .toLocaleUpperCase("tr-TR");
+    .toLocaleUpperCase(locale);
 }
 
-export function dateParts(date = new Date()) {
-  return { key: localDateKey(date), label: formatDateLabel(date) };
+export function dateParts(date = new Date(), locale = "tr-TR") {
+  return { key: localDateKey(date), label: formatDateLabel(date, locale) };
 }
 
 /** ISO weekday index where Monday is 0 and Sunday is 6. */

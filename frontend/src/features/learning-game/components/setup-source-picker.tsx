@@ -1,5 +1,6 @@
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
-import { BookOpen } from "lucide-react";
+import { BookOpen, LoaderCircle, Sparkles } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { WordImportReview } from "@/features/word-library/components/word-import-review";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import { Badge } from "@/shared/ui/badge";
@@ -19,6 +20,8 @@ export function SetupSourcePicker({
   onReviewed,
   onCorrected,
   onImport,
+  aiWords,
+  onGenerateAi,
 }: {
   source: SetupSource;
   onSourceChange: (source: SetupSource) => void;
@@ -31,16 +34,17 @@ export function SetupSourcePicker({
   onReviewed: () => void;
   onCorrected: () => void;
   onImport: (names: string[]) => Promise<void>;
+  aiWords: WordInput[];
+  onGenerateAi: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
         <span className="grid size-8 place-items-center rounded-full bg-orange-50 text-sm font-bold text-orange-700">
           1
         </span>
-        <h2 className="text-lg font-semibold text-atlas-navy">
-          Kelimelerini nereden seçmek istersin?
-        </h2>
+        <h2 className="text-lg font-semibold text-atlas-navy">{t("setup.sourceHeading")}</h2>
       </div>
       <Tabs
         id="source-selection"
@@ -49,30 +53,32 @@ export function SetupSourcePicker({
       >
         <TabsList
           id="task-sources"
-          className="grid h-auto min-h-12 w-full grid-cols-3 items-stretch gap-1 p-1"
+          className="grid h-auto min-h-12 w-full grid-cols-2 sm:grid-cols-4 items-stretch gap-1 p-1"
         >
           <TabsTrigger
             className="min-h-10 min-w-0 whitespace-normal px-1 text-xs sm:text-sm"
             value="starter"
           >
-            Hazır liste
+            {t("setup.starter")}
           </TabsTrigger>
           <TabsTrigger className="min-h-10 min-w-0 px-1 text-xs sm:text-sm" value="library">
-            Kütüphanem
+            {t("setup.library")}
           </TabsTrigger>
           <TabsTrigger className="min-h-10 min-w-0 px-1 text-xs sm:text-sm" value="own">
-            Kendi listem
+            {t("setup.own")}
+          </TabsTrigger>
+          <TabsTrigger className="min-h-10 min-w-0 px-1 text-xs sm:text-sm" value="ai">
+            {t("setup.ai")}
           </TabsTrigger>
         </TabsList>
         <div id="source-information" className="mt-4 min-w-0">
           <TabsContent value="starter" className="space-y-4">
             <div className="rounded-xl bg-blue-50 p-4">
               <p className="flex items-center gap-2 font-semibold text-atlas-navy">
-                <BookOpen size={18} /> Kelimeler hazır, sen başlayabilirsin.
+                <BookOpen size={18} /> {t("setup.starterTitle")}
               </p>
               <p className="mt-2 text-sm leading-7 text-slate-600">
-                20 kelime, Türkçe anlamları ve çevrilmiş örnekleriyle hazır. Başlayınca yeni
-                kelimeler kütüphanene eklenir.
+                {t("setup.starterDescription")}
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -86,9 +92,10 @@ export function SetupSourcePicker({
           </TabsContent>
           <TabsContent value="library" className="space-y-4">
             <p className="text-sm leading-7 text-slate-600">
-              <strong className="text-atlas-navy">{ready.length} kelimen</strong> çalışmaya hazır.
-              Anlamı ve en az beş örnek cümlesi bulunan, henüz öğrenme aşamasındaki kelimelerden
-              seçilir.
+              <strong className="text-atlas-navy">
+                {ready.length} {t("setup.ready")}
+              </strong>{" "}
+              {t("setup.readyDescription")}
             </p>
             {ready.length > 0 && (
               <div className="flex flex-wrap gap-2">
@@ -100,7 +107,7 @@ export function SetupSourcePicker({
               </div>
             )}
             <Button variant="outline" onClick={onOpenLibrary}>
-              <BookOpen size={16} /> Kütüphanemi düzenle
+              <BookOpen size={16} /> {t("setup.editLibrary")}
             </Button>
           </TabsContent>
           <TabsContent value="own">
@@ -108,15 +115,43 @@ export function SetupSourcePicker({
               key={guideActive ? "guide" : "real"}
               demo={guideActive}
               busy={busy}
-              label="Listeyi kullan"
+              label={t("setup.useList")}
               onReviewed={onReviewed}
               onCorrected={onCorrected}
               onAccept={onImport}
             />
             {ownKeys.length > 0 && (
               <div className="mt-4 rounded-lg bg-blue-50 p-3 text-sm leading-6 text-slate-600">
-                {ownKeys.length} kelime incelendi; {candidates.length} kelime hazır. Eksik anlam ve
-                örnekleri kütüphanenden tamamlayabilirsin.
+                {t("setup.reviewed", { count: ownKeys.length, ready: candidates.length })}
+              </div>
+            )}
+          </TabsContent>
+          <TabsContent value="ai" className="space-y-4">
+            <p className="text-sm leading-6 text-slate-600">{t("setup.aiDescription")}</p>
+            <Button variant="outline" disabled={busy || guideActive} onClick={onGenerateAi}>
+              {busy ? <LoaderCircle size={16} className="animate-spin" /> : <Sparkles size={16} />}
+              {busy ? t("setup.generating") : t("setup.generate")}
+            </Button>
+            {aiWords.length > 0 && (
+              <div className="max-h-72 space-y-2 overflow-y-auto" aria-live="polite">
+                {aiWords.map((word) => (
+                  <details key={word.word} className="rounded-md border p-3 text-sm">
+                    <summary className="cursor-pointer font-semibold text-atlas-navy">
+                      {word.word} · {word.meanings?.join(" / ")}
+                    </summary>
+                    <p className="mt-2 text-xs text-slate-600">
+                      {word.cefr} · {word.partOfSpeech} · {word.usageNote}
+                    </p>
+                    <ol className="mt-2 space-y-2 text-xs text-slate-600">
+                      {word.examples?.map((example) => (
+                        <li key={example.sentence}>
+                          <p>{example.sentence}</p>
+                          <p>{example.translation}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                ))}
               </div>
             )}
           </TabsContent>

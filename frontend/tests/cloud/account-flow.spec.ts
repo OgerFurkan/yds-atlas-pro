@@ -1,5 +1,6 @@
-﻿import { expect, test, type Page } from "@playwright/test";
+﻿import { expect, type Page, test } from "@playwright/test";
 import type { GameSession } from "@yds-atlas/shared";
+
 const alice = "11111111-1111-4111-8111-111111111111";
 const bob = "22222222-2222-4222-8222-222222222222";
 function token(userId: string) {
@@ -53,7 +54,7 @@ function word(id: string, name: string) {
     updatedAt: new Date().toISOString(),
   };
 }
-async function mockCloud(page: Page) {
+async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
   const libraries: Record<string, ReturnType<typeof word>[]> = {
     [alice]: [word("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "Evidence")],
     [bob]: [word("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Benefit")],
@@ -125,9 +126,30 @@ async function mockCloud(page: Page) {
       await route.fulfill({ json: { suggestion, provider: "Gemini", model: "contract-test" } });
       return;
     }
+    if (path === "/api/ai/words/complete" || path === "/api/ai/words/suggest") {
+      const names = path.endsWith("/complete")
+        ? body.words
+        : ["Resilient", "Robust", "Notion", "Derive", "Assess"];
+      const suggestions = names.map((name: string) => ({
+        word: name,
+        alternatives: [],
+        meanings: ["Dayanıklı"],
+        usageNote: "Örnek kullanım.",
+        partOfSpeech: "Adjective",
+        cefr: "C1",
+        examples: Array.from({ length: 5 }, (_, index) => ({
+          sentence: `The ${name} example is number ${index}.`,
+          translation: `${index}. örnek dayanıklı.`,
+          translationFocus: ["dayanıklı"],
+        })),
+      }));
+      await route.fulfill({ json: { suggestions, provider: "Gemini", model: "contract-test" } });
+      return;
+    }
     if (path === "/api/learning/session") {
       const previous = accounts[id].session;
       expect(body.revision).toBe(previous?.revision ?? 0);
+      if (waitForSessionSave) await waitForSessionSave;
       accounts[id].session = { snapshot: body.snapshot, revision: (previous?.revision ?? 0) + 1 };
       await route.fulfill({ json: { revision: accounts[id].session!.revision } });
       return;
@@ -160,6 +182,75 @@ async function mockCloud(page: Page) {
   });
   return { libraries, requests, accounts };
 }
+
+test("matching responds while a cloud save is pending", async ({ page }) => {
+  let releaseSave = () => {};
+  const gate = new Promise<void>((resolve) => {
+    releaseSave = resolve;
+  });
+  const cloud = await mockCloud(page, gate);
+  const first = { ...cloud.libraries[alice][0], word: "Expand", meanings: ["Genişlemek"] };
+  const second = {
+    ...first,
+    id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+    word: "Benefit",
+    meanings: ["Fayda"],
+  };
+  cloud.libraries[alice] = [first, second];
+  const snapshot: GameSession = {
+    version: 3,
+    groupMatching: true,
+    id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    words: [first, second] as GameSession["words"],
+    batchSize: 5,
+    groupIndex: 0,
+    phase: "matching",
+    queue: [first.id, second.id],
+    stageCompleted: 0,
+    attempts: {},
+    scoreChanges: {},
+    assessment: {},
+    matching: {
+      left: [first.id, second.id],
+      right: [second.id, first.id],
+      matched: [],
+      selectedLeft: null,
+      selectedRight: null,
+      feedback: null,
+    },
+    answer: null,
+    finalCorrect: 0,
+    finalTotal: 0,
+    tutorial: false,
+    saved: false,
+  };
+  cloud.accounts[alice].session = { snapshot, revision: 1 };
+  try {
+    await page.goto("/#game");
+    await login(page);
+    await page.getByRole("button", { name: "Kaldığım yerden devam et" }).click();
+    const left = page.locator(`[data-matching-side="left"][data-word-id="${first.id}"]`);
+    const right = page.locator(`[data-matching-side="right"][data-word-id="${first.id}"]`);
+    await left.click();
+    await expect(left).toHaveAttribute("aria-pressed", "true");
+    await left.click();
+    await expect(left).toHaveAttribute("aria-pressed", "true");
+    await right.click();
+    await expect(left).toBeDisabled();
+    await expect(page.getByText("1 / 2 eşleşti")).toBeVisible();
+    await page.locator(`[data-matching-side="left"][data-word-id="${second.id}"]`).click();
+    await page.locator(`[data-matching-side="right"][data-word-id="${second.id}"]`).click();
+    await page.locator("#matching-next").click();
+    await expect(page.locator("#choice-correct")).toBeVisible();
+    await page.locator("#choice-correct").click();
+    await expect(page.locator("#question-next")).toBeEnabled();
+    await page.locator("#question-next").click();
+    await expect(page.locator("#choice-correct")).toBeEnabled();
+  } finally {
+    releaseSave();
+  }
+  await expect.poll(() => cloud.accounts[alice].session?.revision).toBe(8);
+});
 async function login(page: Page, email = "alice@example.com") {
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page).toHaveURL(/#login$/);
@@ -169,6 +260,38 @@ async function login(page: Page, email = "alice@example.com") {
   await form.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByRole("button", { name: "Hesabım", exact: true })).toBeVisible();
 }
+test("remember me selects the intended Supabase session storage", async ({ page }) => {
+  await mockCloud(page);
+  await page.goto("/");
+  await login(page);
+  const temporary = await page.evaluate(() => ({
+    local: Object.keys(localStorage).some(
+      (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+    ),
+    tab: Object.keys(sessionStorage).some(
+      (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+    ),
+  }));
+  expect(temporary).toEqual({ local: false, tab: true });
+  await page.getByRole("button", { name: "Hesabım", exact: true }).click();
+  await page.getByRole("button", { name: "Çıkış yap", exact: true }).click();
+  await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
+  const form = page.getByRole("form", { name: "Hesap giriş formu" });
+  await form.getByLabel("E-posta adresi").fill("alice@example.com");
+  await form.getByLabel("Şifre", { exact: true }).fill("test-password");
+  await form.getByRole("checkbox", { name: "Beni hatırla" }).check();
+  await form.getByRole("button", { name: "Giriş yap", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Hesabım", exact: true })).toBeVisible();
+  const remembered = await page.evaluate(() => ({
+    local: Object.keys(localStorage).some(
+      (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+    ),
+    tab: Object.keys(sessionStorage).some(
+      (key) => key.startsWith("sb-") && key.endsWith("-auth-token"),
+    ),
+  }));
+  expect(remembered).toEqual({ local: true, tab: false });
+});
 test("account login, reload and logout preserve guest data and isolate a second account", async ({
   page,
 }) => {
@@ -241,6 +364,38 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   expect(saved.examples[0].translationFocus).toEqual(["Dayanıklı"]);
   expect(saved.examples[0].source).toContain("Gemini");
   expect(saved.score).toBe(0);
+});
+
+test("new account words are completed automatically before saving", async ({ page }) => {
+  const cloud = await mockCloud(page);
+  await page.goto("/");
+  await login(page);
+  await page.getByRole("button", { name: "Kelime ekle", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: /İngilizce kelime/ }).fill("Resilient");
+  const saveButton = dialog.getByRole("button", { name: "Kütüphaneye ekle", exact: true });
+  await expect(saveButton).toBeEnabled();
+  await saveButton.click();
+  await expect(dialog).not.toBeVisible();
+  expect(cloud.requests.some((request) => request.path === "/api/ai/words/complete")).toBe(true);
+  const saved = cloud.requests.find(
+    (request) => request.path === "/api/words" && request.method === "POST",
+  )!.body as { examples: { source: string }[] };
+  expect(saved.examples).toHaveLength(5);
+  expect(saved.examples[0].source).toContain("Gemini");
+});
+
+test("AI task list is previewed without saving", async ({ page }) => {
+  const cloud = await mockCloud(page);
+  await page.goto("/#game");
+  await login(page);
+  await page.getByRole("tab", { name: "AI listesi" }).click();
+  await page.getByRole("button", { name: "5 kelime oluştur" }).click();
+  await expect(page.getByText("Resilient · Dayanıklı")).toBeVisible();
+  await page.getByText("Resilient · Dayanıklı").click();
+  await expect(page.getByText("The Resilient example is number 0.")).toBeVisible();
+  expect(cloud.libraries[alice]).toHaveLength(1);
+  expect(cloud.requests.some((request) => request.path === "/api/ai/words/suggest")).toBe(true);
 });
 
 test("cloud assessment resumes, persists before completion, and restores measured scores", async ({

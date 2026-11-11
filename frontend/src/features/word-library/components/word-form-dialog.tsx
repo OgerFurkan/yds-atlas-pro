@@ -1,6 +1,8 @@
 ﻿import { zodResolver } from "@hookform/resolvers/zod";
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
+import { wordInputSchema } from "@yds-atlas/shared";
 import { ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
+import { useRef } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
@@ -15,10 +17,8 @@ import { enrichWordInput } from "../data/starter-vocabulary";
 import { useWordSpellcheck } from "../hooks/use-word-spellcheck";
 import { type WordFormValues, wordFormSchema } from "../model/word-form.schema";
 import { toFormValues, toWordInput } from "../model/word-form-mappers";
-import { WordMetadataFields, WordTextField } from "./word-form-fields";
-import { useRef } from "react";
-import { wordInputSchema } from "@yds-atlas/shared";
 import { AiWordAssist } from "./ai-word-assist";
+import { WordMetadataFields, WordTextField } from "./word-form-fields";
 
 interface WordFormDialogProps {
   open: boolean;
@@ -127,8 +127,8 @@ export function WordFormDialog({
           <div className="flex items-start gap-2 rounded-md bg-sky-50 px-3 py-2.5 text-[10px] leading-4 text-slate-600">
             <Sparkles className="mt-0.5 shrink-0 text-atlas-blue" size={15} />
             <p>
-              Başlangıç setindeki 20 kelimenin bilgileri otomatik tamamlanır. Diğer kelimelerin
-              anlam ve örneklerini ekleyebilirsin. Başlık ve boşluklar otomatik düzenlenir.
+              Başlangıç seti çevrimdışı kullanılabilir. Giriş yaptığında yeni kelimelerin eksik
+              bilgileri Gemini ile tamamlanır; misafir kullanımında bilgileri kendin ekleyebilirsin.
             </p>
           </div>
           <AiWordAssist
@@ -153,7 +153,7 @@ export function WordFormDialog({
             <Button variant="secondary" type="button" onClick={() => onOpenChange(false)}>
               Vazgeç
             </Button>
-            <Button type="submit" disabled={isSubmitting || spelling.checking}>
+            <Button type="submit" disabled={isSubmitting}>
               {isSubmitting || spelling.checking ? (
                 <LoaderCircle className="animate-spin" size={15} />
               ) : null}

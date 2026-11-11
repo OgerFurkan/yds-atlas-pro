@@ -1,9 +1,46 @@
 ﻿import { expect, test } from "bun:test";
 import type { GameSession } from "@yds-atlas/shared";
-import { SessionSync } from "@/features/account/model/session-sync";
 import type { createAccountApi } from "@/features/account/api/account-api";
-import { getStorageScope, scopedStorageKey, setStorageScope } from "@/shared/lib/storage-scope";
+import { SessionSync } from "@/features/account/model/session-sync";
+import { authStorage, setRememberSession } from "@/features/auth/model/auth-storage";
 import { readStorage, writeStorage } from "@/shared/lib/storage";
+import { getStorageScope, scopedStorageKey, setStorageScope } from "@/shared/lib/storage-scope";
+
+test("remember session chooses persistent or tab-scoped storage", () => {
+  const originalLocal = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const originalSession = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+  const makeStorage = () => {
+    const values = new Map<string, string>();
+    return {
+      getItem: (key: string) => values.get(key) ?? null,
+      setItem: (key: string, value: string) => values.set(key, value),
+      removeItem: (key: string) => values.delete(key),
+    };
+  };
+  const local = makeStorage();
+  const tab = makeStorage();
+  Object.defineProperty(globalThis, "localStorage", { configurable: true, value: local });
+  Object.defineProperty(globalThis, "sessionStorage", { configurable: true, value: tab });
+  try {
+    setRememberSession(false);
+    authStorage.setItem("auth", "temporary");
+    expect(tab.getItem("auth")).toBe("temporary");
+    expect(local.getItem("auth")).toBeNull();
+    setRememberSession(true);
+    authStorage.setItem("auth", "persistent");
+    expect(local.getItem("auth")).toBe("persistent");
+    expect(tab.getItem("auth")).toBeNull();
+    expect(authStorage.getItem("auth")).toBe("persistent");
+    authStorage.removeItem("auth");
+    expect(authStorage.getItem("auth")).toBeNull();
+  } finally {
+    if (originalLocal) Object.defineProperty(globalThis, "localStorage", originalLocal);
+    else Reflect.deleteProperty(globalThis, "localStorage");
+    if (originalSession) Object.defineProperty(globalThis, "sessionStorage", originalSession);
+    else Reflect.deleteProperty(globalThis, "sessionStorage");
+  }
+});
+
 test("guest and two account caches stay isolated, including a late explicit-owner write", () => {
   const original = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
   const previous = getStorageScope();

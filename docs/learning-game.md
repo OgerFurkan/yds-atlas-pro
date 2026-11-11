@@ -19,8 +19,9 @@ Hazır setin 100 cümlesi ve çevirileri editoryal içeriktir; Cambridge alınt�
 ## Her grup
 
 1. **Keşfet:** Atlas markalı kart, iki yüz arasında 3B dönüş animasyonuyla çevrilir. Tekrar tıklanarak ön yüze dönülür; azaltılmış hareket tercihinde animasyon kullanılmaz. İlk çevirme tamamlanınca anlam, Verb/Noun gibi kelime türü, CEFR, kullanım notu, telaffuz ve çevrilmiş örnek görünür. Odak kelime İngilizcede ve Türkçe çeviride kalın/eğik vurgulanır. Türkçe karşılığın cümledeki çekimli biçimi, örnek verisindeki isteğe bağlı translationFocus alanında tutulur. Eski kayıtlar, aynı örnek ve çeviriyle eşleşiyorsa başlangıç setinin vurgusunu kullanır. Kartta “Tekrar göreyim” yoktur; kullanıcı “Bir sonraki kelime” ile ilerler.
-2. **Anlamı bul:** Kullanıcı kelimenin Türkçe anlamını seçer. Yanlış cevaptan sonra doğru anlam ve kullanım açıklanır; kelime yeniden sorulur.
-3. **Bağlamda öğren:** Örnek cümlede boş bırakılan kelime bulunur. Yanlışlar başka örnekle yeniden sorulur. Bütün kelimeler doğru yapıldığında sonraki gruba geçilir.
+2. **Eşleştir:** Gruptaki kelimeler en fazla beşli setlerde Türkçe anlamlarıyla eşleştirilir. Bu alıştırma genel değerlendirme puanını değiştirmez.
+3. **Anlamı bul:** Kullanıcı kelimenin Türkçe anlamını seçer. Çeldiriciler öncelikle grup dışındaki kelimelerden seçilir. Yanlış cevaptan sonra doğru anlam ve kullanım açıklanır; kelime yeniden sorulur.
+4. **Bağlamda öğren:** Örnek cümlede boş bırakılan kelime bulunur. Çeldiriciler öncelikle grup dışındaki kelimelerden seçilir. Yanlışlar başka örnekle yeniden sorulur. Bütün kelimeler doğru yapıldığında sonraki gruba geçilir.
 
 Doğru geri bildirimi yeşil, yanlış geri bildirimi kırmızıdır. Yanlış cevapta seçilen ve doğru yanıt karşılaştırılır. Her ikisinde kullanım notu, tam örnek, Türkçe çeviri ve telaffuz kontrolleri gösterilir. Sıraya ekleme gibi oyun motoru ayrıntıları kullanıcıya yazılmaz.
 
@@ -40,11 +41,11 @@ Kullanıcıya oyun sırasında veya sonuç ekranında sayısal kelime puanı ve 
 
 Öğrenme turları puanı değiştirmez. Yeni görevlerde kelimenin son değerlendirmesi önceki puana eklenmez; o görevde ölçülen bilgiye göre 0–100 arasında yeniden hesaplanır. Böylece art arda görev yaparak puan biriktirmek, eksik öğrenilmiş bir kelimeyi öğrenilmiş göstermez.
 
-| Aşama | Katkı |
-| --- | ---: |
+| Aşama      |                                                                  Katkı |
+| ---------- | ---------------------------------------------------------------------: |
 | Eşleştirme | Hatasız 20; kelimenin karıştığı her yanlış çift için 10 düşer, en az 0 |
-| Anlam | Doğruysa en fazla 30; yanlışsa 0 |
-| Bağlam | Doğruysa en fazla 50; yanlışsa 0 |
+| Anlam      |                                       Doğruysa en fazla 30; yanlışsa 0 |
+| Bağlam     |                                       Doğruysa en fazla 50; yanlışsa 0 |
 
 Doğru anlam ve bağlam yanıtlarına hatırlama katsayısı uygulanır: zor 0,60; hatırladım 0,85; kolay 1,00. Son toplam bir kez tam sayıya yuvarlanır. Hatasız eşleştirme ve iki kolay doğru yanıt 100; iki normal doğru yanıt 88; iki zor doğru yanıt 68 verir. Anlamı yanlış olan kelime en fazla 70, bağlamı yanlış olan kelime en fazla 50 alabilir.
 
@@ -76,5 +77,3 @@ Rehberlerde Driver.js ile ekran karartılır ve ilgili alan vurgulanır. Hazır 
 UK/US ses URL'si varsa o dosya oynatılır. Yoksa cihazın SpeechSynthesis sesi kullanılır; en-GB/en-US aksanının bulunması cihazın yüklü seslerine bağlıdır. Kontrol oynatma sırasında durdurma durumuna dönüşür; hata görünür olarak bildirilir. Rehber, telaffuz adımından ancak sesin end/ended olayıyla ilerler. Kullanıcının durdurması adımı tamamlamaz. Ses hatasında yeniden deneme ve açıkça seçilen sessiz devam seçeneği vardır.
 
 Supabase Auth ve Bun API ile hesap, kelime ve görev/sonuç kaydı eklenmiştir; canlı proje yapılandırması sonraki bağlantı aşamasındadır. Gemini kelime önerileri ayrı bir inceleme akışındadır. Canlı sözlük, AI kelime seçimi ve serbest bağlam seçeneklerinin tam anlamsal doğrulaması sonraki aşamadır. [Kurulum ve sınırlar](backend.md).
-
-

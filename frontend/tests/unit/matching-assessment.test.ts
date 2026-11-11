@@ -70,13 +70,13 @@ describe("matching and knowledge assessment", () => {
     expect(selectMatching(session, "left", "unknown")).toBe(before);
   });
 
-  test("selection toggles and survives serialization without reshuffling", () => {
+  test("repeated selection stays selected and survives serialization without reshuffling", () => {
     const original = matchingSession(5);
     const id = original.matching!.right[0];
     const selected = selectMatching(original, "right", id);
     const restored = gameSessionSchema.parse(JSON.parse(JSON.stringify(selected)));
     expect(restored.matching).toEqual(selected.matching);
-    expect(selectMatching(restored, "right", id).matching!.selectedRight).toBeNull();
+    expect(selectMatching(restored, "right", id)).toBe(restored);
     const matched = selectMatching(restored, "left", id);
     expect(matched.matching!.matched).toContain(id);
   });

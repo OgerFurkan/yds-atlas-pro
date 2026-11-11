@@ -4,9 +4,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { recordDailyProgress } from "@/features/dashboard/model/daily-progress";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import type { Notify } from "@/shared/lib/notify";
+import { getStorageScope } from "@/shared/lib/storage-scope";
 import { Button } from "@/shared/ui/button";
 import { GuidedTour } from "@/shared/ui/guided-tour";
-import { getStorageScope } from "@/shared/lib/storage-scope";
 import {
   advance,
   createSession,
@@ -50,9 +50,10 @@ export function LearningGamePage({
   const [saved, setSaved] = useState(readSession);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [syncError, setSyncError] = useState(false);
+  const [retryingSync, setRetryingSync] = useState(false);
   const [guide, setGuide] = useState(0);
   const saveLock = useRef(false);
-  const [persisting, setPersisting] = useState(false);
   const alive = useRef(true);
   const storageOwner = useRef(getStorageScope());
   useEffect(() => {
@@ -62,7 +63,7 @@ export function LearningGamePage({
     };
   }, []);
   const phase = session?.phase;
-  const activeWordId = phase === "final-matching" ? undefined : session?.queue[0];
+  const activeWordId = phase?.endsWith("matching") ? undefined : session?.queue[0];
   const isTutorial = !!session?.tutorial;
   const scrollKey = `${phase}:${activeWordId ?? ""}`;
   const lastScrollKey = useRef<string | null>(null);
@@ -73,23 +74,36 @@ export function LearningGamePage({
   }, [scrollKey, isTutorial]);
 
   async function commit(next: GameSession) {
+    if (next === session) return;
     try {
       if (!next.tutorial) {
-        if (onPersistSession) {
-          setPersisting(true);
-          await onPersistSession(next);
-          if (!alive.current || getStorageScope() !== storageOwner.current) return;
-        }
         persistSession(next);
         setSaved(next);
       }
       setSession(next);
       setError("");
+      if (!next.tutorial && onPersistSession) {
+        await onPersistSession(next);
+        if (alive.current && getStorageScope() === storageOwner.current) setSyncError(false);
+      }
     } catch (error) {
-      if (alive.current)
+      if (alive.current && getStorageScope() === storageOwner.current) {
+        setSyncError(true);
+        onNotify.error(error instanceof Error ? error.message : "İlerlemen kaydedilemedi.");
+      }
+    }
+  }
+  async function retrySync() {
+    if (!session || !onPersistSession || retryingSync) return;
+    setRetryingSync(true);
+    try {
+      await onPersistSession(session);
+      if (alive.current && getStorageScope() === storageOwner.current) setSyncError(false);
+    } catch (error) {
+      if (alive.current && getStorageScope() === storageOwner.current)
         onNotify.error(error instanceof Error ? error.message : "İlerlemen kaydedilemedi.");
     } finally {
-      if (alive.current) setPersisting(false);
+      if (alive.current) setRetryingSync(false);
     }
   }
   function tutorial() {
@@ -176,7 +190,7 @@ export function LearningGamePage({
   const word = currentWord(session);
   const attempt = session.attempts[`${session.phase}:${word?.id}`] ?? 0;
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-5" inert={persisting} aria-busy={persisting}>
+    <div className="mx-auto w-full max-w-4xl space-y-5">
       {session.tutorial ? (
         <div className="flex flex-wrap items-center gap-3 rounded-xl border border-orange-200 bg-orange-50 p-4">
           <GraduationCap size={23} className="text-orange-600" />
@@ -211,9 +225,25 @@ export function LearningGamePage({
           </Button>
         </div>
       )}
+      {syncError && !session.tutorial && (
+        <div
+          role="alert"
+          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950"
+        >
+          <span>İlerlemen bu cihazda saklanıyor, ancak buluta kaydedilemedi.</span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={retryingSync}
+            onClick={() => void retrySync()}
+          >
+            {retryingSync ? "Kaydediliyor…" : "Tekrar dene"}
+          </Button>
+        </div>
+      )}
       <GameProgress session={session} />
       <GamePlay
-        key={`${session.id}:${session.phase}:${session.groupIndex}:${session.phase === "final-matching" ? "matching" : word?.id}:${attempt}`}
+        key={`${session.id}:${session.phase}:${session.groupIndex}:${session.phase.endsWith("matching") ? "matching" : word?.id}:${attempt}`}
         session={session}
         onFlip={(back) => {
           const step = playGuide[guide].id;

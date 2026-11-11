@@ -53,6 +53,7 @@ export function createSession(
   const ordered = shuffle(words);
   return {
     version: 3,
+    groupMatching: !tutorial,
     id: crypto.randomUUID(),
     words: ordered,
     batchSize,
@@ -87,19 +88,35 @@ function orderChoices(values: string[], seed: string) {
 
 export function makeQuestion(session: GameSession) {
   const word = currentWord(session);
-  if (!word || session.phase === "final-matching") return null;
+  if (!word || session.phase.endsWith("matching")) return null;
   const context = session.phase.endsWith("context");
   const attemptKey = `${session.phase}:${word.id}`;
   const attempt = session.attempts[attemptKey] ?? 0;
   const examples = usableExamples(word);
-  const example = examples[attempt % examples.length];
+  const contextAttempts = isFinal(session) ? (session.attempts[`context:${word.id}`] ?? 0) : 0;
+  const exampleOrder = orderChoices(
+    examples.slice(1).map((_, index) => String(index + 1)),
+    `${session.id}:${word.id}:examples`,
+  );
+  const example = exampleOrder.length
+    ? examples[Number(exampleOrder[(attempt + contextAttempts) % exampleOrder.length])]
+    : examples[0];
   const sentence = example?.sentence.replace(wordPattern(word), "$1________");
   const correct = context ? word.word : word.meanings[0];
   const knownMeanings = new Set(word.meanings.map(wordKey));
   const seed = getStarterWord(word.word);
-  const pool = [...session.words, ...starterVocabulary];
+  const local = !isFinal(session) && !session.tutorial && groupWords(session).length >= 4;
+  const groupIds = new Set(groupWords(session).map((entry) => entry.id));
+  const groupKeys = new Set(groupWords(session).map((entry) => wordKey(entry.word)));
+  const pool = local
+    ? [
+        ...groupWords(session),
+        ...session.words.filter((entry) => !groupIds.has(entry.id)),
+        ...starterVocabulary.filter((entry) => !groupKeys.has(wordKey(entry.word))),
+      ]
+    : [...session.words, ...starterVocabulary];
   const candidates =
-    context && seed
+    context && seed && !local
       ? seed.distractors
       : pool
           .filter(
@@ -125,7 +142,7 @@ export function makeQuestion(session: GameSession) {
     sentence,
     example,
     choices: orderChoices(
-      [correct, ...orderChoices(distractors, word.id).slice(0, 3)],
+      [correct, ...(local ? distractors : orderChoices(distractors, word.id)).slice(0, 3)],
       `${session.id}:${session.phase}:${word.id}:${attempt}`,
     ),
   };
@@ -145,7 +162,7 @@ export function setConfidence(session: GameSession, confidence: Confidence): Gam
 }
 
 export function advance(session: GameSession, remembered = true): GameSession {
-  if (session.phase === "complete" || session.phase === "final-matching") return session;
+  if (session.phase === "complete" || session.phase.endsWith("matching")) return session;
   const word = currentWord(session);
   if (!word) return session;
   const flashcard = session.phase === "flashcards";
@@ -183,7 +200,7 @@ export function advance(session: GameSession, remembered = true): GameSession {
   }
   if (queue.length) return next;
   next.stageCompleted = 0;
-  if (session.phase === "flashcards") next.phase = "meaning";
+  if (session.phase === "flashcards") next.phase = session.groupMatching ? "matching" : "meaning";
   else if (session.phase === "meaning") next.phase = "context";
   else if (session.phase === "context") {
     if ((session.groupIndex + 1) * session.batchSize < session.words.length) {
@@ -198,7 +215,7 @@ export function advance(session: GameSession, remembered = true): GameSession {
       : isFinal(next)
         ? shuffle(next.words.map((entry) => entry.id))
         : groupWords(next).map((entry) => entry.id);
-  return next.phase === "final-matching" ? startMatchingBoard(next) : next;
+  return next.phase.endsWith("matching") ? startMatchingBoard(next) : next;
 }
 
 export function resultScore(session: GameSession, word: WordEntry) {

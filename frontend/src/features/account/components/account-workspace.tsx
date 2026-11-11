@@ -1,8 +1,9 @@
-﻿import type { ReactNode } from "react";
+﻿import type { AccountState } from "@yds-atlas/shared";
+import { LoaderCircle } from "lucide-react";
+import type { ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { AccountState } from "@yds-atlas/shared";
-import { setStorageScope } from "@/shared/lib/storage-scope";
 import { supabase } from "@/shared/api/supabase-client";
+import { setStorageScope } from "@/shared/lib/storage-scope";
 import { Button } from "@/shared/ui/button";
 import { createAccountApi } from "../api/account-api";
 import { cacheAccount } from "../model/account-cache";
@@ -43,8 +44,21 @@ export function AccountWorkspace({
   }, [api, retry, userId]);
   if (!ready)
     return (
-      <main className="mx-auto max-w-xl space-y-4 px-5 py-20 text-center">
-        <h1 className="text-xl font-bold text-atlas-navy">Hesabın hazırlanıyor</h1>
+      <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center gap-4 px-5 py-12 text-center">
+        <img
+          src="/brand/atlas-mascot.png"
+          alt=""
+          className="h-44 w-44 object-contain sm:h-56 sm:w-56"
+        />
+        {!error && (
+          <LoaderCircle
+            aria-hidden="true"
+            className="size-8 animate-spin text-atlas-orange motion-reduce:animate-none"
+          />
+        )}
+        <h1 className="text-xl font-bold text-atlas-navy">
+          {error ? "Hesabın yüklenemedi" : "Hesabın hazırlanıyor"}
+        </h1>
         <p role="status" className="text-sm text-slate-600">
           {error || "Kelimelerin ve ilerlemen yükleniyor…"}
         </p>

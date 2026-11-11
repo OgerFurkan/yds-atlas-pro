@@ -10,6 +10,7 @@
   X,
 } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AtlasLogo } from "@/shared/brand/atlas-logo";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
@@ -21,6 +22,7 @@ interface AppHeaderProps {
   onNavigate: (screen: AppScreen) => void;
   onNotify: Notify;
   onOpenAccount: () => void;
+  onOpenSettings: () => void;
   signedIn?: boolean;
 }
 export function AppHeader({
@@ -28,8 +30,10 @@ export function AppHeader({
   onNavigate,
   onNotify,
   onOpenAccount,
+  onOpenSettings,
   signedIn,
 }: AppHeaderProps) {
+  const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
   function go(next: AppScreen) {
     onNavigate(next);
@@ -37,18 +41,20 @@ export function AppHeader({
   }
   return (
     <header className="sticky top-0 z-40 border-b border-atlas-line bg-white/95 backdrop-blur">
-      <div className="relative mx-auto flex h-[72px] w-full max-w-[1600px] items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
+      <div className="relative mx-auto flex h-18 w-full max-w-[1600px] items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <button
           type="button"
-          className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2.5 text-left"
-          aria-label="YDS Atlas ana sayfa"
+          className="flex min-w-0 shrink-0 cursor-pointer items-center gap-3 text-left"
+          aria-label={t("nav.home")}
           onClick={() => go("home")}
         >
-          <AtlasLogo />
-          <span>
-            <strong className="block font-display text-lg text-atlas-navy">YDS Atlas</strong>
-            <small className="mt-0.5 hidden whitespace-nowrap text-[11px] text-slate-500 min-[380px]:block">
-              Her kelime bir keşif.
+          <AtlasLogo className="size-10 shadow-sm" />
+          <span className="grid gap-1">
+            <strong className="block whitespace-nowrap font-display text-[17px] leading-none text-atlas-navy">
+              YDS Atlas <span className="text-atlas-orange">Pro</span>
+            </strong>
+            <small className="hidden whitespace-nowrap text-[9px] font-medium tracking-[0.08em] text-slate-500 min-[380px]:block">
+              {t("brand.tagline")}
             </small>
           </span>
         </button>
@@ -56,7 +62,7 @@ export function AppHeader({
           className="ml-auto xl:hidden"
           variant="ghost"
           size="icon"
-          aria-label={menuOpen ? "Menüyü kapat" : "Menüyü aç"}
+          aria-label={menuOpen ? t("nav.closeMenu") : t("nav.openMenu")}
           aria-expanded={menuOpen}
           aria-controls="main-navigation"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -65,8 +71,8 @@ export function AppHeader({
         </Button>
         <nav
           id="main-navigation"
-          aria-label="Ana gezinme"
-          className={`${menuOpen ? "absolute inset-x-0 top-[72px] flex flex-col border-b bg-white p-3 shadow-lg" : "hidden"} gap-1 xl:static xl:ml-auto xl:flex xl:flex-row xl:items-center xl:border-0 xl:p-0 xl:shadow-none`}
+          aria-label={t("nav.main")}
+          className={`${menuOpen ? "absolute inset-x-0 top-18 flex flex-col border-b bg-white p-3 shadow-lg" : "hidden"} gap-1 xl:static xl:ml-auto xl:flex xl:flex-row xl:items-center xl:border-0 xl:p-0 xl:shadow-none`}
         >
           <Button
             variant="ghost"
@@ -75,7 +81,7 @@ export function AppHeader({
             onClick={() => go("home")}
           >
             <Home size={18} />
-            Ana Sayfa
+            {t("nav.home")}
           </Button>
           <LearningMenu active={screen === "game"} onChoose={go} />
           <Button
@@ -84,7 +90,7 @@ export function AppHeader({
             onClick={() => onNotify.info("Pratik oyunları yakında burada olacak.")}
           >
             <Headphones size={18} />
-            Pratik
+            {t("nav.practice")}
           </Button>
           <Button
             variant="ghost"
@@ -92,7 +98,7 @@ export function AppHeader({
             onClick={() => onNotify.info("İlerleme ekranı hazırlanıyor.")}
           >
             <Compass size={18} />
-            İlerlemem
+            {t("nav.progress")}
           </Button>
           <Button
             variant="ghost"
@@ -101,7 +107,17 @@ export function AppHeader({
             onClick={() => go("library")}
           >
             <LibraryBig size={18} />
-            Kütüphane
+            {t("nav.library")}
+          </Button>
+          <Button
+            variant="ghost"
+            className="justify-start xl:hidden"
+            onClick={() => {
+              onOpenSettings();
+              setMenuOpen(false);
+            }}
+          >
+            <Settings2 size={18} /> {t("nav.settings")}
           </Button>
         </nav>
         <div className="flex shrink-0 items-center gap-1 xl:ml-auto">
@@ -109,22 +125,19 @@ export function AppHeader({
             variant="ghost"
             size="icon"
             className="hidden sm:inline-flex"
-            aria-label="Ayarlar"
-            onClick={() =>
-              onNotify.info(
-                "Günlük hedefini ana sayfadaki Hedefi düzenle düğmesinden değiştirebilirsin.",
-              )
-            }
+            aria-label={t("nav.settings")}
+            title={t("nav.settings")}
+            onClick={onOpenSettings}
           >
             <Settings2 size={20} />
           </Button>
           <Button
             variant="ghost"
             size="icon"
-            aria-label="Yardım"
+            aria-label={t("nav.help")}
             onClick={() => {
               go("game");
-              onNotify.info("Hazırlık rehberi veya Oyunu dene ile adım adım başlayabilirsin.");
+              onNotify.info(t("nav.helpMessage"));
             }}
           >
             <CircleHelp size={20} />
@@ -132,7 +145,7 @@ export function AppHeader({
           <Button
             variant={signedIn ? "ghost" : "default"}
             className="gap-2 px-2 sm:px-3"
-            aria-label={signedIn ? "Hesabım" : "Giriş yap"}
+            aria-label={signedIn ? t("nav.account") : t("nav.login")}
             onClick={onOpenAccount}
           >
             {signedIn ? (
@@ -142,7 +155,7 @@ export function AppHeader({
             ) : (
               <LogIn size={18} />
             )}
-            <span className="hidden sm:inline">{signedIn ? "Hesabım" : "Giriş yap"}</span>
+            <span className="hidden sm:inline">{signedIn ? t("nav.account") : t("nav.login")}</span>
           </Button>
         </div>
       </div>

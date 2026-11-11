@@ -1,6 +1,7 @@
 ﻿import type { WordEntry } from "@yds-atlas/shared";
 import { ArrowUpRight, BookOpen, Languages } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import {
@@ -16,6 +17,7 @@ import { WordExample } from "./word-example";
 import { WordStatus } from "./word-status";
 
 export function WordDetails({ word }: { word: WordEntry }) {
+  const { t } = useTranslation();
   const [open, setOpen] = useState(false);
   const cambridge = `https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(word.word.toLowerCase())}`;
   return (
@@ -25,9 +27,9 @@ export function WordDetails({ word }: { word: WordEntry }) {
         size="sm"
         className="min-h-8 justify-start px-0 text-xs"
         onClick={() => setOpen(true)}
-        aria-label={`${word.word} kelime ayrıntıları`}
+        aria-label={`${word.word} ${t("library.detailAria")}`}
       >
-        <BookOpen size={14} /> Ayrıntıları gör
+        <BookOpen size={14} /> {t("library.detail")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
         <DialogContent>
@@ -38,14 +40,14 @@ export function WordDetails({ word }: { word: WordEntry }) {
                 {word.word}
               </DialogTitle>
               <DialogDescription className="ml-9 text-lg">
-                {word.meanings.join(" · ") || "Anlam henüz eklenmedi"}
+                {word.meanings.join(" · ") || t("library.meaningNotAdded")}
               </DialogDescription>
             </div>
           </DialogHeader>
           <div className="space-y-5 p-5">
             <div className="flex flex-wrap gap-2">
               <Badge variant="outline">
-                {formatWordType(word.partOfSpeech) || "Tür belirtilmedi"}
+                {formatWordType(word.partOfSpeech) || t("library.typeUnspecified")}
               </Badge>
               <Badge variant="outline">{word.cefr}</Badge>
               <WordStatus score={word.score} />
@@ -63,7 +65,7 @@ export function WordDetails({ word }: { word: WordEntry }) {
                 target="_blank"
                 rel="noreferrer"
               >
-                Cambridge'de aç <ArrowUpRight size={16} />
+                {t("library.openCambridge")} <ArrowUpRight size={16} />
               </a>
               {word.sourceUrl && word.sourceUrl !== cambridge && (
                 <a
@@ -72,11 +74,13 @@ export function WordDetails({ word }: { word: WordEntry }) {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  Kaynağı aç <ArrowUpRight size={16} />
+                  {t("library.openSource")} <ArrowUpRight size={16} />
                 </a>
               )}
             </div>
-            <h3 className="border-t pt-5 text-sm font-semibold text-atlas-navy">Örnek cümleler</h3>
+            <h3 className="border-t pt-5 text-sm font-semibold text-atlas-navy">
+              {t("library.examples")}
+            </h3>
             {word.examples.length ? (
               word.examples.map((example) => (
                 <WordExample
@@ -86,7 +90,7 @@ export function WordDetails({ word }: { word: WordEntry }) {
                 />
               ))
             ) : (
-              <p className="text-sm text-slate-500">Henüz örnek cümle eklenmedi.</p>
+              <p className="text-sm text-slate-500">{t("library.noExamples")}</p>
             )}
           </div>
         </DialogContent>

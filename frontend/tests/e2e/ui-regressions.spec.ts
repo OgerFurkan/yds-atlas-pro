@@ -123,3 +123,200 @@ test("Atlas introduces himself next to the daily goal on desktop and mobile", as
   await expect(page.getByText("YDS Atlas'ın maskotu", { exact: true })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
+
+test("appearance and language preferences persist and library cards stay distinct in dark mode", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "yds-atlas-words-v1",
+      JSON.stringify(
+        [
+          ["preference-hard", "Zebra", 30],
+          ["preference-review", "Quokka", 60],
+          ["preference-learned", "Walrus", 90],
+        ].map(([id, word, score]) => ({
+          id,
+          word,
+          alternatives: [],
+          meanings: ["Test meaning"],
+          usageNote: "Test usage.",
+          partOfSpeech: "Noun",
+          cefr: "B2",
+          score,
+          examples: [],
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        })),
+      ),
+    );
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Menüyü aç" }).click();
+  await page.getByRole("button", { name: "Ayarlar" }).click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("heading", { name: "Görünüm ve dil" })).toBeVisible();
+  const title = await dialog.getByRole("heading").boundingBox();
+  const close = await dialog.getByRole("button", { name: "Pencereyi kapat" }).boundingBox();
+  expect(title!.x + title!.width).toBeLessThan(close!.x);
+
+  await dialog.getByRole("button", { name: "English", exact: true }).click();
+  await expect(dialog.getByRole("heading", { name: "Appearance and language" })).toBeVisible();
+  await dialog.getByRole("button", { name: "Dark", exact: true }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.reload();
+  await expect(
+    page.getByRole("heading", { name: "Where would you like to start today?" }),
+  ).toBeVisible();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
+  await page.screenshot({
+    path: `test-results/preferences-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+
+  await page.goto("/#library");
+  const card = page.locator(".library-word-card");
+  await expect(card).toHaveCount(3);
+  for (const [word, background, color] of [
+    ["Zebra", "rgb(56, 40, 31)", "rgb(255, 192, 149)"],
+    ["Quokka", "rgb(56, 49, 31)", "rgb(247, 217, 139)"],
+    ["Walrus", "rgb(29, 56, 46)", "rgb(167, 220, 195)"],
+  ]) {
+    const badge = page
+      .locator(".library-word-card")
+      .filter({ hasText: word })
+      .locator("span.inline-flex.min-h-7");
+    await expect(badge).toBeVisible();
+    expect(await badge.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+      background,
+    );
+    expect(await badge.evaluate((element) => getComputedStyle(element).color)).toBe(color);
+  }
+  await page.screenshot({
+    path: `test-results/library-grid-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  expect(await card.first().evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe(
+    "1px",
+  );
+  expect(await card.first().evaluate((element) => getComputedStyle(element).borderTopColor)).toBe(
+    "rgb(83, 99, 107)",
+  );
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+  if (test.info().project.name === "desktop") {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.getByRole("checkbox", { name: "Select Zebra" }).click();
+    const row = page.locator('tr.word-table-row[data-selected="true"]');
+    await expect(row).toHaveAttribute("data-selected", "true");
+    await expect(row).toHaveClass(/is-selected/);
+    expect(await row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+      "rgb(58, 49, 32)",
+    );
+  } else {
+    const mobileCard = page.locator(".library-word-card").first();
+    await mobileCard.getByRole("checkbox", { name: "Select Zebra" }).click();
+    await expect(mobileCard).toHaveAttribute("data-selected", "true");
+    await expect(mobileCard).toHaveClass(/is-selected/);
+    expect(await mobileCard.evaluate((card) => getComputedStyle(card).backgroundColor)).toBe(
+      "rgb(58, 49, 32)",
+    );
+  }
+
+  await page.goto("/#home");
+  await page.getByRole("button", { name: "Start goal" }).click();
+  await page.getByRole("button", { name: "Start daily task" }).click();
+  await page.locator("#atlas-card-flip").click();
+  const cardBack = page.locator("#word-information");
+  await expect(cardBack).toBeVisible();
+  expect(await cardBack.evaluate((element) => getComputedStyle(element).color)).toBe(
+    "rgb(18, 59, 89)",
+  );
+});
+
+test("dark answer feedback keeps red and green states readable", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("yds-atlas-theme", "dark");
+    localStorage.setItem("yds-atlas-language", "en");
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "Start goal" }).click();
+  await page.getByRole("button", { name: "Start daily task" }).click();
+
+  for (let index = 0; index < 5; index++) {
+    await page.locator("#atlas-card-flip").click();
+    await page.locator("#flashcard-next").click();
+  }
+  const session = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("yds-atlas-learning-session-v2") ?? "null"),
+  );
+  for (const id of session.matching.left as string[]) {
+    await page.locator(`[data-matching-side="left"][data-word-id="${id}"]`).click();
+    await page.locator(`[data-matching-side="right"][data-word-id="${id}"]`).click();
+  }
+  await page.locator("#matching-next").click();
+  await page.locator("#choice-wrong").click();
+  const feedback = page.locator("#answer-feedback");
+  await expect(feedback).toBeVisible();
+  expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+    "rgb(59, 37, 37)",
+  );
+  expect(
+    await feedback.locator(".text-red-900").evaluate((element) => getComputedStyle(element).color),
+  ).toBe("rgb(255, 170, 163)");
+  await page.locator("#question-next").click();
+  await page.locator("#choice-correct").click();
+  expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+    "rgb(29, 56, 46)",
+  );
+  expect(
+    await feedback
+      .locator(".text-emerald-900")
+      .evaluate((element) => getComputedStyle(element).color),
+  ).toBe("rgb(167, 220, 195)");
+});
+
+test("Atlas chat opens as a branded assistant and asks guests to sign in before sending", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByRole("button", { name: "Atlas'a sor" }).click();
+  const chat = page.getByRole("dialog", { name: "YDS Atlas Pro Asistanı" });
+  await expect(chat).toBeVisible();
+  await expect(page.getByRole("button", { name: "Atlas'a sor" })).toHaveCount(0);
+  await page.screenshot({
+    path: `test-results/atlas-chat-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  await expect(
+    chat.getByText("Merhaba! Bir kelime, çeviri veya YDS sorusu sorabilirsin."),
+  ).toBeVisible();
+  await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+  await expect(chat.getByText("Atlas ile sohbet etmek için hesabına giriş yap.")).toBeVisible();
+  await chat.getByRole("button", { name: "Giriş yap" }).click();
+  await expect(page).toHaveURL(/#login$/);
+});
+
+test("notifications include Atlas branding and an explicit dismiss button", async ({ page }) => {
+  await page.goto("/");
+  if (test.info().project.name === "mobile")
+    await page.getByRole("button", { name: "Menüyü aç" }).click();
+  await page.getByRole("button", { name: "Pratik", exact: true }).click();
+  const toast = page.locator(".Toastify__toast.atlas-toast");
+  await expect(toast).toBeVisible();
+  await page.screenshot({
+    path: `test-results/atlas-toast-${test.info().project.name}.png`,
+    fullPage: true,
+  });
+  await expect(toast.locator(".atlas-toast-avatar img")).toHaveAttribute(
+    "src",
+    "/brand/atlas-mascot.png",
+  );
+  await toast.getByRole("button", { name: "Bildirimi kapat" }).click();
+  await expect(toast).toHaveCount(0);
+});

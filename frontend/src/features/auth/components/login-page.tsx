@@ -1,6 +1,7 @@
 ﻿import type { User } from "@supabase/supabase-js";
 import { ArrowLeft, BookOpen, CalendarCheck2, Flame } from "lucide-react";
-import { useEffect, useEffectEvent } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { AtlasLogo } from "@/shared/brand/atlas-logo";
 import { Button } from "@/shared/ui/button";
 import { AuthForm } from "./auth-form";
@@ -17,6 +18,10 @@ export function LoginPage({
   onRecovered: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
+  const [authMode, setAuthMode] = useState<"signin" | "signup" | "reset" | "recovery">("signin");
+  const externalMode = recovering ? "recovery" : authMode;
+  const signup = !recovering && authMode === "signup";
   const authenticated = useEffectEvent(onSuccess);
   useEffect(() => {
     if (user && !recovering) authenticated();
@@ -24,45 +29,69 @@ export function LoginPage({
   return (
     <div className="flex min-h-dvh flex-col bg-atlas-canvas">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-6">
-        <a href="#home" aria-label="YDS Atlas ana sayfa" className="flex items-center gap-2.5">
-          <AtlasLogo className="size-11" />
-          <span className="font-display text-xl text-atlas-navy">YDS Atlas</span>
+        <a href="#home" aria-label={t("auth.brandHome")} className="flex items-center gap-3">
+          <AtlasLogo className="size-10 shadow-sm" />
+          <span className="grid gap-1">
+            <strong className="font-display text-lg leading-none text-atlas-navy">
+              YDS Atlas <span className="text-atlas-orange">Pro</span>
+            </strong>
+            <small className="text-[9px] font-semibold tracking-[0.12em] text-atlas-muted">
+              {t("brand.tagline")}
+            </small>
+          </span>
         </a>
         <Button variant="ghost" size="sm" onClick={onBack}>
           <ArrowLeft size={16} />
-          <span>{recovering ? "Ana sayfa" : "Misafir olarak devam et"}</span>
+          <span>{recovering ? t("auth.backHome") : t("auth.guest")}</span>
         </Button>
       </header>
-      <main className="mx-auto grid w-full max-w-6xl flex-1 items-center gap-8 px-4 pb-8 sm:px-6 lg:grid-cols-[1fr_0.95fr] lg:gap-16 lg:py-10">
+      <main
+        className="auth-layout relative mx-auto grid w-full max-w-6xl flex-1 items-stretch overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_24px_70px_rgba(9,38,59,0.12)] lg:min-h-[620px] lg:grid-cols-2"
+        data-auth-mode={signup ? "signup" : "signin"}
+      >
         <section
-          aria-label="Atlas ile öğren"
-          className="relative hidden overflow-hidden rounded-[28px] bg-atlas-navy p-9 text-white lg:block"
+          aria-label={t("auth.brandDescription")}
+          className={`auth-brand relative hidden overflow-hidden p-8 text-white transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:block lg:p-10 ${signup ? "lg:translate-x-full" : ""}`}
         >
           <p className="text-xs font-semibold tracking-[0.16em] text-orange-200">
-            HER KELİME BİR KEŞİF.
+            {t("brand.tagline").toLocaleUpperCase()}
           </p>
           <h2 className="mt-5 max-w-sm font-display text-4xl leading-[1.2]">
-            Bugünün kelimeleri,
+            {signup ? t("auth.panelSignupTitle") : t("auth.panelSigninTitle")}
             <br />
-            <span className="text-orange-300">yarının gücü.</span>
+            <span className="text-orange-300">
+              {signup ? t("auth.panelSignupAccent") : t("auth.panelSigninAccent")}
+            </span>
           </h2>
           <p className="mt-4 max-w-sm text-sm leading-7 text-blue-100">
-            Ben Atlas, öğrenme arkadaşın. Küçük adımlarla kelimeleri keşfedelim, öğrendiklerini
-            birlikte kalıcı hale getirelim.
+            {signup ? t("auth.panelSignupDescription") : t("auth.panelSigninDescription")}
           </p>
-          <div className="relative mx-auto mt-4 aspect-[1.15] max-w-80">
+          <div className="relative mx-auto mt-2 aspect-[1.35] max-w-72">
             <span className="absolute inset-4 rounded-full border border-white/15 bg-white/5" />
             <img
               src="/brand/atlas-mascot.png"
-              alt="Öğrenme arkadaşın gözlüklü kurt Atlas"
+              alt={t("companion.alt")}
               className="relative h-full w-full object-contain drop-shadow-xl"
             />
           </div>
-          <ul className="mt-4 grid grid-cols-3 gap-2 border-t border-white/15 pt-5 text-center text-xs text-blue-100">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-white/15 pt-4">
+            <p className="text-sm text-blue-100">
+              {signup ? t("auth.hasAccount") : t("auth.noAccount")}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="border-white/40 bg-white/5 text-white hover:bg-white/15 hover:text-white"
+              onClick={() => setAuthMode(signup ? "signin" : "signup")}
+            >
+              {signup ? t("auth.backToSignin") : t("auth.createAccount")}
+            </Button>
+          </div>
+          <ul className="mt-4 grid grid-cols-3 gap-2 text-center text-xs text-blue-100">
             {[
-              [BookOpen, "Kelimelerini keşfet"],
-              [CalendarCheck2, "Günlük görevini tamamla"],
-              [Flame, "Serini büyüt"],
+              [BookOpen, t("auth.benefitCloud")],
+              [CalendarCheck2, t("auth.benefitDevices")],
+              [Flame, t("auth.benefitProgress")],
             ].map(([Icon, label]) => (
               <li key={String(label)} className="flex flex-col items-center gap-2">
                 <Icon size={20} className="text-orange-300" />
@@ -72,8 +101,8 @@ export function LoginPage({
           </ul>
         </section>
         <section
-          aria-label="Hesabına bağlan"
-          className="w-full max-w-lg justify-self-center rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-9 lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none"
+          aria-label={t("auth.formAria")}
+          className={`auth-form-panel relative z-10 flex w-full items-center justify-center bg-white p-5 transition-transform duration-500 ease-[cubic-bezier(.2,.8,.2,1)] motion-reduce:transition-none sm:p-8 lg:col-start-2 lg:row-start-1 lg:p-10 ${signup ? "lg:-translate-x-full" : ""}`}
         >
           <AuthForm
             key={recovering ? "recovery" : "signin"}
@@ -81,12 +110,12 @@ export function LoginPage({
             email={user?.email}
             onSuccess={onSuccess}
             onRecovered={onRecovered}
+            onModeChange={setAuthMode}
+            externalMode={externalMode}
           />
         </section>
       </main>
-      <footer className="px-4 pb-5 text-center text-xs text-slate-500">
-        YDS Atlas · Her gün bir adım daha.
-      </footer>
+      <footer className="px-4 pb-5 text-center text-xs text-slate-500">{t("auth.footer")}</footer>
     </div>
   );
 }

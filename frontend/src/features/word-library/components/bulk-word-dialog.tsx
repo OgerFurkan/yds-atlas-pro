@@ -25,7 +25,8 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify }: Bulk
           <div>
             <DialogTitle>Toplu kelime ekle</DialogTitle>
             <DialogDescription>
-              Önce yazımı incele, ardından kelimelerini kütüphanene ekle.
+              Yazımı incele. Giriş yaptıysan eksik bilgiler Gemini ile tamamlanır (bir seferde 25
+              kelimeye kadar); misafir kullanımında eksik bilgiler otomatik tamamlanmaz.
             </DialogDescription>
           </div>
         </DialogHeader>

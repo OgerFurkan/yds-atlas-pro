@@ -1,4 +1,5 @@
 import { LibraryBig, Trash2 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import type { WordCounts } from "../model/word-library-view";
 
@@ -9,10 +10,11 @@ export function LibrarySummary({
   counts: WordCounts;
   onDeleteAll: () => void;
 }) {
+  const { t } = useTranslation();
   return (
     <section
       className="flex min-h-[84px] flex-wrap items-center gap-x-6 gap-y-3 rounded-lg border border-slate-200 bg-white px-4 py-3"
-      aria-label="Kütüphane özeti"
+      aria-label={t("library.summary")}
     >
       <div className="flex items-center gap-3 border-r border-slate-200 pr-5 max-sm:pr-3">
         <span className="grid size-10 place-items-center rounded-lg bg-sky-50 text-atlas-blue">
@@ -20,25 +22,28 @@ export function LibrarySummary({
         </span>
         <div>
           <small className="block text-sm font-bold tracking-[.8px] text-slate-400">
-            KÜTÜPHANENDE
+            {t("library.inLibrary")}
           </small>
           <strong className="text-lg leading-tight text-atlas-ink">
-            {counts.all} <span className="text-xs font-medium text-atlas-muted">kelime</span>
+            {counts.all}{" "}
+            <span className="text-xs font-medium text-atlas-muted">
+              {t("library.word", { count: counts.all })}
+            </span>
           </strong>
         </div>
       </div>
       <div className="flex flex-1 items-center gap-5 max-sm:order-3 max-sm:w-full max-sm:flex-none max-sm:justify-between max-sm:border-t max-sm:border-slate-200 max-sm:pt-3">
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-600">
           <i className="size-1.5 rounded-full bg-atlas-orange" />
-          {counts.hard} zorlanılan
+          {counts.hard} {t("library.hardCount")}
         </span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-600">
           <i className="size-1.5 rounded-full bg-amber-500" />
-          {counts.review} tekrar
+          {counts.review} {t("library.reviewCount")}
         </span>
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs text-slate-600">
           <i className="size-1.5 rounded-full bg-emerald-600" />
-          {counts.learned} öğrenilen
+          {counts.learned} {t("library.learnedCount")}
         </span>
       </div>
       <Button
@@ -48,7 +53,7 @@ export function LibrarySummary({
         onClick={onDeleteAll}
         disabled={!counts.all}
       >
-        <Trash2 size={15} /> Tümünü sil
+        <Trash2 size={15} /> {t("library.deleteAll")}
       </Button>
     </section>
   );

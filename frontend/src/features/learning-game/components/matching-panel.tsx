@@ -1,5 +1,6 @@
 import { ArrowRight, Check, CheckCheck, Languages, Link2, RotateCcw, X } from "lucide-react";
 import { Fragment } from "react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import type { GameSession } from "../model/game-session";
@@ -15,6 +16,7 @@ export function MatchingPanel({
   onRetry: () => void;
   onNext: () => void;
 }) {
+  const { t } = useTranslation();
   const board = session.matching;
   if (!board) return null;
   const complete = board.matched.length === board.left.length;
@@ -28,24 +30,27 @@ export function MatchingPanel({
           <Languages size={25} />
         </span>
         <h2 className="text-2xl font-bold tracking-tight text-atlas-navy">
-          Anlamları birbirine bağla
+          {t("game.matchingTitle")}
         </h2>
         <p className="mx-auto max-w-lg text-sm leading-6 text-slate-500">
-          Bir İngilizce kelime ve Türkçe karşılığını seç. İstersen önce Türkçe taraftan da
-          başlayabilirsin.
+          {t("game.matchingDescription")}
         </p>
       </div>
       <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
         <span className="flex items-center gap-2">
-          <Link2 size={16} /> Bu eşleştirme seti
+          <Link2 size={16} /> {t("game.matchingSet")}
         </span>
         <span>
-          {board.matched.length} / {board.left.length} eşleşti
+          {board.matched.length} / {board.left.length} {t("game.matched")}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-8">
-        <span className="px-2 text-xs font-bold tracking-wide text-atlas-blue">İNGİLİZCE</span>
-        <span className="px-2 text-xs font-bold tracking-wide text-atlas-blue">TÜRKÇE</span>
+        <span className="px-2 text-xs font-bold tracking-wide text-atlas-blue">
+          {t("game.english")}
+        </span>
+        <span className="px-2 text-xs font-bold tracking-wide text-atlas-blue">
+          {t("game.turkish")}
+        </span>
         {board.left.map((leftId, index) => (
           <Fragment key={leftId}>
             {(["left", "right"] as const).map((side) => {
@@ -65,7 +70,7 @@ export function MatchingPanel({
                   data-word-id={id}
                   type="button"
                   aria-pressed={selected}
-                  aria-label={`${side === "left" ? "İngilizce" : "Türkçe"}: ${side === "left" ? word.word : word.meanings[0]}${matched ? ", eşleşti" : ""}`}
+                  aria-label={`${t(side === "left" ? "game.leftWord" : "game.rightWord")}: ${side === "left" ? word.word : word.meanings[0]}${matched ? `, ${t("game.paired")}` : ""}`}
                   disabled={matched || feedback?.correct === false}
                   onClick={() => onSelect(side, id)}
                   className={cn(
@@ -106,11 +111,9 @@ export function MatchingPanel({
           <>
             <CheckCheck size={23} />
             <div>
-              <strong className="block">Bu setteki bütün çiftler tamam!</strong>
+              <strong className="block">{t("game.allMatched")}</strong>
               <span className="text-xs">
-                {session.queue.length
-                  ? "Sıradaki kelimelerle devam edebilirsin."
-                  : "Şimdi anlamları tek tek hatırlama zamanı."}
+                {session.queue.length ? t("game.nextWords") : t("game.recallMeaning")}
               </span>
             </div>
           </>
@@ -119,14 +122,14 @@ export function MatchingPanel({
             <Check size={21} />
             <span>
               <strong>{leftWord?.word}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
-              eşleşti.
+              {t("game.pairMatched")}
             </span>
           </>
         ) : feedback ? (
           <>
             <X size={21} />
             <div className="min-w-0 flex-1">
-              <strong className="block">Bu ikisi birbirinin karşılığı değil.</strong>
+              <strong className="block">{t("game.wrongPair")}</strong>
               <span className="text-xs">
                 {leftWord?.word}: {leftWord?.meanings[0]} · {rightWord?.meanings[0]}:{" "}
                 {rightWord?.word}
@@ -138,7 +141,7 @@ export function MatchingPanel({
               className="border-red-200 text-red-800 hover:bg-red-100"
               onClick={onRetry}
             >
-              <RotateCcw size={15} /> Yeniden dene
+              <RotateCcw size={15} /> {t("game.retry")}
             </Button>
           </>
         ) : (
@@ -146,15 +149,15 @@ export function MatchingPanel({
             <Link2 size={19} />
             <span>
               {board.selectedLeft || board.selectedRight
-                ? "Şimdi diğer sütundan karşılığını seç."
-                : "İlk çifti seçerek başla."}
+                ? t("game.chooseOther")
+                : t("game.chooseFirst")}
             </span>
           </>
         )}
       </div>
       {complete && (
         <Button id="matching-next" className="w-full sm:ml-auto sm:flex sm:w-auto" onClick={onNext}>
-          {session.queue.length ? "Sıradaki eşleştirmeler" : "Anlam sorularına geç"}
+          {session.queue.length ? t("game.nextMatching") : t("game.toMeaning")}
           <ArrowRight size={17} />
         </Button>
       )}

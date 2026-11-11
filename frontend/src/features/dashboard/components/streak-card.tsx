@@ -1,35 +1,38 @@
 import { Check, Flame, Trophy } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import { getStreak } from "../model/streak";
 
 export function StreakCard({ now }: { now: Date }) {
+  const { t } = useTranslation();
   const streak = getStreak(now);
+  const weekdays = t("streak.weekdays", { returnObjects: true }) as string[];
   return (
     <aside
       className="relative min-w-0 overflow-hidden rounded-2xl border border-orange-100 bg-white p-5 sm:p-6"
-      aria-label="Günlük çalışma serisi"
+      aria-label={t("streak.aria")}
     >
       <div className="flex items-center justify-between">
         <span className="grid size-12 place-items-center rounded-2xl bg-orange-50 text-orange-500">
           <Flame size={29} fill="currentColor" />
         </span>
         <span className="flex items-center gap-1.5 rounded-full bg-slate-50 px-3 py-1.5 text-xs font-medium text-slate-500">
-          <Trophy size={14} /> Rekor: {streak.longest} gün
+          <Trophy size={14} /> {t("streak.record", { count: streak.longest })}
         </span>
       </div>
       <p className="mt-5 text-3xl font-bold text-atlas-navy">
         {streak.current}
-        <span className="ml-2 text-lg font-semibold">günlük seri</span>
+        <span className="ml-2 text-lg font-semibold">{t("streak.current")}</span>
       </p>
       <p className="mt-2 min-h-12 text-sm leading-6 text-slate-500">
         {streak.todayCompleted
-          ? "Bugünkü hedef tamam! Serini yarın da devam ettir."
+          ? t("streak.completedToday")
           : streak.current
-            ? "Serin devam ediyor. Bugünkü hedefini bitir, bir gün daha ekle."
-            : "Bugünkü hedefini tamamla, ilk alevini yak."}
+            ? t("streak.continue")
+            : t("streak.start")}
       </p>
       <div className="mt-5 grid grid-cols-7 gap-1.5">
-        {streak.week.map((day) => (
+        {streak.week.map((day, index) => (
           <div key={day.date} className="space-y-2 text-center">
             <span
               className={cn(
@@ -37,12 +40,12 @@ export function StreakCard({ now }: { now: Date }) {
                 day.today ? "font-bold text-atlas-orange-dark" : "text-slate-400",
               )}
             >
-              {day.label}
+              {weekdays[index]}
             </span>
             <span
               role="img"
-              title={`${day.date}${day.completed ? " · Hedef tamamlandı" : ""}`}
-              aria-label={`${day.label}${day.today ? ", bugün" : ""}: ${day.completed ? "tamamlandı" : "henüz tamamlanmadı"}`}
+              title={`${day.date}${day.completed ? ` · ${t("streak.completed")}` : ""}`}
+              aria-label={`${weekdays[index]}${day.today ? `, ${t("streak.today")}` : ""}: ${day.completed ? t("streak.completed") : t("streak.incomplete")}`}
               className={cn(
                 "mx-auto grid aspect-square w-full max-w-9 place-items-center rounded-full border",
                 day.completed
@@ -64,9 +67,7 @@ export function StreakCard({ now }: { now: Date }) {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-400">
-        Günlük hedefini tamamladığın her gün serine eklenir.
-      </p>
+      <p className="mt-4 text-xs leading-5 text-slate-400">{t("streak.footer")}</p>
     </aside>
   );
 }

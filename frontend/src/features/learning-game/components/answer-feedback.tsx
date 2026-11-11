@@ -1,4 +1,5 @@
 ﻿import { CheckCircle2, XCircle } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
 import { WordExample } from "@/features/word-library/components/word-example";
 import { formatWordType } from "@/features/word-library/model/word-normalization";
@@ -7,6 +8,7 @@ import { makeQuestion } from "../model/game-engine";
 import type { GameSession } from "../model/game-session";
 
 export function AnswerFeedback({ session }: { session: GameSession }) {
+  const { t } = useTranslation();
   const question = makeQuestion(session);
   if (!question || !session.answer) return null;
   const { word } = question;
@@ -33,15 +35,13 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
           <XCircle size={25} className="shrink-0 text-red-500" />
         )}
         <div>
-          <h3 className="font-semibold">
-            {correct ? "Doğru yanıt!" : "Bu kez olmadı. Birlikte inceleyelim."}
-          </h3>
+          <h3 className="font-semibold">{correct ? t("game.correct") : t("game.incorrect")}</h3>
           <p className="mt-1 text-sm">
             {correct
               ? question.context
-                ? "Kelimeyi cümlede doğru yere yerleştirdin."
-                : "Kelimenin anlamını doğru eşleştirdin."
-              : "Aşağıdaki anlam ve örnek, doğru cevabı ayırt etmene yardımcı olacak."}
+                ? t("game.correctContext")
+                : t("game.correctMeaning")
+              : t("game.feedbackHint")}
           </p>
         </div>
       </div>
@@ -49,11 +49,12 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
         {!correct && (
           <div className="flex flex-wrap gap-x-6 gap-y-2 rounded-lg bg-white/80 p-3 text-sm">
             <span className="text-slate-500">
-              Senin yanıtın:{" "}
+              {t("game.yourAnswer")}{" "}
               <span className="font-medium text-red-700 line-through">{session.answer.choice}</span>
             </span>
             <span className="text-slate-600">
-              Doğru yanıt: <strong className="text-atlas-navy">{question.correct}</strong>
+              {t("game.correctAnswer")}{" "}
+              <strong className="text-atlas-navy">{question.correct}</strong>
             </span>
           </div>
         )}

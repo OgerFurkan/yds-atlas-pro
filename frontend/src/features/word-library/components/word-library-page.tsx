@@ -1,6 +1,7 @@
 ﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { CirclePlus, ListFilter } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { BulkWordDialog } from "@/features/word-library/components/bulk-word-dialog";
 import { LibraryFilterTabs } from "@/features/word-library/components/library-filter-tabs";
 import { LibrarySelectionBar } from "@/features/word-library/components/library-selection-bar";
@@ -48,6 +49,7 @@ export function WordLibraryPage({
   onNotify,
   onInitialCreateHandled,
 }: WordLibraryPageProps) {
+  const { t } = useTranslation();
   const view = useWordLibraryView(words, initialGroup);
   const selection = useWordSelection();
   const [formOpen, setFormOpen] = useState(initialCreate);
@@ -65,40 +67,39 @@ export function WordLibraryPage({
   }
 
   async function deleteWord(word: WordEntry) {
-    if (!window.confirm(`“${word.word}” kelimesini silmek istiyor musun?`)) return;
+    if (!window.confirm(t("library.confirmDelete", { word: word.word }))) return;
     try {
       await onRemove(word.id);
       selection.remove(word.id);
-      onNotify.success("Kelime silindi.");
+      onNotify.success(t("library.deleted"));
     } catch (error) {
-      onNotify.error(error instanceof Error ? error.message : "Kelime silinemedi.");
+      onNotify.error(error instanceof Error ? error.message : t("library.deleteFailed"));
     }
   }
 
   async function deleteSelection() {
     if (
       !selection.selectedIds.length ||
-      !window.confirm(`${selection.selectedIds.length} kelime silinsin mi?`)
+      !window.confirm(t("library.confirmDeleteSelected", { count: selection.selectedIds.length }))
     )
       return;
     try {
       await onRemoveMany(selection.selectedIds);
       selection.clear();
-      onNotify.success("Seçili kelimeler silindi.");
+      onNotify.success(t("library.selectedDeleted"));
     } catch (error) {
-      onNotify.error(error instanceof Error ? error.message : "Kelimeler silinemedi.");
+      onNotify.error(error instanceof Error ? error.message : t("library.selectedDeleteFailed"));
     }
   }
 
   async function deleteAll() {
-    if (!words.length || !window.confirm("Kütüphanendeki tüm kelimeler kalıcı olarak silinsin mi?"))
-      return;
+    if (!words.length || !window.confirm(t("library.confirmDeleteAll"))) return;
     try {
       await onRemoveMany(words.map((word) => word.id));
       selection.clear();
-      onNotify.success("Kütüphanen temizlendi.");
+      onNotify.success(t("library.allDeleted"));
     } catch (error) {
-      onNotify.error(error instanceof Error ? error.message : "Kütüphane silinemedi.");
+      onNotify.error(error instanceof Error ? error.message : t("library.allDeleteFailed"));
     }
   }
 
@@ -108,21 +109,19 @@ export function WordLibraryPage({
         <div>
           <p className="text-xs text-slate-400">
             Atlas <span className="px-1.5">/</span>
-            <strong className="font-semibold text-atlas-blue">Kütüphane</strong>
+            <strong className="font-semibold text-atlas-blue">{t("library.breadcrumb")}</strong>
           </p>
           <h1 className="mt-2 mb-1 text-[clamp(24px,2.4vw,34px)] leading-tight font-semibold text-atlas-ink">
-            Kelime kütüphanen
+            {t("library.title")}
           </h1>
-          <p className="text-sm text-atlas-muted">
-            Kelimelerin, senin yönteminle ve senin hızında.
-          </p>
+          <p className="text-sm text-atlas-muted">{t("library.subtitle")}</p>
         </div>
         <div className="flex gap-2 max-sm:grid max-sm:grid-cols-[.9fr_1.1fr]">
           <Button variant="secondary" type="button" onClick={() => setBulkOpen(true)}>
-            <ListFilter size={16} /> Toplu ekle
+            <ListFilter size={16} /> {t("library.bulkAdd")}
           </Button>
           <Button type="button" onClick={openCreate}>
-            <CirclePlus size={17} /> Kelime ekle
+            <CirclePlus size={17} /> {t("library.add")}
           </Button>
         </div>
       </div>
@@ -131,7 +130,7 @@ export function WordLibraryPage({
 
       <section
         className="mt-4 rounded-lg border border-slate-200 bg-white"
-        aria-label="Kelime listesi"
+        aria-label={t("library.aria")}
       >
         <LibraryFilterTabs group={view.group} counts={view.counts} onChange={view.setGroup} />
         <LibraryToolbar

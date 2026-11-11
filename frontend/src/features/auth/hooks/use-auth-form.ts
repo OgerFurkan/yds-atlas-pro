@@ -1,8 +1,10 @@
 ﻿import { zodResolver } from "@hookform/resolvers/zod";
 import { useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/shared/api/supabase-client";
-import { authSchema, authErrorMessage, type AuthValues } from "../model/auth-schema";
+import { type AuthValues, authSchema } from "../model/auth-schema";
+import { setRememberSession } from "../model/auth-storage";
 export function useAuthForm({
   recovering,
   email,
@@ -14,8 +16,10 @@ export function useAuthForm({
   onSuccess: () => void;
   onRecovered: () => void;
 }) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberSession, setRememberSessionChoice] = useState(false);
   const form = useForm<AuthValues>({
     resolver: zodResolver(authSchema),
     defaultValues: { email: email ?? "", password: "", mode: recovering ? "recovery" : "signin" },
@@ -30,13 +34,12 @@ export function useAuthForm({
   async function submit(values: AuthValues) {
     setMessage("");
     if (!supabase) {
-      setMessage(
-        "Hesap bağlantısı henüz açılmadı. Şimdilik misafir olarak çalışmaya devam edebilirsin.",
-      );
+      setMessage(t("auth.connectionPending"));
       return;
     }
     try {
       const redirect = window.location.origin + window.location.pathname;
+      if (values.mode === "signin") setRememberSession(rememberSession);
       const result =
         values.mode === "signin"
           ? await supabase.auth.signInWithPassword({
@@ -53,20 +56,38 @@ export function useAuthForm({
               ? await supabase.auth.resetPasswordForEmail(values.email, { redirectTo: redirect })
               : await supabase.auth.updateUser({ password: values.password });
       if (result.error) {
-        setMessage(authErrorMessage(result.error.code));
+        const code = result.error.code;
+        const key =
+          code === "invalid_credentials"
+            ? "invalidCredentials"
+            : code === "email_not_confirmed"
+              ? "emailNotConfirmed"
+              : code === "over_email_send_rate_limit" || code === "over_request_rate_limit"
+                ? "rateLimit"
+                : code === "weak_password"
+                  ? "weakPassword"
+                  : "generic";
+        setMessage(t(`auth.errors.${key}`));
         return;
       }
-      if (values.mode === "signup" || values.mode === "reset")
-        setMessage(
-          "Bu adres için işlem yapılabiliyorsa e-posta bağlantısı gönderildi. Gelen kutunu ve gereksiz postaları kontrol et.",
-        );
+      if (values.mode === "signup" || values.mode === "reset") setMessage(t("auth.emailSent"));
       else {
         if (values.mode === "recovery") onRecovered();
         onSuccess();
       }
     } catch {
-      setMessage("Bağlantı kurulamadı. Lütfen yeniden dene.");
+      setMessage(t("auth.connectionError"));
     }
   }
-  return { form, mode, message, showPassword, setShowPassword, changeMode, submit };
+  return {
+    form,
+    mode,
+    message,
+    showPassword,
+    setShowPassword,
+    rememberSession,
+    setRememberSessionChoice,
+    changeMode,
+    submit,
+  };
 }

@@ -1,4 +1,5 @@
 import { ArrowRight, Brain, Check, CheckCircle2, XCircle, Zap } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 import { isFinal, makeQuestion } from "../model/game-engine";
@@ -16,6 +17,7 @@ export function QuizPanel({
   onConfidence: (value: Confidence) => void;
   onNext: () => void;
 }) {
+  const { t } = useTranslation();
   const question = makeQuestion(session);
   if (!question) return null;
   const feedback = session.answer;
@@ -24,9 +26,7 @@ export function QuizPanel({
     <div className="space-y-5">
       <div id="question-sentence" className="py-4 text-center sm:py-6">
         <p className="mb-4 text-sm text-slate-500">
-          {question.context
-            ? "Cümledeki boşluğu hangi kelime tamamlar?"
-            : "Bu kelime Türkçede ne anlama geliyor?"}
+          {question.context ? t("game.contextQuestion") : t("game.meaningQuestion")}
         </p>
         <h2
           className={cn(
@@ -93,7 +93,7 @@ export function QuizPanel({
                     [0, "Hatırladım", Check],
                     [20, "Kolay hatırladım", Zap],
                   ] as const
-                ).map(([value, label, Icon]) => (
+                ).map(([value, _label, Icon], index) => (
                   <Button
                     key={value}
                     aria-pressed={feedback.confidence === value}
@@ -118,7 +118,7 @@ export function QuizPanel({
                     ) : (
                       <Icon size={16} />
                     )}
-                    {label}
+                    {(t("game.confidence", { returnObjects: true }) as string[])[index]}
                   </Button>
                 ))}
               </div>
@@ -130,7 +130,7 @@ export function QuizPanel({
               disabled={isFinal(session) && feedback.correct && feedback.confidence === null}
               onClick={onNext}
             >
-              Devam et <ArrowRight size={18} />
+              {t("game.continue")} <ArrowRight size={18} />
             </Button>
           </div>
         </>

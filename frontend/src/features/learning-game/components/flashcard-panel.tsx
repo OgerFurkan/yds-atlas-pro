@@ -1,5 +1,6 @@
 import type { WordEntry } from "@yds-atlas/shared";
 import { ArrowRight } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { FlashcardBack, FlashcardFront } from "@/features/learning-game/components/flashcard-faces";
 import { useCardFlip } from "@/features/learning-game/hooks/use-card-flip";
 import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
@@ -20,6 +21,7 @@ export function FlashcardPanel(props: FlashcardPanelProps) {
 }
 
 function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProps) {
+  const { t } = useTranslation();
   const { back, revealed, turning, flip, finishTurn } = useCardFlip({ onFlip });
   const example = word.examples[0];
 
@@ -28,7 +30,7 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
       <button
         id="atlas-card-flip"
         type="button"
-        aria-label={back ? "Kartın ön yüzüne dön" : "Kartı çevir ve anlamı göster"}
+        aria-label={back ? t("game.cardBack") : t("game.reveal")}
         aria-describedby={back ? "word-information" : undefined}
         aria-pressed={back}
         aria-disabled={turning}
@@ -72,7 +74,7 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
           {example && (
             <div id="word-example" className="w-full min-w-0 wrap-break-word *:max-w-none">
               <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">
-                CÜMLE İÇİNDE GÖR
+                {t("game.context")}
               </p>
               <WordExample word={word} example={example} />
             </div>
@@ -86,7 +88,7 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
         disabled={!revealed || turning}
         onClick={onNext}
       >
-        Bir sonraki kelime <ArrowRight size={18} />
+        {t("game.nextWord")} <ArrowRight size={18} />
       </Button>
     </div>
   );

@@ -10,6 +10,7 @@ import {
   LibraryBig,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import {
   completedToday,
@@ -71,12 +72,13 @@ export function DashboardPage({
   onOpenLibrary,
   onStartLearning,
 }: DashboardPageProps) {
+  const { t, i18n } = useTranslation();
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const timer = window.setInterval(() => setNow(new Date()), 60000);
     return () => window.clearInterval(timer);
   }, []);
-  const today = dateParts(now);
+  const today = dateParts(now, i18n.resolvedLanguage === "en" ? "en-US" : "tr-TR");
   const [dailyGoal, setDailyGoalState] = useState(getDailyGoal);
   useEffect(() => {
     const refresh = () => setDailyGoalState(getDailyGoal());
@@ -105,12 +107,12 @@ export function DashboardPage({
         <div>
           <p className="text-[10px] font-bold tracking-[1px] text-[#9a6d54]">{today.label}</p>
           <h1 className="mt-1 mb-1 text-[clamp(25px,2.4vw,34px)] leading-tight font-semibold text-atlas-ink">
-            Bugün nereden başlamak istersin?
+            {t("dashboard.heading")}
           </h1>
-          <p className="text-sm text-atlas-muted">Küçük adımlar, güçlü bir kelime dağarcığı.</p>
+          <p className="text-sm text-atlas-muted">{t("dashboard.subtitle")}</p>
         </div>
         <Button variant="secondary" className="max-sm:min-h-9" type="button" onClick={onAddWord}>
-          <CirclePlus size={17} /> Kelime ekle
+          <CirclePlus size={17} /> {t("dashboard.addWord")}
         </Button>
       </div>
 
@@ -124,8 +126,10 @@ export function DashboardPage({
       <section className="mt-8">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p className="text-[9px] font-bold tracking-[1px] text-[#9a6d54]">KÜTÜPHANEN</p>
-            <h2 className="mt-1 text-xl font-semibold text-atlas-ink">İlerleme özeti</h2>
+            <p className="text-[9px] font-bold tracking-[1px] text-[#9a6d54]">
+              {t("dashboard.libraryEyebrow")}
+            </p>
+            <h2 className="mt-1 text-xl font-semibold text-atlas-ink">{t("dashboard.summary")}</h2>
           </div>
           <Button
             variant="link"
@@ -133,38 +137,38 @@ export function DashboardPage({
             type="button"
             onClick={() => onOpenLibrary()}
           >
-            Kütüphaneye git <ArrowRight size={15} />
+            {t("dashboard.openLibrary")} <ArrowRight size={15} />
           </Button>
         </div>
         <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
           <MetricCard
-            label="Toplam kelime"
+            label={t("dashboard.total")}
             value={counts.all}
-            hint="Kütüphanendeki kelimeler"
+            hint={t("dashboard.totalHint")}
             tone="blue"
             icon={<LibraryBig size={18} />}
             onClick={() => onOpenLibrary("all")}
           />
           <MetricCard
-            label="Zorlanılan"
+            label={t("dashboard.hard")}
             value={counts.hard}
-            hint="Biraz daha pratik istiyor"
+            hint={t("dashboard.hardHint")}
             tone="orange"
             icon={<Compass size={18} />}
             onClick={() => onOpenLibrary("hard")}
           />
           <MetricCard
-            label="Tekrar gerekli"
+            label={t("dashboard.review")}
             value={counts.review}
-            hint="Bilgini taze tut"
+            hint={t("dashboard.reviewHint")}
             tone="gold"
             icon={<ArrowDownUp size={18} />}
             onClick={() => onOpenLibrary("review")}
           />
           <MetricCard
-            label="Öğrenildi"
+            label={t("dashboard.learned")}
             value={counts.learned}
-            hint="Güzel gidiyorsun"
+            hint={t("dashboard.learnedHint")}
             tone="green"
             icon={<Check size={18} />}
             onClick={() => onOpenLibrary("learned")}
@@ -176,14 +180,16 @@ export function DashboardPage({
         <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5">
           <div className="mb-3 flex items-end justify-between gap-4">
             <div>
-              <p className="text-[9px] font-bold tracking-[1px] text-[#9a6d54]">SON EKLENENLER</p>
-              <h2 className="mt-1 text-lg font-semibold text-atlas-ink">Kelimelerin</h2>
+              <p className="text-[9px] font-bold tracking-[1px] text-[#9a6d54]">
+                {t("dashboard.recent")}
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-atlas-ink">{t("dashboard.words")}</h2>
             </div>
             <Button
               variant="ghost"
               size="icon"
               type="button"
-              aria-label="Tüm kelimeleri göster"
+              aria-label={t("dashboard.showAll")}
               onClick={() => onOpenLibrary()}
             >
               <ArrowRight size={18} />
@@ -201,13 +207,11 @@ export function DashboardPage({
                 <BookOpen size={19} />
               </span>
               <div className="min-w-0 flex-1">
-                <strong className="text-xs text-slate-800">Rotan burada başlayacak</strong>
-                <p className="mt-1 text-[10px] text-slate-500">
-                  İlk kelimeni ekle, Atlas senin için takip etsin.
-                </p>
+                <strong className="text-xs text-slate-800">{t("dashboard.emptyTitle")}</strong>
+                <p className="mt-1 text-[10px] text-slate-500">{t("dashboard.emptyDescription")}</p>
               </div>
               <Button variant="link" className="px-0 text-[10px]" type="button" onClick={onAddWord}>
-                Kelime ekle <ArrowRight size={15} />
+                {t("dashboard.addWord")} <ArrowRight size={15} />
               </Button>
             </div>
           )}

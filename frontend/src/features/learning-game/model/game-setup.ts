@@ -3,7 +3,7 @@ import { starterVocabulary } from "@/features/word-library/data/starter-vocabula
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { isGameReady, shuffle } from "./game-engine";
 
-export type SetupSource = "starter" | "library" | "own";
+export type SetupSource = "starter" | "library" | "own" | "ai";
 
 export function setupCandidates(
   words: WordEntry[],

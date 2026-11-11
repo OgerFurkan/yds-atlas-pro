@@ -1,8 +1,8 @@
-﻿import { useEffect, useRef, useState } from "react";
+﻿import { type AiWordResponse, type WordInput } from "@yds-atlas/shared";
 import { LoaderCircle, Sparkles } from "lucide-react";
-import { type AiWordResponse, type WordInput, wordInputSchema } from "@yds-atlas/shared";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/button";
-import { enrichWithGemini } from "../api/ai-word-api";
+import { aiSuggestionToWordInput, enrichWithGemini } from "../api/ai-word-api";
 export function AiWordAssist({
   word,
   onApply,
@@ -81,6 +81,18 @@ export function AiWordAssist({
                 <li key={example.sentence}>
                   <p>{example.sentence}</p>
                   <p className="mt-1 text-slate-500">{example.translation}</p>
+                  {draft.dictionarySource?.examples.some(
+                    (source) => source.sentence.trim() === example.sentence.trim(),
+                  ) && (
+                    <a
+                      className="mt-1 inline-block text-[11px] underline underline-offset-2"
+                      href={draft.dictionarySource.sourceUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      Wiktionary · {draft.dictionarySource.licenseName}
+                    </a>
+                  )}
                 </li>
               ))}
             </ol>
@@ -90,13 +102,7 @@ export function AiWordAssist({
             className="w-full"
             onClick={() => {
               onApply(
-                wordInputSchema.parse({
-                  ...draft.suggestion,
-                  examples: draft.suggestion.examples.map((example) => ({
-                    ...example,
-                    source: "Gemini · " + draft.model,
-                  })),
-                }),
+                aiSuggestionToWordInput(draft.suggestion, draft.model, draft.dictionarySource),
               );
               setDraft(null);
             }}

@@ -29,8 +29,22 @@ function correct(session: GameSession) {
   answered = setConfidence(answered, 20);
   return advance(answered);
 }
+function finishMatching(session: GameSession) {
+  while (session.phase.endsWith("matching")) {
+    for (const id of session.matching!.left) {
+      session = selectMatching(selectMatching(session, "left", id), "right", id);
+    }
+    session = continueMatching(session);
+  }
+  return session;
+}
 
 describe("learning loop", () => {
+  test("regular sessions match each study group while the single-word tutorial follows its guide", () => {
+    expect(createSession(deck(5), 5).groupMatching).toBe(true);
+    expect(createSession(deck(1), 5, true).groupMatching).toBe(false);
+  });
+
   test("all 20 starter words have 5 clozable examples and can be studied", () => {
     for (const word of deck()) {
       expect(usableExamples(word)).toHaveLength(5);
@@ -46,12 +60,14 @@ describe("learning loop", () => {
     expect(session.queue).toHaveLength(1);
     expect(session.stageCompleted).toBe(0);
     session = advance(session, true);
+    expect(session.phase).toBe("matching");
+    session = finishMatching(session);
     expect(session.phase).toBe("meaning");
     expect(session.scoreChanges).toEqual({});
   });
 
   test("wrong meaning and context answers repeat, with a different context example", () => {
-    let session = advance(createSession(deck(1), 5));
+    let session = finishMatching(advance(createSession(deck(1), 5)));
     let question = makeQuestion(session)!;
     session = advance(
       recordAnswer(session, question.choices.find((choice) => choice !== question.correct)!),
@@ -77,7 +93,7 @@ describe("learning loop", () => {
       while (session.phase !== "complete" && iterations++ < 200) {
         groups.add(session.groupIndex);
         expect(groupWords(session).length).toBe(batch);
-        if (session.phase === "final-matching") {
+        if (session.phase.endsWith("matching")) {
           for (const id of session.matching!.left) {
             session = selectMatching(selectMatching(session, "left", id), "right", id);
           }
@@ -135,6 +151,45 @@ describe("learning loop", () => {
       expect(question.sentence!.toLowerCase()).not.toContain(word.word.toLowerCase());
       expect(makeQuestion(JSON.parse(JSON.stringify(session)))!.choices).toEqual(question.choices);
     }
+  });
+
+  test("group questions prefer distractors from the current study group", () => {
+    let session = createSession(deck(), 5);
+    for (let index = 0; index < 5; index++) session = advance(session);
+    session = finishMatching(session);
+    const question = makeQuestion(session)!;
+    const groupMeanings = new Set(groupWords(session).flatMap((word) => word.meanings));
+    const wrongChoices = question.choices.filter((choice) => choice !== question.correct);
+    expect(wrongChoices).toHaveLength(3);
+    expect(wrongChoices.every((choice) => groupMeanings.has(choice))).toBe(true);
+    session = { ...session, phase: "context" };
+    const contextQuestion = makeQuestion(session)!;
+    const groupHeadwords = new Set(groupWords(session).map((word) => word.word));
+    expect(
+      contextQuestion.choices
+        .filter((choice) => choice !== contextQuestion.correct)
+        .every((choice) => groupHeadwords.has(choice)),
+    ).toBe(true);
+  });
+
+  test("context questions rotate after the flashcard and survive reload", () => {
+    const session: GameSession = { ...createSession(deck(1), 5), phase: "context" };
+    const first = makeQuestion(session)!;
+    expect(first.example?.sentence).not.toBe(session.words[0].examples[0].sentence);
+    expect(makeQuestion(JSON.parse(JSON.stringify(session)))?.example).toEqual(first.example);
+    const wrong = first.choices.find((choice) => choice !== first.correct)!;
+    const retried = advance(recordAnswer(session, wrong));
+    const second = makeQuestion(retried)!;
+    expect(second.example?.sentence).not.toBe(first.example?.sentence);
+    const final = {
+      ...retried,
+      phase: "final-context" as const,
+      attempts: { ...retried.attempts, [`context:${first.word.id}`]: 2 },
+    };
+    expect(makeQuestion(final)?.example?.sentence).not.toBe(second.example?.sentence);
+    expect(makeQuestion(JSON.parse(JSON.stringify(final)))?.example).toEqual(
+      makeQuestion(final)?.example,
+    );
   });
 
   test("cloze matches whole words, escapes regex syntax and supports explicit inflections", () => {

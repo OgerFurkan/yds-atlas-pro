@@ -62,6 +62,8 @@ test("a short task does not complete a larger daily goal or start a streak", () 
 test("saved snapshots retain the selected answer across a reload", () => {
   const word = localWordRepository.save({ word: "abandon" });
   let session = advance(createSession([word], 5));
+  session = selectMatching(selectMatching(session, "left", word.id), "right", word.id);
+  session = continueMatching(session);
   session = recordAnswer(session, makeQuestion(session)!.correct);
   persistSession(session);
   expect(readSession()).toEqual(session);

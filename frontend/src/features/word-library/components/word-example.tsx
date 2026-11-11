@@ -48,6 +48,9 @@ export function WordExample({
     : translation === seed?.translation && seed?.translationFocus?.length
       ? seed.translationFocus
       : word.meanings;
+  const wiktionarySource = example.source?.match(
+    /^DictionaryAPI\.dev \/ Wiktionary \(([^)]+)\): (https:\/\/en\.wiktionary\.org\/\S+)$/,
+  );
   return (
     <div
       className={
@@ -66,6 +69,19 @@ export function WordExample({
           "Bu cümlenin Türkçe çevirisi henüz eklenmemiş."
         )}
       </p>
+      {wiktionarySource && (
+        <p className="text-[11px] leading-5 text-slate-500">
+          Kaynak:{" "}
+          <a
+            className="underline underline-offset-2"
+            href={wiktionarySource[2]}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Wiktionary · {wiktionarySource[1]}
+          </a>
+        </p>
+      )}
     </div>
   );
 }

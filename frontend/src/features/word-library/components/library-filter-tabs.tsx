@@ -7,6 +7,8 @@ const groups: { id: GroupFilter; label: string }[] = [
   { id: "learned", label: "Öğrenilen" },
 ];
 
+import { useTranslation } from "react-i18next";
+
 export function LibraryFilterTabs({
   group,
   counts,
@@ -16,6 +18,7 @@ export function LibraryFilterTabs({
   counts: WordCounts;
   onChange: (group: GroupFilter) => void;
 }) {
+  const { t } = useTranslation();
   return (
     <div className="grid grid-cols-2 items-stretch gap-x-3 border-b border-slate-200 px-3 py-1 sm:flex sm:flex-wrap sm:gap-x-5 sm:px-5">
       {groups.map((item) => (
@@ -26,7 +29,7 @@ export function LibraryFilterTabs({
           aria-pressed={group === item.id}
           onClick={() => onChange(item.id)}
         >
-          {item.label}
+          {t(`library.filters.${item.id}`)}
           <span
             className={`grid min-w-4.5 place-items-center rounded px-1 py-0.5 text-xs ${group === item.id ? "bg-orange-50 text-atlas-orange-dark" : "bg-slate-100 text-slate-500"}`}
           >

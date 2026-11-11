@@ -8,6 +8,7 @@ import {
   RotateCw,
   Trophy,
 } from "lucide-react";
+import { useTranslation } from "react-i18next";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { resultScore } from "../model/game-engine";
@@ -26,25 +27,26 @@ export function GameResults({
   onSave: () => void;
   onBack: () => void;
 }) {
+  const { t } = useTranslation();
   const groups = [
     {
       id: "learned",
-      label: "Öğrenilen kelimeler",
-      description: "Bu kelimeler artık daha tanıdık.",
+      label: t("game.groupResults.learned.0"),
+      description: t("game.groupResults.learned.1"),
       icon: CheckCircle2,
       tone: "border-emerald-200 bg-emerald-50 text-emerald-800",
     },
     {
       id: "review",
-      label: "Tekrar gerektirenler",
-      description: "Biraz daha çalışmayla pekişecek.",
+      label: t("game.groupResults.review.0"),
+      description: t("game.groupResults.review.1"),
       icon: RotateCw,
       tone: "border-blue-200 bg-blue-50 text-blue-800",
     },
     {
       id: "hard",
-      label: "Birlikte çalışmaya devam",
-      description: "Bu kelimeler için yeni pratikler iyi gelecek.",
+      label: t("game.groupResults.hard.0"),
+      description: t("game.groupResults.hard.1"),
       icon: Compass,
       tone: "border-orange-200 bg-orange-50 text-orange-800",
     },
@@ -56,20 +58,20 @@ export function GameResults({
           <Trophy size={34} />
         </span>
         <Badge variant="secondary" className="mt-5">
-          {session.tutorial ? "OYUN REHBERİ TAMAMLANDI" : "GÜNLÜK GÖREV TAMAMLANDI"}
+          {session.tutorial ? t("game.tutorialBadge") : t("game.dailyBadge")}
         </Badge>
         <h1 className="mt-4 text-3xl font-bold tracking-tight text-atlas-navy">
-          {session.tutorial ? "Artık göreve hazırsın." : "Bugün kendine bir adım kattın."}
+          {session.tutorial ? t("game.tutorialTitle") : t("game.resultsTitle")}
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm leading-7 text-slate-500">
-          {session.words.length} kelimeyi çalıştın; genel değerlendirmede {session.finalTotal}{" "}
-          adımın {session.finalCorrect} tanesini ilk denemede doğru tamamladın.
+          {t("game.wordsStudied", {
+            count: session.words.length,
+            total: session.finalTotal,
+            correct: session.finalCorrect,
+          })}
         </p>
         {session.tutorial ? (
-          <p className="mt-3 text-sm leading-7 text-slate-500">
-            Kartları, soruları ve geri bildirimleri deneyimledin. Bu deneme kütüphaneni ve günlük
-            serini değiştirmedi.
-          </p>
+          <p className="mt-3 text-sm leading-7 text-slate-500">{t("game.tutorialDescription")}</p>
         ) : (
           <p
             role="status"
@@ -77,14 +79,14 @@ export function GameResults({
           >
             {saving ? (
               <>
-                <LoaderCircle className="animate-spin" size={17} /> Sonuçların kaydediliyor…
+                <LoaderCircle className="animate-spin" size={17} /> {t("game.saving")}
               </>
             ) : session.saved ? (
               <>
-                <CheckCircle2 size={18} /> Kelime grupların ve günlük ilerlemen güncellendi.
+                <CheckCircle2 size={18} /> {t("game.saved")}
               </>
             ) : (
-              "Sonuçların kaydedilmeyi bekliyor."
+              t("game.pending")
             )}
           </p>
         )}
@@ -116,7 +118,7 @@ export function GameResults({
                       </li>
                     ))
                   ) : (
-                    <li className="py-5 text-sm text-slate-400">Bu grupta kelime yok.</li>
+                    <li className="py-5 text-sm text-slate-400">{t("game.noGroupWords")}</li>
                   )}
                 </ul>
               </article>
@@ -131,14 +133,14 @@ export function GameResults({
         >
           {error}
           <Button variant="outline" className="mt-3" onClick={onSave} disabled={saving}>
-            <RotateCw size={16} /> Kaydetmeyi yeniden dene
+            <RotateCw size={16} /> {t("game.retrySave")}
           </Button>
         </div>
       )}
       <div className="flex justify-center">
         <Button disabled={saving || (!session.tutorial && !session.saved)} onClick={onBack}>
           {session.tutorial ? <BookOpen size={17} /> : <ArrowRight size={17} />}
-          {session.tutorial ? "Kendi görevimi hazırla" : "Yeni görev hazırla"}
+          {session.tutorial ? t("game.prepareOwn") : t("game.prepareNew")}
         </Button>
       </div>
     </section>

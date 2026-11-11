@@ -222,6 +222,23 @@ describe("Gemini provider", () => {
       JSON.parse(input!.body as string).contents.map((message: { role: string }) => message.role),
     ).toEqual(["user", "model", "user"]);
   });
+  test("chat reports actionable provider error categories without exposing upstream details", async () => {
+    const messages = [{ role: "user" as const, content: "Explain indicate." }];
+    for (const [status, code] of [
+      [400, "AI_REQUEST_REJECTED"],
+      [401, "AI_AUTH_ERROR"],
+      [403, "AI_AUTH_ERROR"],
+      [404, "AI_MODEL_NOT_FOUND"],
+      [429, "AI_QUOTA_EXCEEDED"],
+      [500, "AI_UPSTREAM_ERROR"],
+    ] as const) {
+      const fetcher = (async () =>
+        new Response("provider secret detail", { status })) as unknown as typeof fetch;
+      await expect(
+        generateChatReply({ messages }, config, undefined, fetcher),
+      ).rejects.toMatchObject({ code });
+    }
+  });
   test("dictionary adapter uses only attributable Wiktionary data and at most two examples", async () => {
     const fetcher = (async () => Response.json(dictionaryEntry)) as unknown as typeof fetch;
     const source = await lookupDictionaryWord("Expand", undefined, fetcher);

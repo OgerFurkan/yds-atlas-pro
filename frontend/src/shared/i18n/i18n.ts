@@ -142,6 +142,12 @@ const resources = {
           "AI sunucusu yapılandırılmamış. GEMINI_API_KEY ve SUPABASE_SECRET_KEY yalnızca backend ortamında olmalı.",
         providerUnavailable:
           "Gemini yanıt veremedi. Render'daki GEMINI_MODEL ve Gemini API ayarlarını kontrol et.",
+        providerAuth:
+          "Gemini API anahtarı veya proje izni reddedildi. Render'daki GEMINI_API_KEY ve Google AI Studio erişimini kontrol et.",
+        modelUnavailable:
+          "Gemini modeli bulunamadı veya bu projede açık değil. Render'daki GEMINI_MODEL değerini ve model erişimini kontrol et.",
+        requestRejected:
+          "Gemini isteği kabul etmedi. Daha kısa bir soru deneyip aynı hata sürerse Render loglarını kontrol et.",
         timeout: "Gemini yanıtı zaman aşımına uğradı. Biraz sonra yeniden dene.",
         footer: "Atlas yanıtları AI tarafından oluşturulur.",
       },
@@ -582,6 +588,12 @@ const resources = {
           "The AI server isn't configured. Set GEMINI_API_KEY and SUPABASE_SECRET_KEY only in the backend environment.",
         providerUnavailable:
           "Gemini couldn't respond. Check GEMINI_MODEL and the Gemini API settings in Render.",
+        providerAuth:
+          "Gemini rejected the API key or project access. Check GEMINI_API_KEY in Render and Google AI Studio permissions.",
+        modelUnavailable:
+          "The Gemini model was not found or is not enabled for this project. Check GEMINI_MODEL in Render and model access.",
+        requestRejected:
+          "Gemini rejected the request. Try a shorter prompt; if it persists, check the Render logs.",
         timeout: "Gemini timed out. Please try again shortly.",
         footer: "Atlas answers are AI-generated.",
       },

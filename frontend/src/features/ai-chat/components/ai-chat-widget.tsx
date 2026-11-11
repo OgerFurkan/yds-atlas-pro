@@ -57,6 +57,12 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         setError(t("chat.notConfigured"));
       else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
         setError(t("chat.timeout"));
+      else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
+        setError(t("chat.providerAuth"));
+      else if (reason instanceof ApiError && reason.code === "AI_MODEL_NOT_FOUND")
+        setError(t("chat.modelUnavailable"));
+      else if (reason instanceof ApiError && reason.code === "AI_REQUEST_REJECTED")
+        setError(t("chat.requestRejected"));
       else if (reason instanceof ApiError && reason.code === "AI_UPSTREAM_ERROR")
         setError(t("chat.providerUnavailable"));
       else setError(reason instanceof Error ? reason.message : t("chat.error"));

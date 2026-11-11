@@ -126,9 +126,9 @@ export function GameSetup({
     setBusy(true);
     setError("");
     try {
-      const selected = selectTaskWords(candidates, target, short);
+      const selected = selectTaskWords(candidates, target, short, source === "starter");
       if (!selected.length) return;
-      if (source === "starter" || source === "ai") await onAddMany(selected);
+      if (source === "ai") await onAddMany(selected);
       const chosen = alignChosenWords(selected, listWords());
       if (chosen.length !== selected.length) throw new Error(t("setup.incomplete"));
       await onStart(chosen, batch);

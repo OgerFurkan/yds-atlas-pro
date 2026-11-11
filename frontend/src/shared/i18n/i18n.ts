@@ -302,9 +302,13 @@ const resources = {
         library: "Kütüphanem",
         own: "Kendi listem",
         ai: "AI listesi",
-        starterTitle: "Kelimeler hazır, sen başlayabilirsin.",
+        starterTitle: "Zorlandığın kelimelerden başlayalım.",
         starterDescription:
-          "20 kelime, Türkçe anlamları ve çevrilmiş örnekleriyle hazır. Başlayınca yeni kelimeler kütüphanene eklenir.",
+          "Önce zorlanılan kelimelerin seçilir; hedefin eksik kalırsa tekrar grubundaki kelimelerle tamamlanır.",
+        starterEmpty:
+          "Henüz çalışmaya hazır zorlanılan veya tekrar kelimen yok. Kütüphanene kelime ekle ya da AI listesini kullan.",
+        starterGroups: "{{hard}} zorlanılan · {{review}} tekrar",
+        starterAvailable: "{{count}} kelime hazır",
         ready: "kelimen çalışmaya hazır.",
         readyDescription:
           "Anlamı ve en az beş örnek cümlesi bulunan, henüz öğrenme aşamasındaki kelimelerden seçilir.",
@@ -738,9 +742,13 @@ const resources = {
         library: "My library",
         own: "My list",
         ai: "AI list",
-        starterTitle: "Words are ready when you are.",
+        starterTitle: "Start with the words you find difficult.",
         starterDescription:
-          "20 words with Turkish meanings and translated examples. They are added to your library when you start.",
+          "Your difficult words come first; if that does not reach your goal, review words fill the rest.",
+        starterEmpty:
+          "You don't have any difficult or review words ready yet. Add words to your library or use the AI list.",
+        starterGroups: "{{hard}} difficult · {{review}} to review",
+        starterAvailable: "{{count}} words ready",
         ready: "words ready to study.",
         readyDescription:
           "Choose words that are still being learned and have a meaning plus at least five example sentences.",

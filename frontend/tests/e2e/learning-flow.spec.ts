@@ -53,6 +53,30 @@ test("daily task survives reload, shows translated cards and automatically saves
 }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    const words = Array.from({ length: 20 }, (_, index) => ({
+      id: `library-word-${index}`,
+      word: `atlasword${index}`,
+      meanings: [`Test meaning ${index}`],
+      alternatives: [],
+      usageNote: "Test usage note.",
+      partOfSpeech: "Noun",
+      cefr: "B2",
+      score: index < 5 ? 20 : 60,
+      examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
+        sentence: `The atlasword${index} appears in test context ${exampleIndex}.`,
+        translation: `Test translation ${index}-${exampleIndex}.`,
+        translationFocus: [`Çeviri ${index}`],
+      })),
+      pronunciationUk: "",
+      pronunciationUs: "",
+      sourceUrl: "",
+      createdAt: now,
+      updatedAt: now,
+    }));
+    localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words));
+  });
   await page.goto("/");
   await page.getByRole("button", { name: "Hedefe Başla" }).click();
   await expect(page.getByRole("heading", { name: "Günlük Görev", exact: true })).toBeVisible();

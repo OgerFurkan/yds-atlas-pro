@@ -136,6 +136,11 @@ test("appearance and language preferences persist and library cards stay distinc
           ["preference-hard", "Zebra", 30],
           ["preference-review", "Quokka", 60],
           ["preference-learned", "Walrus", 90],
+          ...Array.from({ length: 18 }, (_, index) => [
+            `preference-hard-${index}`,
+            `Practice${index}`,
+            30,
+          ]),
         ].map(([id, word, score]) => ({
           id,
           word,
@@ -145,7 +150,11 @@ test("appearance and language preferences persist and library cards stay distinc
           partOfSpeech: "Noun",
           cefr: "B2",
           score,
-          examples: [],
+          examples: Array.from({ length: 5 }, (_, index) => ({
+            sentence: `The ${word} appears in context ${index}.`,
+            translation: `Çeviri ${word}-${index}.`,
+            translationFocus: [`Çeviri ${word}`],
+          })),
           pronunciationUk: "",
           pronunciationUs: "",
           sourceUrl: "",
@@ -184,7 +193,7 @@ test("appearance and language preferences persist and library cards stay distinc
 
   await page.goto("/#library");
   const card = page.locator(".library-word-card");
-  await expect(card).toHaveCount(3);
+  await expect(card).toHaveCount(21);
   for (const [word, background, color] of [
     ["Zebra", "rgb(56, 40, 31)", "rgb(255, 192, 149)"],
     ["Quokka", "rgb(56, 49, 31)", "rgb(247, 217, 139)"],
@@ -246,6 +255,32 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
   await page.addInitScript(() => {
     localStorage.setItem("yds-atlas-theme", "dark");
     localStorage.setItem("yds-atlas-language", "en");
+    const now = new Date().toISOString();
+    localStorage.setItem(
+      "yds-atlas-words-v1",
+      JSON.stringify(
+        Array.from({ length: 20 }, (_, index) => ({
+          id: `feedback-word-${index}`,
+          word: `feedbackword${index}`,
+          alternatives: [],
+          meanings: [`Feedback meaning ${index}`],
+          usageNote: "Practice usage.",
+          partOfSpeech: "Noun",
+          cefr: "B2",
+          score: 20,
+          examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
+            sentence: `The feedbackword${index} appears in context ${exampleIndex}.`,
+            translation: `Çeviri ${index}-${exampleIndex}.`,
+            translationFocus: [`Çeviri ${index}`],
+          })),
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: now,
+          updatedAt: now,
+        })),
+      ),
+    );
   });
   await page.goto("/");
   await page.getByRole("button", { name: "Start goal" }).click();
@@ -272,6 +307,15 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
   expect(
     await feedback.locator(".text-red-900").evaluate((element) => getComputedStyle(element).color),
   ).toBe("rgb(255, 170, 163)");
+  const comparison = feedback.locator(".flex.flex-wrap.gap-x-6.gap-y-2");
+  expect(await comparison.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
+    "rgb(38, 52, 61)",
+  );
+  expect(
+    await comparison
+      .locator(".text-slate-500")
+      .evaluate((element) => getComputedStyle(element).color),
+  ).toBe("rgb(167, 181, 188)");
   await page.locator("#question-next").click();
   await page.locator("#choice-correct").click();
   expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(

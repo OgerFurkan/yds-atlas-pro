@@ -152,6 +152,10 @@ html[data-theme="dark"] .bg-white\/95 {
   background-color: #17252e;
 }
 
+html[data-theme="dark"] .bg-white\/80 {
+  background-color: #26343d;
+}
+
 html[data-theme="dark"] .bg-slate-50,
 html[data-theme="dark"] .bg-slate-100 {
   background-color: #20313a;
@@ -214,6 +218,10 @@ html[data-theme="dark"] .text-orange-800 {
 }
 
 html[data-theme="dark"] .text-amber-800 {
+  color: #f7d98b;
+}
+
+html[data-theme="dark"] .text-amber-900 {
   color: #f7d98b;
 }
 

@@ -2,7 +2,6 @@ import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { BookOpen, LoaderCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { WordImportReview } from "@/features/word-library/components/word-import-review";
-import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
@@ -38,6 +37,8 @@ export function SetupSourcePicker({
   onGenerateAi: () => void;
 }) {
   const { t } = useTranslation();
+  const hardCount = candidates.filter((word) => (word.score ?? 0) < 40).length;
+  const reviewCount = candidates.length - hardCount;
   return (
     <section>
       <div className="mb-4 flex items-center gap-3">
@@ -80,15 +81,28 @@ export function SetupSourcePicker({
               <p className="mt-2 text-sm leading-7 text-slate-600">
                 {t("setup.starterDescription")}
               </p>
+              <p className="mt-2 text-xs font-semibold text-atlas-blue">
+                {t("setup.starterGroups", { hard: hardCount, review: reviewCount })}
+              </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {starterVocabulary.slice(0, 8).map((word) => (
-                <Badge className="px-2.5 py-1 text-xs" variant="outline" key={word.word}>
-                  {word.word}
-                </Badge>
-              ))}
-              <Badge variant="secondary">+12 kelime</Badge>
-            </div>
+            {candidates.length ? (
+              <div className="flex flex-wrap gap-2">
+                {candidates.slice(0, 8).map((word) => (
+                  <Badge className="px-2.5 py-1 text-xs" variant="outline" key={word.word}>
+                    {word.word}
+                  </Badge>
+                ))}
+                {candidates.length > 8 && (
+                  <Badge variant="secondary">
+                    {t("setup.starterAvailable", { count: candidates.length })}
+                  </Badge>
+                )}
+              </div>
+            ) : (
+              <p className="rounded-lg border border-dashed border-slate-300 p-4 text-sm leading-6 text-slate-600">
+                {t("setup.starterEmpty")}
+              </p>
+            )}
           </TabsContent>
           <TabsContent value="library" className="space-y-4">
             <p className="text-sm leading-7 text-slate-600">

@@ -1,5 +1,4 @@
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
-import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { isGameReady, shuffle } from "./game-engine";
 
@@ -11,11 +10,15 @@ export function setupCandidates(
   ownKeys: string[],
 ): WordInput[] {
   const ready = words.filter(isGameReady);
+  if (source === "starter") {
+    return [
+      ...ready.filter((word) => word.score < 40),
+      ...ready.filter((word) => word.score >= 40 && word.score < 80),
+    ];
+  }
   if (source === "library") return ready;
   if (source === "own") return ready.filter((word) => ownKeys.includes(wordKey(word.word)));
-  return starterVocabulary.filter(
-    (seed) => !words.some((word) => wordKey(word.word) === wordKey(seed.word) && word.score >= 80),
-  );
+  return [];
 }
 
 export function taskGroups(count: number, batch: 5 | 10) {
@@ -26,7 +29,17 @@ export function taskGroupCount(target: number, candidateCount: number, batch: 5 
   return taskGroups(Math.min(target, candidateCount), batch);
 }
 
-export function selectTaskWords(candidates: WordInput[], target: number, short = false) {
+export function selectTaskWords(
+  candidates: WordInput[],
+  target: number,
+  short = false,
+  prioritizeHard = false,
+) {
+  if (prioritizeHard) {
+    const hard = shuffle(candidates.filter((word) => (word.score ?? 0) < 40));
+    const review = shuffle(candidates.filter((word) => (word.score ?? 0) >= 40));
+    return [...hard, ...review].slice(0, short ? candidates.length : target);
+  }
   return shuffle(candidates).slice(0, short ? candidates.length : target);
 }
 

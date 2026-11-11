@@ -21,12 +21,23 @@ function stored(index: number, score = 0): WordEntry {
   };
 }
 
-test("starter candidates skip words already learned in the library", () => {
-  const words = [stored(0, 90), stored(1, 20)];
+test("ready list uses hard and review words from the library, excluding learned words", () => {
+  const words = [stored(0, 90), stored(1, 20), stored(2, 50), stagedWord(3, 10)];
   const candidates = setupCandidates(words, "starter", []);
   expect(candidates.some((word) => wordKey(word.word) === wordKey(words[0].word))).toBe(false);
   expect(candidates.some((word) => wordKey(word.word) === wordKey(words[1].word))).toBe(true);
-  expect(candidates.length).toBe(starterVocabulary.length - 1);
+  expect(candidates.some((word) => wordKey(word.word) === wordKey(words[2].word))).toBe(true);
+  expect(candidates.some((word) => wordKey(word.word) === wordKey(words[3].word))).toBe(false);
+  expect(candidates).toHaveLength(2);
+  expect(setupCandidates([], "starter", [])).toEqual([]);
+});
+
+test("ready-list task selection prioritizes hard words and fills from review words", () => {
+  const candidates = [stored(0, 55), stored(1, 20), stored(2, 70), stored(3, 10)];
+  const selected = selectTaskWords(candidates, 3, false, true);
+  expect(selected).toHaveLength(3);
+  expect(selected.slice(0, 2).every((word) => (word.score ?? 0) < 40)).toBe(true);
+  expect(selected[2].score).toBeGreaterThanOrEqual(40);
 });
 
 test("library and own sources only contain ready words", () => {
@@ -63,8 +74,8 @@ test("chosen words are re-read from storage and must stay complete", () => {
   expect(alignChosenWords(words, words).map((word) => word.id)).toEqual(["word-0"]);
 });
 
-function stagedWord(index: number): WordEntry {
-  return { ...stored(index), examples: [] };
+function stagedWord(index: number, score = 0): WordEntry {
+  return { ...stored(index, score), examples: [] };
 }
 
 test("new inputs are completed in batches without overwriting user data or existing words", async () => {

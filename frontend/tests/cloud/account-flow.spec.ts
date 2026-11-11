@@ -260,6 +260,42 @@ async function login(page: Page, email = "alice@example.com") {
   await form.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByRole("button", { name: "Hesabım", exact: true })).toBeVisible();
 }
+test("chat menu cancels pending requests and restores the previous conversation", async ({
+  page,
+}) => {
+  await mockCloud(page);
+  let releaseResponse = () => {};
+  const gate = new Promise<void>((resolve) => {
+    releaseResponse = resolve;
+  });
+  await page.route("**/api/ai/chat", async (route) => {
+    await gate;
+    await route
+      .fulfill({ json: { reply: "Late reply", provider: "Gemini", model: "test" } })
+      .catch(() => {});
+  });
+  try {
+    await page.goto("/");
+    await login(page);
+    await page.getByRole("button", { name: "Atlas'a sor" }).click();
+    const chat = page.getByRole("dialog", { name: "YDS Atlas Pro Asistanı" });
+    await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+    await expect(chat.getByRole("status")).toBeVisible();
+    await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
+    await chat.getByRole("button", { name: "Yeni sohbet" }).click();
+    await expect(
+      chat.getByRole("heading", { name: "Merhaba, nasıl yardımcı olabilirim?" }),
+    ).toBeVisible();
+    releaseResponse();
+    await expect(chat.getByText("Late reply")).toHaveCount(0);
+    await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
+    await chat.getByRole("button", { name: "Sohbet geçmişi" }).click();
+    await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+    await expect(chat.getByText("Indicate ne demek?", { exact: true })).toBeVisible();
+  } finally {
+    releaseResponse();
+  }
+});
 test("remember me selects the intended Supabase session storage", async ({ page }) => {
   await mockCloud(page);
   await page.goto("/");

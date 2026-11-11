@@ -53,6 +53,15 @@ test("sign-up slides the Atlas panel to the right and sign-in slides it back", a
   );
   await brand.getByRole("button", { name: "Hesap oluştur", exact: true }).click();
   expect(await brand.evaluate((element) => element.getAnimations().length)).toBeGreaterThan(0);
+  const midpoint = await brand.evaluate((element) => {
+    const animation = element.getAnimations()[0];
+    animation.pause();
+    animation.currentTime = 350;
+    return element.getBoundingClientRect().x;
+  });
+  expect(midpoint).toBeGreaterThan(shellBox!.x + shellBox!.width * 0.1);
+  expect(midpoint).toBeLessThan(shellBox!.x + shellBox!.width * 0.4);
+  await brand.evaluate((element) => element.getAnimations()[0]?.play());
   await expect(shell).toHaveAttribute("data-auth-mode", "signup");
   await expect
     .poll(async () => {

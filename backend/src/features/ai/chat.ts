@@ -12,6 +12,7 @@ export async function generateChatReply(
     throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
 
   const timeout = AbortSignal.timeout(30_000);
+  const startedAt = Date.now();
   let response: Response;
   try {
     response = await fetcher(
@@ -37,6 +38,12 @@ export async function generateChatReply(
       },
     );
   } catch {
+    if (signal?.aborted) throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
+    console.error({
+      service: "gemini-chat",
+      timedOut: timeout.aborted,
+      durationMs: Date.now() - startedAt,
+    });
     if (!timeout.aborted && !signal?.aborted)
       throw new HttpError(503, "Gemini sunucusuna bağlanılamadı.", "AI_NETWORK_ERROR");
     throw new HttpError(

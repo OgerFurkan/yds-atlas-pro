@@ -51,7 +51,7 @@ export function LoginPage({
       >
         <section
           aria-label={t("auth.brandDescription")}
-          className={`auth-brand relative z-20 hidden overflow-hidden p-8 text-white transition-transform duration-700 ease-[cubic-bezier(.65,0,.35,1)] motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:block lg:p-10 ${signup ? "lg:translate-x-full" : ""}`}
+          className={`auth-brand relative z-20 hidden overflow-hidden p-8 text-white transition-transform duration-700 ease-[cubic-bezier(.65,0,.35,1)] motion-reduce:transition-none lg:col-start-1 lg:row-start-1 lg:block lg:p-10 ${signup ? "lg:[transform:translateX(100%)]" : "lg:[transform:translateX(0)]"}`}
         >
           <p className="text-xs font-semibold tracking-[0.16em] text-orange-200">
             {t("brand.tagline").toLocaleUpperCase()}
@@ -102,7 +102,7 @@ export function LoginPage({
         </section>
         <section
           aria-label={t("auth.formAria")}
-          className={`auth-form-panel relative z-10 flex w-full items-center justify-center bg-white p-5 transition-transform duration-700 ease-[cubic-bezier(.65,0,.35,1)] motion-reduce:transition-none sm:p-8 lg:col-start-2 lg:row-start-1 lg:p-10 ${signup ? "lg:-translate-x-full" : ""}`}
+          className={`auth-form-panel relative z-10 flex w-full items-center justify-center bg-white p-5 transition-transform duration-700 ease-[cubic-bezier(.65,0,.35,1)] motion-reduce:transition-none sm:p-8 lg:col-start-2 lg:row-start-1 lg:p-10 ${signup ? "lg:[transform:translateX(-100%)]" : "lg:[transform:translateX(0)]"}`}
         >
           <AuthForm
             key={recovering ? "recovery" : "signin"}

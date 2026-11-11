@@ -253,7 +253,7 @@ describe("Gemini provider", () => {
     controller.abort();
     await expect(
       generateChatReply({ messages }, config, controller.signal, fetcher),
-    ).rejects.toMatchObject({ code: "AI_TIMEOUT" });
+    ).rejects.toMatchObject({ code: "AI_CANCELLED" });
   });
   test("chat recognizes invalid API keys returned as HTTP 400", async () => {
     const fetcher = (async () =>

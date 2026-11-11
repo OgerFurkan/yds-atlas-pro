@@ -28,6 +28,16 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<AiChatRequest["messages"][]>([]);
   const messageEnd = useRef<HTMLDivElement>(null);
+  const activeRequest = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      const request = activeRequest.current;
+      activeRequest.current = null;
+      request?.abort();
+    },
+    [],
+  );
 
   useEffect(() => {
     if (open) messageEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
@@ -53,12 +63,16 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     setNeedsSignIn(false);
     setShowHistory(false);
     setBusy(true);
+    const controller = new AbortController();
+    activeRequest.current = controller;
     try {
-      const response = await sendChat(history);
+      const response = await sendChat(history, controller.signal);
+      if (activeRequest.current !== controller) return;
       setMessages((current) =>
         [...current, { role: "assistant" as const, content: response.reply }].slice(-12),
       );
     } catch (reason) {
+      if (activeRequest.current !== controller) return;
       if (reason instanceof ApiError && reason.code === "UNAUTHENTICATED") setNeedsSignIn(true);
       else if (
         reason instanceof ApiError &&
@@ -81,7 +95,10 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         setError(t("chat.providerUnavailable"));
       else setError(reason instanceof Error ? reason.message : t("chat.error"));
     } finally {
-      setBusy(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setBusy(false);
+      }
     }
   }
 
@@ -100,7 +117,14 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const suggestions = t("chat.suggestions", { returnObjects: true }) as string[];
   const suggestionIcons = [BookOpen, Sparkles, History];
 
+  function cancelRequest() {
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setBusy(false);
+  }
+
   function newChat() {
+    cancelRequest();
     if (messages.length) setHistory((previous) => [messages, ...previous].slice(0, 10));
     setMessages([]);
     setDraft("");
@@ -143,8 +167,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 <div className="absolute top-14 right-4 left-4 rounded-xl bg-[#ffffff] p-2 text-[#123b59] shadow-lg">
                   <button
                     type="button"
-                    disabled={busy}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8] disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8]"
                     onClick={newChat}
                   >
                     <Plus size={17} />
@@ -152,9 +175,15 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                   </button>
                   <button
                     type="button"
-                    disabled={busy}
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8] disabled:opacity-50"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8]"
                     onClick={() => {
+                      cancelRequest();
+                      if (messages.length) {
+                        setHistory((previous) => [messages, ...previous].slice(0, 10));
+                        setMessages([]);
+                      }
+                      setError("");
+                      setNeedsSignIn(false);
                       setShowHistory(true);
                       setMenuOpen(false);
                     }}

@@ -26,7 +26,9 @@ export async function apiRequest<T>(
     response = await fetch(base + path, {
       ...init,
       headers,
-      signal: init?.signal ?? AbortSignal.timeout(40_000),
+      signal: init?.signal
+        ? AbortSignal.any([init.signal, AbortSignal.timeout(40_000)])
+        : AbortSignal.timeout(40_000),
     });
   } catch {
     throw new ApiError(

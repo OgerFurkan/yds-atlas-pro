@@ -1,6 +1,6 @@
 ﻿# Ücretsiz deneme yayını
 
-Seçilen başlangıç düzeni: frontend Vercel Hobby, Bun API Render Free, veritabanı ve Auth Supabase. Henüz bir canlı proje oluşturulmadı veya yayın yapılmadı.
+Seçilen başlangıç düzeni: frontend Vercel Hobby, Bun API Render Free, veritabanı ve Auth Supabase. Frontend https://yds-atlas-pro.vercel.app adresinde yayında. 11 Kasım 2026 tarihinde Supabase temel migration ve Auth yönlendirmeleri kuruldu; Render API yayını ve Vercel ortam değişkenlerinin bağlanması bekleniyor.
 
 ## Giriş ekranı
 

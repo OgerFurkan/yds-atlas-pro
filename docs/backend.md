@@ -1,6 +1,6 @@
 ﻿# Supabase ve Gemini bağlantısı
 
-Bu aşamada kod ve yerel doğrulama hazırlanmıştır. Canlı Supabase projesine migration uygulanmamıştır; gerçek e-posta gönderimi ve ücretli Gemini çağrısı yapılmamıştır.
+11 Kasım 2026: `desanpeigzzuimmtxesx` (`yds-atlas-pro`) projesine temel migration uygulandı. Yedi tabloda RLS açık; Supabase güvenlik ve performans denetimi sorun bildirmedi. Auth Site URL canlı Vercel adresine ayarlandı; üretim ve yerel dönüş adresleri eklendi, minimum şifre uzunluğu 10 yapıldı. Gerçek e-posta gönderimi ve Gemini çağrısı henüz denenmedi. Render API ve Vercel ortam değişkenleri bağlantısı bekleniyor.
 
 ## Çalıştırma
 
@@ -53,7 +53,7 @@ bunx supabase migration list --remote
 bunx supabase db advisors --remote --type all --fail-on warn
 ```
 
-Bu komutlar henüz çalıştırılmadı. Canlı işlem öncesi migration çıktısı ve hedef proje kontrol edilir. Docker kuruluysa yerel Supabase servisleri de kullanılabilir; mevcut testler Docker gerektirmez.
+Bu proje için bağlantı, dry-run, migration push, migration listesi ve advisors kontrolü tamamlandı. Yeni migration işlemlerinde de önce hedef proje ve dry-run çıktısı kontrol edilir. Docker kuruluysa yerel Supabase servisleri de kullanılabilir; mevcut testler Docker gerektirmez.
 
 Auth için e-posta/şifre, kayıt, e-posta doğrulama, şifre sıfırlama ve çıkış kullanılır. Dashboard'da Email provider ve Confirm email açık olmalı; minimum şifre uzunluğu 10 olmalıdır. Site URL ve izinli Redirect URLs, uygulamanın gerçek adresi ve yerelde http://localhost:5173 / http://127.0.0.1:5173 ile eşleşmelidir. Üretim e-posta teslimi için SMTP ayrıca yapılandırılır. OAuth/anonim hesap açma bu aşamanın parçası değildir.
 

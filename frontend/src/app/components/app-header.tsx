@@ -52,10 +52,7 @@ export function AppHeader({
           <span className="grid gap-1">
             <strong className="block whitespace-nowrap font-display text-[17px] leading-none text-atlas-navy">
               YDS Atlas <span className="text-atlas-orange">Pro</span>
-              <span className="text-[0.5rem]">
-                {" "}
-                Beta <span className="text-[0.3rem]">0.7</span>
-              </span>
+              <span className="text-[0.5rem]"> Beta 0.8</span>
             </strong>
             <small className="hidden whitespace-nowrap text-[9px] font-medium tracking-[0.08em] text-slate-500 min-[380px]:block">
               {t("brand.tagline")}

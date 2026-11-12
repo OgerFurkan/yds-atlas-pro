@@ -4,7 +4,7 @@ import { initReactI18next } from "react-i18next";
 const resources = {
   tr: {
     translation: {
-      brand: { tagline: "Her kelime bir keşif." },
+      brand: { tagline: "Seni Çok Seviyorum Sıla'm" },
       common: { close: "Pencereyi kapat", notifications: "Uygulama bildirimleri" },
       notifications: { close: "Bildirimi kapat" },
       nav: {
@@ -455,7 +455,7 @@ const resources = {
   },
   en: {
     translation: {
-      brand: { tagline: "Every word is a discovery." },
+      brand: { tagline: "Seni Çok Seviyorum Sıla'm" },
       common: { close: "Close dialog", notifications: "App notifications" },
       notifications: { close: "Dismiss notification" },
       nav: {

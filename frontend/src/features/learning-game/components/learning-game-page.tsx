@@ -1,4 +1,4 @@
-﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
+import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { ArrowLeft, GraduationCap, Pause, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordDailyProgress } from "@/features/dashboard/model/daily-progress";
@@ -75,6 +75,28 @@ export function LearningGamePage({
   const alive = useRef(true);
   const storageOwner = useRef(getStorageScope());
   const presetHandled = useRef(false);
+  // A day-based session must be saved as soon as it starts, not only after the
+  // first answer. Otherwise reload/close loses the selected day's progress.
+  const initialDaySession = useRef(presetWords.length ? session : null);
+  useEffect(() => {
+    const first = initialDaySession.current;
+    if (!first) return;
+    initialDaySession.current = null;
+    try {
+      persistSession(first);
+      setSaved(first);
+    } catch (reason) {
+      onNotify.error(reason instanceof Error ? reason.message : "Çalışma oturumu kaydedilemedi.");
+      return;
+    }
+    if (onPersistSession) {
+      void onPersistSession(first).catch((reason) => {
+        if (!alive.current || getStorageScope() !== storageOwner.current) return;
+        setSyncError(true);
+        onNotify.error(reason instanceof Error ? reason.message : "Oturum buluta kaydedilemedi.");
+      });
+    }
+  }, [onNotify, onPersistSession]);
   useEffect(() => {
     alive.current = true;
     return () => {

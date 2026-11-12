@@ -4,6 +4,8 @@ import { storageKeys } from "@/shared/lib/storage-keys";
 const STORAGE_KEY = storageKeys.dailyWordGroups;
 const MAX_DAY = 60;
 const MAX_WORDS_PER_DAY = 40;
+const INIT_KEY = storageKeys.dailyPlanInitialized;
+const EXCLUDED_KEY = storageKeys.dailyWordExclusions;
 
 export interface DailyWordGroup {
   day: number;
@@ -50,6 +52,75 @@ export class DailyWordGroupsRepository {
     return this.sortGroupsByDay(this.getStoredGroups());
   }
 
+  getExcludedWordIds(): string[] {
+    const ids = readStorage<unknown>(EXCLUDED_KEY, []);
+    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+  }
+
+  /**
+   * Migrate the former derived day view once, then keep explicit assignments stable.
+   * New library words are placed in the first day below the selected target size;
+   * deliberately removed words stay unassigned until added again by the user.
+   */
+  syncWords(orderedWordIds: string[], targetSize: number): void {
+    const uniqueIds = [...new Set(orderedWordIds.filter((id) => typeof id === "string" && id.trim()))];
+    const validIds = new Set(uniqueIds);
+    const excluded = this.getExcludedWordIds().filter((id) => validIds.has(id));
+    const exclusions = new Set(excluded);
+    const original = this.getStoredGroups();
+    const assigned = new Set<string>();
+    const normalized: DailyWordGroup[] = [];
+
+    for (const group of this.sortGroupsByDay(original)) {
+      if (!isValidDay(group.day)) continue;
+      let target = normalized.find((item) => item.day === group.day);
+      if (!target) {
+        target = { day: group.day, words: [] };
+        normalized.push(target);
+      }
+      for (const id of group.words) {
+        if (!validIds.has(id) || assigned.has(id) || exclusions.has(id)) continue;
+        target.words.push(id);
+        assigned.add(id);
+      }
+    }
+
+    const size = Number.isFinite(targetSize)
+      ? Math.min(MAX_WORDS_PER_DAY, Math.max(10, Math.round(targetSize)))
+      : 20;
+    for (const id of uniqueIds) {
+      if (assigned.has(id) || exclusions.has(id)) continue;
+      for (let day = 1; day <= MAX_DAY; day += 1) {
+        let group = normalized.find((item) => item.day === day);
+        if (group && group.words.length >= size) continue;
+        if (!group) {
+          group = { day, words: [] };
+          normalized.push(group);
+        }
+        group.words.push(id);
+        assigned.add(id);
+        break;
+      }
+    }
+
+    const next = this.sortGroupsByDay(normalized.filter((group) => group.words.length > 0));
+    if (JSON.stringify(original) !== JSON.stringify(next)) this.saveGroups(next);
+    if (JSON.stringify(this.getExcludedWordIds()) !== JSON.stringify(excluded))
+      writeStorage(EXCLUDED_KEY, excluded);
+    if (!readStorage<boolean>(INIT_KEY, false)) writeStorage(INIT_KEY, true);
+  }
+
+  /** Remove from the plan only; never delete the source library word. */
+  excludeWordFromDay(wordId: string, day: number): void {
+    if (!isValidDay(day) || !this.getGroups().some((g) => g.day === day && g.words.includes(wordId)))
+      return;
+    const excluded = new Set(this.getExcludedWordIds());
+    excluded.add(wordId);
+    // Save exclusion first, so a later sync cannot silently re-add a removed word.
+    writeStorage(EXCLUDED_KEY, [...excluded]);
+    this.removeWordFromDay(wordId, day);
+  }
+
   assignWordToDay(wordId: string, day: number): void {
     if (!isValidDay(day) || typeof wordId !== "string" || !wordId.trim()) {
       return;
@@ -72,6 +143,8 @@ export class DailyWordGroupsRepository {
     }
 
     this.saveGroups(this.sortGroupsByDay(groups));
+    const excluded = this.getExcludedWordIds();
+    if (excluded.includes(wordId)) writeStorage(EXCLUDED_KEY, excluded.filter((id) => id !== wordId));
   }
 
   // Geriye uyumlu: day verilmezse kelimenin bulunduğu gruptan çıkarılır.

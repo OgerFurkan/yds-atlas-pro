@@ -8,4 +8,7 @@ export const storageKeys = {
   goalPerDay: "yds-atlas-goal-per-day-v1",
   localUser: "yds-atlas-local-user",
   dailyWordGroups: "yds-atlas-daily-word-groups-v1",
+  dailyPlanInitialized: "yds-atlas-daily-plan-initialized-v1",
+  dailyWordExclusions: "yds-atlas-daily-word-exclusions-v1",
+  dailyPlanGroupSize: "yds-atlas-daily-plan-size-v1",
 } as const;

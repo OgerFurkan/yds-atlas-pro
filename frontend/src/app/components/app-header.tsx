@@ -1,4 +1,4 @@
-﻿import {
+import {
   CircleHelp,
   Compass,
   Headphones,
@@ -44,15 +44,15 @@ export function AppHeader({
       <div className="relative mx-auto flex h-18 w-full max-w-[1600px] items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <button
           type="button"
-          className="flex min-w-0 shrink-0 cursor-pointer items-center gap-3 text-left"
+          className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2 text-left sm:gap-3"
           aria-label={t("nav.home")}
           onClick={() => go("home")}
         >
-          <AtlasLogo className="size-10 shadow-sm" />
+          <AtlasLogo className="size-9 shrink-0 shadow-sm sm:size-10" />
           <span className="grid gap-1">
             <strong className="block whitespace-nowrap font-display text-[17px] leading-none text-atlas-navy">
               YDS Atlas <span className="text-atlas-orange">Pro</span>
-              <span className="text-[0.5rem]"> Beta 0.8</span>
+              <span className="hidden text-[0.5rem] min-[360px]:inline"> Beta 0.8</span>
             </strong>
             <small className="hidden whitespace-nowrap text-[9px] font-medium tracking-[0.08em] text-slate-500 min-[380px]:block">
               {t("brand.tagline")}
@@ -112,6 +112,17 @@ export function AppHeader({
           </Button>
           <Button
             variant="ghost"
+            className="justify-start sm:hidden"
+            onClick={() => {
+              go("game");
+              onNotify.info(t("nav.helpMessage"));
+            }}
+          >
+            <CircleHelp size={18} />
+            {t("nav.help")}
+          </Button>
+          <Button
+            variant="ghost"
             className="justify-start xl:hidden"
             onClick={() => {
               onOpenSettings();
@@ -136,6 +147,7 @@ export function AppHeader({
             variant="ghost"
             size="icon"
             aria-label={t("nav.help")}
+            className="hidden sm:inline-flex"
             onClick={() => {
               go("game");
               onNotify.info(t("nav.helpMessage"));

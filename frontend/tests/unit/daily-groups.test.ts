@@ -89,3 +89,29 @@ test("words beyond the 60-day capacity are reported as overflow", () => {
   expect(plan.activeDays).toBe(60);
   expect(plan.overflow).toBe(1);
 });
+
+test("explicit assignments keep manual days stable without re-packing other words", () => {
+  const words = [word("A", 10, 1), word("B", 55, 2), word("C", 90, 3)];
+  const plan = buildDailyPlan(words, 20, [
+    { day: 1, words: ["a"] },
+    { day: 3, words: ["c", "b"] },
+  ]);
+  expect(plan.groups[0].words.map((item) => item.id)).toEqual(["a"]);
+  expect(plan.groups[1].total).toBe(0);
+  expect(plan.groups[2].words.map((item) => item.id)).toEqual(["c", "b"]);
+  expect(plan.totalWords).toBe(3);
+  expect(plan.activeDays).toBe(2);
+  expect(buildDailyPlan(words, 10, [{ day: 3, words: ["c"] }]).overflow).toBe(2);
+});
+
+test("invalid assignments and repeated word IDs cannot duplicate library records", () => {
+  const words = [word("A", 10, 1), word("B", 10, 2)];
+  const plan = buildDailyPlan(words, 20, [
+    { day: 0, words: ["b"] },
+    { day: 1, words: ["a", "a", "missing"] },
+    { day: 2, words: ["a", "b"] },
+  ]);
+  expect(plan.groups[0].total).toBe(1);
+  expect(plan.groups[1].total).toBe(1);
+  expect(plan.totalWords).toBe(2);
+});

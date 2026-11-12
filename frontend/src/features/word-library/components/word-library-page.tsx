@@ -1,6 +1,6 @@
-﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
+import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { CirclePlus, ListFilter } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BulkWordDialog } from "@/features/word-library/components/bulk-word-dialog";
 import { DailyPlanView } from "@/features/word-library/components/daily-plan-view";
@@ -68,14 +68,91 @@ export function WordLibraryPage({
 }: WordLibraryPageProps) {
   const { t } = useTranslation();
   const view = useWordLibraryView(words, initialGroup);
-  const daily = useDailyPlan(words);
+  const daily = useDailyPlan(words, 20, !loading && !loadError);
   const selection = useWordSelection();
   const [activeView, setActiveView] = useState<LibraryView>("words");
   const [formOpen, setFormOpen] = useState(initialCreate);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editingWord, setEditingWord] = useState<WordEntry>();
+  const [createTargetDay, setCreateTargetDay] = useState<number | null>(null);
+  const pendingCreate = useRef<{
+    day: number;
+    label: string;
+    previousIds: Set<string>;
+  } | null>(null);
+
+  useEffect(() => {
+    const pending = pendingCreate.current;
+    if (!pending) return;
+    const created = words.find(
+      (word) => !pending.previousIds.has(word.id) &&
+        word.word.trim().toLocaleLowerCase("en") === pending.label,
+    );
+    if (!created) return;
+    pendingCreate.current = null;
+    try {
+      if (daily.assign(created.id, pending.day))
+        onNotify.success(`Kelime ${pending.day}. güne eklendi.`);
+      else
+        onNotify.error("Kelime kütüphaneye kaydedildi ancak seçilen gün dolu; başka bir güne ekleyebilirsin.");
+    } catch (reason) {
+      onNotify.error(reason instanceof Error ? reason.message : "Kelime güne atanamadı.");
+    }
+  }, [words, daily, onNotify]);
+
+  async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void) {
+    if (!id && createTargetDay !== null) {
+      pendingCreate.current = {
+        day: createTargetDay,
+        label: input.word.trim().toLocaleLowerCase("en"),
+        previousIds: new Set(words.map((word) => word.id)),
+      };
+    }
+    try {
+      await onSave(input, id, onProgress);
+    } catch (reason) {
+      pendingCreate.current = null;
+      throw reason;
+    }
+  }
+
+  function editWord(word: WordEntry) {
+    setCreateTargetDay(null);
+    setEditingWord(word);
+    setFormOpen(true);
+  }
+
+  function addWordToDay(day: number) {
+    setCreateTargetDay(day);
+    setEditingWord(undefined);
+    setFormOpen(true);
+  }
+
+  function assignWord(wordId: string, day: number) {
+    try {
+      const group = daily.plan.groups[day - 1];
+      if (!group || (group.total >= 40 && !group.words.some((word) => word.id === wordId))) {
+        onNotify.error("Bir güne en fazla 40 kelime eklenebilir.");
+        return;
+      }
+      if (daily.assign(wordId, day)) onNotify.success(`${day}. gün güncellendi.`);
+      else onNotify.error("Kelime bu güne atanamadı. Günün kapasitesini kontrol et.");
+    } catch (reason) {
+      onNotify.error(reason instanceof Error ? reason.message : "Kelime güne atanamadı.");
+    }
+  }
+
+  function removeWordFromDay(wordId: string, day: number) {
+    try {
+      daily.removeFromDay(wordId, day);
+      onNotify.success("Kelime plandan çıkarıldı; kütüphanede duruyor.");
+    } catch (reason) {
+      onNotify.error(reason instanceof Error ? reason.message : "Kelime plandan çıkarılamadı.");
+    }
+  }
 
   function openCreate() {
+    setCreateTargetDay(null);
     setEditingWord(undefined);
     setFormOpen(true);
   }
@@ -158,10 +235,17 @@ export function WordLibraryPage({
         <DailyPlanView
           plan={daily.plan}
           groupSize={daily.groupSize}
+          words={words}
+          error={daily.error}
           onGroupSizeChange={daily.setGroupSize}
           onStudyGroup={onStudyGroup}
           onAddWord={openCreate}
           onBulkAdd={() => setBulkOpen(true)}
+          onCreateForDay={addWordToDay}
+          onAssignWord={assignWord}
+          onRemoveFromDay={removeWordFromDay}
+          onEditWord={editWord}
+          onDeleteWord={(word) => void deleteWord(word)}
         />
       ) : (
         <>
@@ -198,10 +282,7 @@ export function WordLibraryPage({
                 onToggleAll={() =>
                   selection.toggleVisibleWords(view.filteredWords.map((word) => word.id))
                 }
-                onEdit={(word) => {
-                  setEditingWord(word);
-                  setFormOpen(true);
-                }}
+                onEdit={editWord}
                 onDelete={(word) => void deleteWord(word)}
               />
             ) : words.length ? (
@@ -218,7 +299,7 @@ export function WordLibraryPage({
           open
           word={editingWord}
           onOpenChange={changeFormOpen}
-          onSave={onSave}
+          onSave={saveWord}
           onNotify={onNotify}
         />
       )}

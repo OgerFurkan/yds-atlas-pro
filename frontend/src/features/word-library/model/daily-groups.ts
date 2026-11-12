@@ -37,6 +37,12 @@ export interface DailyGroupPreset {
   wordIds: string[];
 }
 
+/** Persisted assignments contain word IDs, not duplicated word data. */
+export interface DayAssignment {
+  day: number;
+  words: string[];
+}
+
 export function clampDailyGroupSize(size: number) {
   if (!Number.isFinite(size)) return DEFAULT_DAILY_GROUP_SIZE;
   return Math.min(MAX_DAILY_GROUP_SIZE, Math.max(MIN_DAILY_GROUP_SIZE, Math.round(size)));
@@ -50,15 +56,41 @@ function creationOrder(first: WordEntry, second: WordEntry) {
   );
 }
 
-/** Splits the library into readable day groups, capped at 60 days and 40 words per day. */
+/**
+ * Without assignments, keep the historical deterministic view for old callers/tests.
+ * With assignments, NEVER re-pack words: moving/removing a word must not silently
+ * move other words, and an unassigned word must remain outside the plan.
+ */
 export function buildDailyPlan(
   words: WordEntry[],
   groupSize: number = DEFAULT_DAILY_GROUP_SIZE,
+  assignments?: ReadonlyArray<DayAssignment>,
 ): DailyPlan {
   const size = clampDailyGroupSize(groupSize);
   const ordered = [...words].sort(creationOrder);
+  const byId = new Map(ordered.map((word) => [word.id, word]));
+  const taken = new Set<string>();
+  const byDay = new Map<number, WordEntry[]>();
+
+  if (assignments) {
+    for (const assignment of assignments) {
+      if (!Number.isInteger(assignment.day) || assignment.day < 1 || assignment.day > DAILY_PLAN_DAYS)
+        continue;
+      const dayWords = byDay.get(assignment.day) ?? [];
+      for (const id of assignment.words) {
+        const entry = byId.get(id);
+        if (!entry || taken.has(id)) continue;
+        taken.add(id);
+        dayWords.push(entry);
+      }
+      byDay.set(assignment.day, dayWords);
+    }
+  }
+
   const groups = Array.from({ length: DAILY_PLAN_DAYS }, (_, index): DailyGroup => {
-    const dayWords = ordered.slice(index * size, (index + 1) * size);
+    const dayWords = assignments
+      ? (byDay.get(index + 1) ?? [])
+      : ordered.slice(index * size, (index + 1) * size);
     let hard = 0;
     let review = 0;
     let learned = 0;

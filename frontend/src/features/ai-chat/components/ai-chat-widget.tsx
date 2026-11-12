@@ -25,6 +25,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const [busy, setBusy] = useState(false);
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [error, setError] = useState("");
+  const [retryMessages, setRetryMessages] = useState<AiChatRequest["messages"] | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<AiChatRequest["messages"][]>([]);
@@ -53,29 +54,37 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open]);
 
-  async function send(content = draft) {
+  async function send(content = draft, previouslyFailed?: AiChatRequest["messages"]) {
     const trimmed = content.trim();
-    if (!trimmed || busy) return;
-    const userMessage = { role: "user" as const, content: trimmed };
-    const history = [...messages, userMessage].slice(-12);
-    setMessages(history);
-    setDraft("");
+    if ((!trimmed && !previouslyFailed) || busy) return;
+    const conversation = previouslyFailed ?? [
+      ...messages,
+      { role: "user" as const, content: trimmed },
+    ].slice(-12);
+    setMessages(conversation);
+    if (!previouslyFailed) setDraft("");
     setError("");
+    setRetryMessages(null);
     setNeedsSignIn(false);
     setShowHistory(false);
     setBusy(true);
     const controller = new AbortController();
     activeRequest.current = controller;
     try {
-      const response = await sendChat(history, controller.signal);
+      const response = await sendChat(conversation, controller.signal);
       if (activeRequest.current !== controller) return;
       setMessages((current) =>
         [...current, { role: "assistant" as const, content: response.reply }].slice(-12),
       );
     } catch (reason) {
       if (activeRequest.current !== controller) return;
-      if (reason instanceof ApiError && reason.code === "UNAUTHENTICATED") setNeedsSignIn(true);
-      else if (
+      if (reason instanceof ApiError && reason.code === "UNAUTHENTICATED") {
+        setNeedsSignIn(true);
+        return;
+      }
+      // Preserve the failed conversation and let the user retry it once manually.
+      setRetryMessages(conversation);
+      if (
         reason instanceof ApiError &&
         (reason.code === "NETWORK_ERROR" || reason.code === "INVALID_RESPONSE")
       )
@@ -130,6 +139,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     setMessages([]);
     setDraft("");
     setError("");
+    setRetryMessages(null);
     setNeedsSignIn(false);
     setMenuOpen(false);
     setShowHistory(false);
@@ -184,6 +194,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                         setMessages([]);
                       }
                       setError("");
+                      setRetryMessages(null);
                       setNeedsSignIn(false);
                       setShowHistory(true);
                       setMenuOpen(false);
@@ -219,6 +230,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                           setShowHistory(false);
                           setNeedsSignIn(false);
                           setError("");
+                          setRetryMessages(null);
                         }}
                       >
                         {conversation[0]?.content}
@@ -275,9 +287,21 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </div>
               )}
               {error && (
-                <p className="text-xs leading-5 text-red-700" role="alert">
-                  {error}
-                </p>
+                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800" role="alert">
+                  <p className="text-xs leading-5">{error}</p>
+                  {retryMessages && !needsSignIn && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="mt-2 border-red-300 bg-white text-red-800 hover:bg-red-100"
+                      disabled={busy}
+                      onClick={() => void send("", retryMessages)}
+                    >
+                      Aynı isteği tekrar dene
+                    </Button>
+                  )}
+                </div>
               )}
               {needsSignIn && (
                 <div className="rounded-lg border border-orange-200 bg-atlas-orange/50 p-3 text-sm text-black">

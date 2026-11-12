@@ -213,3 +213,41 @@ test("cleanup geçerli kelime ID listesi verilirse silinmiş kelimeleri temizler
   repository.cleanupInvalidAssignments(new Set(["existing"]));
   expect(repository.getGroups()).toEqual([{ day: 1, words: ["existing"] }]);
 });
+
+test("yeni kelimeler sırayla hedef dolunca sonraki güne atanır", () => {
+  const ids = Array.from({ length: 23 }, (_, index) => `new-${index}`);
+  repository.syncWords(ids, 20);
+  expect(repository.getGroups()).toEqual([
+    { day: 1, words: ids.slice(0, 20) },
+    { day: 2, words: ids.slice(20) },
+  ]);
+  const snapshot = JSON.stringify(repository.getGroups());
+  repository.syncWords(ids, 10);
+  expect(JSON.stringify(repository.getGroups())).toBe(snapshot);
+});
+
+test("plandan çıkarılan kelime kütüphanede kalsa da yeniden otomatik atanmaz", () => {
+  repository.syncWords(["a", "b", "c"], 20);
+  repository.excludeWordFromDay("b", 1);
+  repository.syncWords(["a", "b", "c", "d"], 20);
+  expect(repository.getGroups()[0].words).toEqual(["a", "c", "d"]);
+  expect(repository.getExcludedWordIds()).toContain("b");
+  repository.assignWordToDay("b", 4);
+  expect(repository.getExcludedWordIds()).not.toContain("b");
+  expect(repository.getGroups().find((group) => group.day === 4)?.words).toEqual(["b"]);
+});
+
+test("günler arası manuel taşıma sonraki kelime eklemelerinde ve yeniden yüklemede sabit kalır", () => {
+  repository.syncWords(["a", "b", "c"], 20);
+  repository.moveWordToDay("b", 1, 5);
+  const reloaded = new DailyWordGroupsRepository();
+  reloaded.syncWords(["a", "b", "c", "d"], 20);
+  expect(reloaded.getGroups().find((group) => group.day === 5)?.words).toEqual(["b"]);
+  expect(reloaded.getGroups().find((group) => group.day === 1)?.words).toEqual(["a", "c", "d"]);
+});
+
+test("kütüphaneden silinen kelimenin eski günlük ataması temizlenir", () => {
+  repository.syncWords(["a", "b", "c"], 20);
+  repository.syncWords(["a", "c"], 20);
+  expect(repository.getGroups()[0].words).toEqual(["a", "c"]);
+});

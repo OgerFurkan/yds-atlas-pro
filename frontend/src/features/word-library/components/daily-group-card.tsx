@@ -1,146 +1,96 @@
-import { CircleCheck, Play } from "lucide-react";
-import { useTranslation } from "react-i18next";
+import { ArrowUpRight, CircleCheck, Plus, Play } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import type { DailyGroup } from "../model/daily-groups";
 
-function useGroupStatus(group: DailyGroup) {
-  const { t } = useTranslation();
-  if (!group.total)
-    return { label: t("library.daily.statusEmpty"), tone: "bg-slate-100 text-slate-500" };
-  if (group.learned === group.total)
-    return { label: t("library.daily.statusDone"), tone: "bg-emerald-50 text-emerald-700" };
-  if (group.learned > 0)
-    return { label: t("library.daily.statusProgress"), tone: "bg-amber-50 text-amber-700" };
-  return { label: t("library.daily.statusNew"), tone: "bg-sky-50 text-atlas-blue" };
-}
-
 export function DailyGroupCard({
   group,
+  targetSize,
+  onOpen,
   onStudy,
 }: {
   group: DailyGroup;
+  targetSize: number;
+  onOpen: (day: number) => void;
   onStudy: (group: DailyGroup) => void;
 }) {
-  const { t } = useTranslation();
-  const status = useGroupStatus(group);
+  const isEmpty = group.total === 0;
+  const isDone = group.total > 0 && group.learned === group.total;
+  const percentage = group.total ? Math.round(group.progress * 100) : 0;
 
-  if (!group.total)
+  if (isEmpty) {
     return (
-      <article className="flex min-h-44 flex-col rounded-2xl border border-dashed border-slate-200 bg-slate-50/60 p-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-[10px] font-bold tracking-[.14em] text-slate-400">
-              {t("library.daily.dayLabel")}
-            </span>
-            <span className="text-lg leading-none font-bold text-slate-400">{group.day}</span>
-          </div>
-          <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${status.tone}`}>
-            {status.label}
-          </span>
+      <button
+        type="button"
+        onClick={() => onOpen(group.day)}
+        className="group flex min-h-28 flex-col justify-between gap-4 rounded-2xl border border-dashed border-border bg-card/40 p-4 text-left transition-colors hover:border-[#f27637] hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f27637]"
+        aria-label={`${group.day}. güne kelime ekle`}
+      >
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-muted-foreground">GÜN {group.day}</span>
+          <Plus size={18} className="text-muted-foreground transition-colors group-hover:text-[#f27637]" />
         </div>
-        <p className="mt-auto text-[11px] leading-5 text-slate-400">
-          {t("library.daily.emptyHint")}
-        </p>
-      </article>
+        <span className="text-sm font-semibold text-foreground">Bu güne kelime ekle</span>
+      </button>
     );
-
-  const completed = group.learned === group.total;
-  const canStudy = group.playable > 0;
-  const buttonLabel = completed
-    ? t("library.daily.completed")
-    : canStudy
-      ? t("library.daily.study")
-      : t("library.daily.noPlayable");
+  }
 
   return (
-    <article className="group flex min-w-0 flex-col rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-atlas-orange/60 hover:shadow-md">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-baseline gap-1.5">
-          <span className="text-[10px] font-bold tracking-[.14em] text-slate-400">
-            {t("library.daily.dayLabel")}
-          </span>
-          <span className="text-lg leading-none font-bold text-atlas-navy">{group.day}</span>
-        </div>
-        <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${status.tone}`}>
-          {status.label}
-        </span>
-      </div>
-
-      <div className="mt-4 flex items-end justify-between gap-2">
-        <div>
-          <p className="text-2xl leading-none font-bold text-atlas-ink">
-            <span className={completed ? "text-emerald-600" : "text-atlas-navy"}>
-              {group.learned}
-            </span>
-            <span className="text-base font-semibold text-slate-400">/{group.total}</span>
-          </p>
-          <p className="mt-1 text-[11px] font-medium text-slate-400">
-            {t("library.daily.learnedLabel")}
-          </p>
-        </div>
-        <p className="text-[11px] font-semibold text-slate-500">
-          {t("library.daily.wordCount", { count: group.total })}
-        </p>
-      </div>
-
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100">
-        <div
-          className={`h-full rounded-full transition-[width] duration-500 ${completed ? "bg-emerald-500" : "bg-atlas-orange"}`}
-          style={{ width: `${Math.round(group.progress * 100)}%` }}
-        />
-      </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-1.5 text-center">
-        <div className="rounded-lg bg-orange-50 px-1 py-2">
-          <strong className="block text-sm leading-none text-orange-800">{group.hard}</strong>
-          <span className="mt-1 block text-[10px] font-medium text-orange-700/80">
-            {t("library.daily.hard")}
-          </span>
-        </div>
-        <div className="rounded-lg bg-amber-50 px-1 py-2">
-          <strong className="block text-sm leading-none text-amber-800">{group.review}</strong>
-          <span className="mt-1 block text-[10px] font-medium text-amber-700/80">
-            {t("library.daily.review")}
-          </span>
-        </div>
-        <div className="rounded-lg bg-emerald-50 px-1 py-2">
-          <strong className="block text-sm leading-none text-emerald-800">{group.learned}</strong>
-          <span className="mt-1 block text-[10px] font-medium text-emerald-700/80">
-            {t("library.daily.learned")}
-          </span>
-        </div>
-      </div>
-
-      <p className="mt-3 truncate text-[11px] text-slate-500">
-        {group.words
-          .slice(0, 3)
-          .map((word) => word.word)
-          .join(", ")}
-        {group.words.length > 3 && (
-          <span className="font-semibold text-slate-400">
-            {" "}
-            {t("library.daily.previewMore", { count: group.words.length - 3 })}
-          </span>
-        )}
-      </p>
-
-      <Button
-        className="mt-3 w-full"
-        size="sm"
+    <article className="min-w-0 overflow-hidden rounded-2xl border border-border bg-card text-card-foreground shadow-sm transition-shadow hover:shadow-md">
+      <button
         type="button"
-        disabled={!canStudy}
-        title={!canStudy && !completed ? t("library.daily.noPlayableHint") : undefined}
-        aria-label={t("library.daily.studyAria", { day: group.day })}
-        onClick={() => onStudy(group)}
+        onClick={() => onOpen(group.day)}
+        className="flex w-full flex-col gap-3 px-4 pt-4 pb-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#f27637] sm:px-5"
+        aria-label={`${group.day}. günü aç, ${group.total} kelimeyi yönet`}
       >
-        {completed ? <CircleCheck size={15} /> : <Play size={15} />}
-        {buttonLabel}
-      </Button>
-      {!completed && canStudy && group.playable < group.total && (
-        <p className="mt-2 text-center text-[10px] text-slate-400">
-          {t("library.daily.readyCount", { count: group.playable })}
+        <div className="flex w-full items-center justify-between gap-3">
+          <span className="text-xs font-bold tracking-wider text-muted-foreground">GÜN {group.day}</span>
+          <span
+            className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
+              isDone ? "bg-emerald-500/10 text-emerald-600" : "bg-[#f27637]/10 text-[#d85b20]"
+            }`}
+          >
+            {isDone ? "Tamamlandı" : `${group.total} / ${targetSize} kelime`}
+          </span>
+        </div>
+        <div className="flex w-full items-end justify-between gap-3">
+          <div>
+            <strong className="block text-2xl leading-none text-foreground">
+              {group.learned}<span className="text-base font-medium text-muted-foreground">/{group.total}</span>
+            </strong>
+            <span className="mt-1 block text-xs text-muted-foreground">Öğrenilen kelime</span>
+          </div>
+          <ArrowUpRight size={19} className="text-muted-foreground" />
+        </div>
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+          <div
+            className={`h-full rounded-full ${isDone ? "bg-emerald-500" : "bg-[#f27637]"}`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+        <p className="w-full truncate text-xs text-muted-foreground">
+          {group.words.slice(0, 4).map((word) => word.word).join(" · ")}
+          {group.total > 4 ? ` · +${group.total - 4}` : ""}
         </p>
-      )}
+      </button>
+      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 sm:px-5">
+        <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
+          <span className="font-semibold text-orange-600">{group.hard} zor</span>
+          <span>·</span><span>{group.review} tekrar</span>
+          <span>·</span><span className="text-emerald-600">{group.learned} öğrenilen</span>
+        </div>
+        <Button
+          type="button"
+          size="sm"
+          disabled={group.playable === 0}
+          title={group.playable === 0 ? "Çalışmaya hazır kelime yok" : undefined}
+          className="min-h-8 shrink-0 px-3"
+          onClick={() => onStudy(group)}
+          aria-label={`${group.day}. günün kelimeleriyle çalış`}
+        >
+          {isDone ? <CircleCheck size={14} /> : <Play size={14} />}
+          Çalış
+        </Button>
+      </div>
     </article>
   );
 }

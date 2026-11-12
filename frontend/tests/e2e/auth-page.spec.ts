@@ -6,7 +6,7 @@ test("login page opens from the header, supports auth modes and returns to guest
   await page.goto("/");
   await page.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page).toHaveURL(/#login$/);
-  await expect(page.getByRole("heading", { name: "Yeniden hoş geldin." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tekrar hoş geldin." })).toBeVisible();
   const form = page.getByRole("form", { name: "Hesap giriş formu" });
   const remember = form.getByRole("checkbox", { name: "Beni hatırla" });
   await expect(remember).not.toBeChecked();
@@ -23,7 +23,7 @@ test("login page opens from the header, supports auth modes and returns to guest
   await expect(page.getByRole("heading", { name: "Şifreni yenileyelim." })).toBeVisible();
   await expect(form.getByLabel("Şifre", { exact: true })).toHaveCount(0);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Yeniden hoş geldin." })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tekrar hoş geldin." })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
     path: `test-results/login-${test.info().project.name}.png`,

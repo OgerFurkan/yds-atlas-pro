@@ -1,14 +1,14 @@
 ﻿import type { User } from "@supabase/supabase-js";
-import { useState } from "react";
 import { Cloud, LogOut } from "lucide-react";
+import { useState } from "react";
 import { supabase } from "@/shared/api/supabase-client";
 import { Button } from "@/shared/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogDescription,
 } from "@/shared/ui/dialog";
 export function AccountDialog({
   open,

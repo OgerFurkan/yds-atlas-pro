@@ -7,6 +7,30 @@ import { thinkingConfigFor } from "./gemini-generation";
 const RATE_LIMIT_FALLBACK_SECONDS = 60;
 const AUTH_COOLDOWN_SECONDS = 600;
 
+const TRANSIENT_UPSTREAM_STATUSES = new Set([500, 502, 503, 504]);
+const UPSTREAM_RETRY_DELAYS_MS = [1000, 2000] as const;
+
+// Uses the same combined signal as fetch, so both user cancellation and the
+// request-wide timeout interrupt the backoff immediately.
+function waitForRetry(milliseconds: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    let timer: ReturnType<typeof setTimeout>;
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, milliseconds);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
 type ProviderError = {
   error?: { status?: string; details?: { reason?: string; retryDelay?: string }[] };
 };
@@ -31,18 +55,32 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
   const signal = request.signal ? AbortSignal.any([request.signal, timeout]) : timeout;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const startedAt = Date.now();
+  let transientRetries = 0;
 
   for (let attempt = 0; attempt < config.GEMINI_KEYS.length; attempt++) {
     const apiKey = nextGeminiKey(config.GEMINI_KEYS, model);
     if (!apiKey) break;
     let response: Response;
     try {
-      response = await request.fetcher(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-        signal,
-        body: JSON.stringify(request.body),
-      });
+      // Retry temporary upstream failures without changing the selected API key.
+      // The retry budget is shared across the entire request, not per API key.
+      while (true) {
+        response = await request.fetcher(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+          signal,
+          body: JSON.stringify(request.body),
+        });
+        if (
+          !TRANSIENT_UPSTREAM_STATUSES.has(response.status) ||
+          transientRetries >= UPSTREAM_RETRY_DELAYS_MS.length
+        ) break;
+
+        const delayMs = UPSTREAM_RETRY_DELAYS_MS[transientRetries];
+        transientRetries++;
+        console.error({ service, stage: "upstream_retry", status: response.status, retry: transientRetries });
+        await waitForRetry(delayMs, signal);
+      }
     } catch {
       if (request.signal?.aborted) throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
       console.error({ service, timedOut: timeout.aborted, durationMs: Date.now() - startedAt });
@@ -140,7 +178,7 @@ export async function requestGeminiJson(request: JsonRequest): Promise<Response>
     if (
       request.signal?.aborted ||
       !(error instanceof HttpError) ||
-      (error.code !== "AI_REQUEST_REJECTED" && error.code !== "AI_UPSTREAM_ERROR")
+      error.code !== "AI_REQUEST_REJECTED"
     )
       throw error;
     console.error({

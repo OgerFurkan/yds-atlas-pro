@@ -3,6 +3,7 @@ import { CirclePlus, ListFilter } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { BulkWordDialog } from "@/features/word-library/components/bulk-word-dialog";
+import { DailyPlanView } from "@/features/word-library/components/daily-plan-view";
 import { LibraryFilterTabs } from "@/features/word-library/components/library-filter-tabs";
 import { LibrarySelectionBar } from "@/features/word-library/components/library-selection-bar";
 import {
@@ -12,10 +13,16 @@ import {
 } from "@/features/word-library/components/library-status";
 import { LibrarySummary } from "@/features/word-library/components/library-summary";
 import { LibraryToolbar } from "@/features/word-library/components/library-toolbar";
+import {
+  LibraryViewTabs,
+  type LibraryView,
+} from "@/features/word-library/components/library-view-tabs";
 import { WordFormDialog } from "@/features/word-library/components/word-form-dialog";
 import { WordList } from "@/features/word-library/components/word-list";
+import { useDailyPlan } from "@/features/word-library/hooks/use-daily-plan";
 import { useWordLibraryView } from "@/features/word-library/hooks/use-word-library-view";
 import { useWordSelection } from "@/features/word-library/hooks/use-word-selection";
+import type { DailyGroup } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import type { GroupFilter } from "@/features/word-library/model/word-library-view";
 import type { Notify } from "@/shared/lib/notify";
@@ -39,6 +46,7 @@ interface WordLibraryPageProps {
   ) => Promise<{ added: number; duplicates: number }>;
   onRemove: (id: string) => Promise<void>;
   onRemoveMany: (ids: string[]) => Promise<void>;
+  onStudyGroup: (group: DailyGroup) => void;
   onNotify: Notify;
   onInitialCreateHandled?: () => void;
 }
@@ -54,12 +62,15 @@ export function WordLibraryPage({
   onAddMany,
   onRemove,
   onRemoveMany,
+  onStudyGroup,
   onNotify,
   onInitialCreateHandled,
 }: WordLibraryPageProps) {
   const { t } = useTranslation();
   const view = useWordLibraryView(words, initialGroup);
+  const daily = useDailyPlan(words);
   const selection = useWordSelection();
+  const [activeView, setActiveView] = useState<LibraryView>("words");
   const [formOpen, setFormOpen] = useState(initialCreate);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [editingWord, setEditingWord] = useState<WordEntry>();
@@ -134,50 +145,73 @@ export function WordLibraryPage({
         </div>
       </div>
 
-      <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
-
-      <section
-        className="mt-4 rounded-lg border border-slate-200 bg-white"
-        aria-label={t("library.aria")}
-      >
-        <LibraryFilterTabs group={view.group} counts={view.counts} onChange={view.setGroup} />
-        <LibraryToolbar
-          search={view.search}
-          onSearchChange={view.setSearch}
-          level={view.level}
-          onLevelChange={view.setLevel}
-          sort={view.sort}
-          onSortChange={view.setSort}
+      <div className="mt-5">
+        <LibraryViewTabs
+          value={activeView}
+          wordCount={words.length}
+          activeDays={daily.plan.activeDays}
+          onChange={setActiveView}
         />
-        <LibrarySelectionBar
-          count={selection.selectedIds.length}
-          onDelete={() => void deleteSelection()}
-          onClear={selection.clear}
+      </div>
+
+      {activeView === "plan" ? (
+        <DailyPlanView
+          plan={daily.plan}
+          groupSize={daily.groupSize}
+          onGroupSizeChange={daily.setGroupSize}
+          onStudyGroup={onStudyGroup}
+          onAddWord={openCreate}
+          onBulkAdd={() => setBulkOpen(true)}
         />
+      ) : (
+        <>
+          <div className="mt-4">
+            <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
+          </div>
 
-        {loading || loadError ? (
-          <LibraryStatus loading={loading} loadError={loadError} onReload={onReload} />
-        ) : view.filteredWords.length ? (
-          <WordList
-            words={view.filteredWords}
-            selectedIds={selection.selectedIds}
-            onToggle={selection.toggleWord}
-            onToggleAll={() =>
-              selection.toggleVisibleWords(view.filteredWords.map((word) => word.id))
-            }
-            onEdit={(word) => {
-              setEditingWord(word);
-              setFormOpen(true);
-            }}
-            onDelete={(word) => void deleteWord(word)}
-          />
-        ) : words.length ? (
-          <LibraryNoResults onReset={view.resetFilters} />
-        ) : (
-          <LibraryEmpty onAdd={openCreate} onBulk={() => setBulkOpen(true)} />
-        )}
-      </section>
+          <section
+            className="mt-4 rounded-lg border border-slate-200 bg-white"
+            aria-label={t("library.aria")}
+          >
+            <LibraryFilterTabs group={view.group} counts={view.counts} onChange={view.setGroup} />
+            <LibraryToolbar
+              search={view.search}
+              onSearchChange={view.setSearch}
+              level={view.level}
+              onLevelChange={view.setLevel}
+              sort={view.sort}
+              onSortChange={view.setSort}
+            />
+            <LibrarySelectionBar
+              count={selection.selectedIds.length}
+              onDelete={() => void deleteSelection()}
+              onClear={selection.clear}
+            />
 
+            {loading || loadError ? (
+              <LibraryStatus loading={loading} loadError={loadError} onReload={onReload} />
+            ) : view.filteredWords.length ? (
+              <WordList
+                words={view.filteredWords}
+                selectedIds={selection.selectedIds}
+                onToggle={selection.toggleWord}
+                onToggleAll={() =>
+                  selection.toggleVisibleWords(view.filteredWords.map((word) => word.id))
+                }
+                onEdit={(word) => {
+                  setEditingWord(word);
+                  setFormOpen(true);
+                }}
+                onDelete={(word) => void deleteWord(word)}
+              />
+            ) : words.length ? (
+              <LibraryNoResults onReset={view.resetFilters} />
+            ) : (
+              <LibraryEmpty onAdd={openCreate} onBulk={() => setBulkOpen(true)} />
+            )}
+          </section>
+        </>
+      )}
       {formOpen && (
         <WordFormDialog
           key={editingWord?.id ?? "new-word"}

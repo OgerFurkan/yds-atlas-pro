@@ -29,7 +29,7 @@ export function LibraryToolbar({
       <label className="flex h-10 w-full max-w-91.25 items-center gap-2 rounded-md border border-slate-200 px-3 text-slate-400 transition focus-within:border-sky-700/50 focus-within:ring-2 focus-within:ring-sky-800/10">
         <Search size={17} />
         <Input
-          className="h-full min-w-0 flex-1 border-0 bg-transparent text-xs text-slate-800 outline-none placeholder:text-slate-400"
+          className="h-full min-w-0 flex-1 border-0 bg-transparent! text-xs text-slate-800 outline-none placeholder:text-slate-400"
           type="search"
           value={search}
           onChange={(event) => onSearchChange(event.target.value)}

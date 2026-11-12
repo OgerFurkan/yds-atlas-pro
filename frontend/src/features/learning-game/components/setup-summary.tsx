@@ -76,7 +76,7 @@ export function SetupSummary({
         <ArrowRight size={17} />
       </Button>
       {candidateCount < target && (
-        <div className="rounded-lg bg-orange-50 p-3 text-sm leading-6 text-orange-900">
+        <div className="rounded-lg bg-orange-50 p-3 text-sm leading-6">
           {t("setup.insufficient", { count: target - candidateCount })}
           {candidateCount > 0 && (
             <Button

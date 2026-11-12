@@ -1,8 +1,9 @@
 ﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { ArrowLeft, GraduationCap, Pause, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordDailyProgress } from "@/features/dashboard/model/daily-progress";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
+import type { DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import type { Notify } from "@/shared/lib/notify";
 import { getStorageScope } from "@/shared/lib/storage-scope";
@@ -12,6 +13,7 @@ import {
   advance,
   createSession,
   currentWord,
+  isGameReady,
   recordAnswer,
   resultScore,
   setConfidence,
@@ -36,6 +38,8 @@ interface LearningGamePageProps {
   ) => Promise<{ added: number; duplicates: number }>;
   onApplyScores: (updates: { id: string; score: number }[]) => Promise<void>;
   listWords: () => WordEntry[];
+  preset?: DailyGroupPreset | null;
+  onPresetHandled?: () => void;
   onPersistSession?: (session: GameSession) => Promise<void>;
   onCompleteSession?: (session: GameSession) => Promise<void>;
 }
@@ -47,10 +51,20 @@ export function LearningGamePage({
   onAddMany,
   onApplyScores,
   listWords,
+  preset,
+  onPresetHandled,
   onPersistSession,
   onCompleteSession,
 }: LearningGamePageProps) {
-  const [session, setSession] = useState<GameSession | null>(null);
+  const presetWords = useMemo(() => {
+    if (!preset) return [];
+    const ids = new Set(preset.wordIds);
+    return words.filter((word) => ids.has(word.id) && isGameReady(word));
+  }, [preset, words]);
+  const [startedDay] = useState(preset?.day ?? null);
+  const [session, setSession] = useState<GameSession | null>(() =>
+    presetWords.length ? createSession(presetWords, 5) : null,
+  );
   const [saved, setSaved] = useState(readSession);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -60,12 +74,19 @@ export function LearningGamePage({
   const saveLock = useRef(false);
   const alive = useRef(true);
   const storageOwner = useRef(getStorageScope());
+  const presetHandled = useRef(false);
   useEffect(() => {
     alive.current = true;
     return () => {
       alive.current = false;
     };
   }, []);
+  useEffect(() => {
+    if (!preset || presetHandled.current) return;
+    presetHandled.current = true;
+    if (!presetWords.length) onNotify.error("Bu grupta çalışılabilecek hazır kelime kalmadı.");
+    onPresetHandled?.();
+  }, [preset, presetWords.length, onNotify, onPresetHandled]);
   const phase = session?.phase;
   const activeWordId = phase?.endsWith("matching") ? undefined : session?.queue[0];
   const isTutorial = !!session?.tutorial;
@@ -216,7 +237,7 @@ export function LearningGamePage({
             <ArrowLeft size={17} /> Ana sayfa
           </Button>
           <span className="hidden text-sm font-semibold text-atlas-navy sm:inline">
-            Günlük Görev
+            {startedDay ? `Gün ${startedDay} · Günlük Plan` : "Günlük Görev"}
           </span>
           <Button
             variant="outline"

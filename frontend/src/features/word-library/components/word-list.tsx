@@ -64,7 +64,7 @@ function WordTableRow({
   const { t } = useTranslation();
   return (
     <tr
-      className={`word-table-row border-t border-slate-100 transition-[border-color] hover:bg-slate-50/70 ${selected ? "is-selected" : ""}`}
+      className={`word-table-row border-t border-slate-100 transition-[border-color] hover:bg-atlas-blue/50 ${selected ? "is-selected" : ""}`}
       data-selected={selected}
     >
       <td className="w-10 pl-4 pr-1">

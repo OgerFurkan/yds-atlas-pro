@@ -1,4 +1,4 @@
-﻿import { beforeEach, describe, expect, spyOn, test } from "bun:test";
+import { beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { GameSession } from "@yds-atlas/shared";
 import { createApp } from "../src/app";
 import { readConfig } from "../src/config/env";
@@ -580,8 +580,8 @@ describe("Gemini provider", () => {
       bodies.push(String(init.body));
       if (bodies.length === 1)
         return Response.json(
-          { error: { status: "INTERNAL", details: [{ reason: "INTERNAL" }] } },
-          { status: 500 },
+          { error: { status: "INVALID_ARGUMENT", details: [{ reason: "INVALID_ARGUMENT" }] } },
+          { status: 400 },
         );
       return Response.json({
         candidates: [

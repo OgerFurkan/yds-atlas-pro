@@ -20,6 +20,7 @@ import { LoginPage } from "@/features/auth/components/login-page";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { DashboardPage } from "@/features/dashboard/components/dashboard-page";
 import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api";
+import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
@@ -92,17 +93,29 @@ function AppWorkspace({
   const { screen, navigate } = useHashScreen();
   const [initialGroup, setInitialGroup] = useState<WordGroup | "all">("all");
   const [openCreateOnLibrary, setOpenCreateOnLibrary] = useState(false);
+  const [gamePreset, setGamePreset] = useState<DailyGroupPreset | null>(null);
+  const clearGamePreset = useCallback(() => setGamePreset(null), []);
 
   function navigateLibrary(group: WordGroup | "all" = "all") {
     setInitialGroup(group);
     setOpenCreateOnLibrary(false);
+    setGamePreset(null);
     navigate("library");
   }
 
   function openLibraryForNewWord() {
     setInitialGroup("all");
     setOpenCreateOnLibrary(true);
+    setGamePreset(null);
     navigate("library");
+  }
+
+  function studyDailyGroup(group: DailyGroup) {
+    setGamePreset({
+      day: group.day,
+      wordIds: group.playableWords.map((word) => word.id),
+    });
+    navigate("game");
   }
 
   async function saveWord(
@@ -133,6 +146,7 @@ function AppWorkspace({
         screen={screen}
         onNavigate={(nextScreen) => {
           setOpenCreateOnLibrary(false);
+          setGamePreset(null);
           navigate(nextScreen);
         }}
         onNotify={notify}
@@ -183,6 +197,8 @@ function AppWorkspace({
             <LearningGamePage
               words={library.words}
               listWords={library.list}
+              preset={gamePreset}
+              onPresetHandled={clearGamePreset}
               onBack={() => navigate("home")}
               onNotify={notify}
               onAddMany={addWords}
@@ -213,6 +229,7 @@ function AppWorkspace({
               onAddMany={addWords}
               onRemove={library.remove}
               onRemoveMany={library.removeMany}
+              onStudyGroup={studyDailyGroup}
               onNotify={notify}
               onInitialCreateHandled={() => setOpenCreateOnLibrary(false)}
             />

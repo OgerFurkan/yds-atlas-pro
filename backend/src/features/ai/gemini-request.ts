@@ -8,7 +8,6 @@ const RATE_LIMIT_FALLBACK_SECONDS = 60;
 const AUTH_COOLDOWN_SECONDS = 600;
 
 const TRANSIENT_UPSTREAM_STATUSES = new Set([500, 502, 503, 504]);
-const UPSTREAM_RETRY_DELAYS_MS = [1000, 2000] as const;
 
 // Uses the same combined signal as fetch, so both user cancellation and the
 // request-wide timeout interrupt the backoff immediately.
@@ -49,48 +48,64 @@ export type GeminiContentRequest = {
 // the next project's key is tried, so one exhausted project does not fail the user.
 export async function requestGeminiContent(request: GeminiContentRequest): Promise<Response> {
   const { config, model, service } = request;
-  if (!config.GEMINI_KEYS.length)
+  const keys = [...new Set(config.GEMINI_KEYS.filter(Boolean))];
+  if (!keys.length)
     throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
+
+  // A single deadline covers every key and retry. A slow upstream must not
+  // multiply the caller's timeout by the number of configured projects.
   const timeout = AbortSignal.timeout(request.timeoutMs);
   const signal = request.signal ? AbortSignal.any([request.signal, timeout]) : timeout;
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
   const startedAt = Date.now();
-  let transientRetries = 0;
+  const attempted = new Set<string>();
+  let lastTransient: Response | undefined;
+  let lastNetworkFailure = false;
+  let transientFailures = 0;
+  // Upstream 503 usually means model capacity, not exhausted project quota.
+  // Try no more than 3 projects per call; 429 may use the whole key pool.
+  const maxTransientAttempts = Math.min(3, keys.length * 3);
+  const perKeyRetries = keys.length === 1 ? 2 : 0;
+  let repeatedSingleKey = 0;
+  let singleRetryAllowed = false;
 
-  for (let attempt = 0; attempt < config.GEMINI_KEYS.length; attempt++) {
-    const apiKey = nextGeminiKey(config.GEMINI_KEYS, model);
+  while (attempted.size < keys.length || (singleRetryAllowed && repeatedSingleKey < perKeyRetries)) {
+    if (signal.aborted) break;
+    const remainingKeys = keys.filter((key) => !attempted.has(key));
+    const apiKey = remainingKeys.length
+      ? nextGeminiKey(remainingKeys, model)
+      : singleRetryAllowed && repeatedSingleKey < perKeyRetries
+        ? keys[0]
+        : undefined;
     if (!apiKey) break;
-    let response: Response;
-    try {
-      // Retry temporary upstream failures without changing the selected API key.
-      // The retry budget is shared across the entire request, not per API key.
-      while (true) {
-        response = await request.fetcher(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
-          signal,
-          body: JSON.stringify(request.body),
-        });
-        if (
-          !TRANSIENT_UPSTREAM_STATUSES.has(response.status) ||
-          transientRetries >= UPSTREAM_RETRY_DELAYS_MS.length
-        ) break;
+    if (attempted.has(apiKey)) repeatedSingleKey++;
+    attempted.add(apiKey);
 
-        const delayMs = UPSTREAM_RETRY_DELAYS_MS[transientRetries];
-        transientRetries++;
-        console.error({ service, stage: "upstream_retry", status: response.status, retry: transientRetries });
-        await waitForRetry(delayMs, signal);
-      }
+    let response: Response;
+    const remainingMs = Math.max(0, request.timeoutMs - (Date.now() - startedAt));
+    if (remainingMs < 1_000)
+      throw new HttpError(504, "Gemini zamanında yanıt vermedi. Tekrar deneyebilirsin.", "AI_TIMEOUT");
+    try {
+      // Keep enough of the shared budget for another key when possible.
+      const attemptMs = Math.min(remainingMs, keys.length > 1 ? 12_000 : remainingMs);
+      const attemptSignal = AbortSignal.any([signal, AbortSignal.timeout(attemptMs)]);
+      response = await request.fetcher(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+        signal: attemptSignal,
+        body: JSON.stringify(request.body),
+      });
     } catch {
-      if (request.signal?.aborted) throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
-      console.error({ service, timedOut: timeout.aborted, durationMs: Date.now() - startedAt });
-      if (!timeout.aborted)
-        throw new HttpError(503, "Gemini sunucusuna bağlanılamadı.", "AI_NETWORK_ERROR");
-      throw new HttpError(
-        504,
-        "Gemini zamanında yanıt vermedi. Daha sonra yeniden dene.",
-        "AI_TIMEOUT",
-      );
+      if (request.signal?.aborted)
+        throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
+      if (signal.aborted) break;
+      lastNetworkFailure = true;
+      singleRetryAllowed = true;
+      transientFailures++;
+      console.error({ service, stage: "network_failover", durationMs: Date.now() - startedAt });
+      if (transientFailures >= maxTransientAttempts) break;
+      await waitForRetry(250 * transientFailures, signal).catch(() => undefined);
+      continue;
     }
 
     if (response.status === 429) {
@@ -104,7 +119,6 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
       console.error({ service, stage: "key_rotation", status: response.status });
       continue;
     }
-    // Invalid keys are also reported as 400 with an API_KEY_INVALID reason.
     if (!response.ok) {
       const invalidKey = await response
         .clone()
@@ -120,10 +134,26 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
         console.error({ service, stage: "key_rotation", status: response.status });
         continue;
       }
+      if (TRANSIENT_UPSTREAM_STATUSES.has(response.status)) {
+        lastTransient = response;
+        singleRetryAllowed = true;
+        transientFailures++;
+        console.error({ service, stage: "upstream_failover", status: response.status, attempt: transientFailures });
+        if (transientFailures >= maxTransientAttempts) break;
+        await waitForRetry(Math.min(1200, 300 * transientFailures), signal).catch(() => undefined);
+        continue;
+      }
     }
     return response;
   }
 
+  if (request.signal?.aborted)
+    throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
+  if (timeout.aborted)
+    throw new HttpError(504, "Gemini zamanında yanıt vermedi. Tekrar deneyebilirsin.", "AI_TIMEOUT");
+  if (lastTransient) return lastTransient;
+  if (lastNetworkFailure)
+    throw new HttpError(503, "Gemini bağlantısı geçici olarak kurulamadı.", "AI_NETWORK_ERROR");
   throw geminiPoolError(config.GEMINI_KEYS, model);
 }
 

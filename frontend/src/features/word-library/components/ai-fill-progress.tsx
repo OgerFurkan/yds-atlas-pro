@@ -7,6 +7,7 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
   const { completed, total, batchSize } = progress;
   const percent = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
   const failedWords = progress.failedWords ?? [];
+  const retry = progress.retry;
   const remaining = Math.max(
     0,
     Math.ceil((total - completed - failedWords.length) / batchSize),
@@ -44,7 +45,11 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
         />
       </div>
       <p className="mt-2 text-[11px] leading-4 text-atlas-muted">
-        {remaining > 0
+        {retry?.secondsRemaining
+          ? retry.reason === "rate-limit"
+            ? `AI istek sınırı: ${retry.secondsRemaining} sn sonra yalnızca eksik kelimeler tekrar denenecek. Pencereyi kapatma.`
+            : `Gemini geçici olarak meşgul: ${retry.secondsRemaining} sn sonra otomatik tekrar denenecek.`
+          : remaining > 0
           ? t("library.aiProgress.hint", { count: remaining })
           : failedWords.length > 0
             ? `${completed}/${total} kelime hazir. Eksikler tekrar denenebilir.`

@@ -1,5 +1,6 @@
 import { type AiWordListResponse, type WordInput, wordInputSchema } from "@yds-atlas/shared";
 import { escapeRegExp } from "@/shared/lib/regexp";
+import { withAiRecovery, type AiRetryNotice } from "./ai-retry";
 import { aiSuggestionToWordInput } from "../api/ai-word-api";
 import { enrichWordInput } from "../data/starter-vocabulary";
 import { wordKey } from "./word-normalization";
@@ -13,6 +14,7 @@ export type WordFillProgress = {
   batchSize: number;
   /** Names of missing AI-generated words. */
   failedWords?: string[];
+  retry?: AiRetryNotice;
 };
 
 export async function prepareWordInputs(
@@ -53,7 +55,10 @@ export async function prepareWordInputs(
     let response: AiWordListResponse;
     try {
       // The server validates each entry and retries missing headwords once.
-      response = await complete(group);
+      response = await withAiRecovery(
+        () => complete(group),
+        (retry) => onProgress?.({ completed: results.size, total: names.length, batchSize, retry }),
+      );
     } catch (error) {
       firstFailure ??= error;
       // Stop on provider failure (quota/timeout/etc.) to avoid wasting API calls.

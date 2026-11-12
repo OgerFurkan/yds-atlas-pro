@@ -1,4 +1,5 @@
 ﻿import { beforeAll, beforeEach, afterAll, describe, expect, test } from "bun:test";
+import { readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 const db = new PGlite();
 const alice = "11111111-1111-4111-8111-111111111111";
@@ -9,10 +10,14 @@ beforeAll(async () => {
   await db.exec(
     "create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth to authenticated,anon,service_role;",
   );
-  const migration = await Bun.file(
-    new URL("../../supabase/migrations/20261110161008_atlas_cloud_foundation.sql", import.meta.url),
-  ).text();
-  await db.exec(migration.replace(/^\uFEFF/, ""));
+  const migrations = new URL("../../supabase/migrations/", import.meta.url);
+  // Apply every migration in timestamp order so the test database matches production.
+  for (const name of readdirSync(migrations)
+    .filter((file) => file.endsWith(".sql"))
+    .sort()) {
+    const migration = await Bun.file(new URL(name, migrations)).text();
+    await db.exec(migration.replace(/^\uFEFF/, ""));
+  }
 }, 60_000);
 beforeEach(async () => {
   await db.exec("reset role; truncate auth.users cascade;");
@@ -263,7 +268,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
     });
     await db.exec("set role service_role");
     try {
-      for (let i = 0; i < 5; i++)
+      for (let i = 0; i < 15; i++)
         expect(
           (
             await db.query<{ allowed: boolean }>("select public.consume_ai_quota($1) as allowed", [

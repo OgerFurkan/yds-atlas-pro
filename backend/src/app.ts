@@ -65,7 +65,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           {
             status: "ok",
             databaseConfigured: !!(config.SUPABASE_URL && config.SUPABASE_PUBLISHABLE_KEY),
-            aiConfigured: !!(config.GEMINI_API_KEY && config.SUPABASE_SECRET_KEY),
+            aiConfigured: !!(config.GEMINI_KEYS.length && config.SUPABASE_SECRET_KEY),
           },
           { headers },
         );
@@ -146,7 +146,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             : path.endsWith("/chat")
               ? aiChatRequestSchema.parse(body)
               : aiWordRequestSchema.parse(body);
-        if (!config.GEMINI_API_KEY)
+        if (!config.GEMINI_KEYS.length)
           throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
         const allowed = dependencies.consumeQuota
           ? await dependencies.consumeQuota(ctx.userId)
@@ -160,7 +160,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         if (!allowed)
           throw new HttpError(
             429,
-            "AI kullanım sınırına ulaşıldı. Daha sonra tekrar dene.",
+            "AI kullanım sınırına ulaşıldı. Hesap başına dakikada 15 AI isteği yapılabilir; bir dakika sonra tekrar dene.",
             "AI_QUOTA_EXCEEDED",
           );
         result =

@@ -27,13 +27,17 @@ Copy-Item backend/.env.example backend/.env
 | backend/.env        | SUPABASE_PUBLISHABLE_KEY      | Kullanıcının Bearer token'ıyla çalışan normal veri istemcisi            |
 | backend/.env        | SUPABASE_SECRET_KEY           | Yalnızca sunucuda; kalıcı AI kotasını tüketen ayrı istemci              |
 | backend/.env        | GEMINI_API_KEY                | Yalnızca sunucuda; AI Studio'dan alınır                                 |
-| backend/.env        | GEMINI_MODEL                  | Varsayılan gemini-3.8-flash; sunucudan değiştirilebilir                 |
+| backend/.env        | GEMINI_API_KEYS               | İsteğe bağlı havuz: farklı Google projelerinden virgülle ayrılmış anahtarlar |
+| backend/.env        | GEMINI_MODEL_WORD             | Varsayılan gemini-3.5-flash-lite; kelime tamamlama ve liste üretimi     |
+| backend/.env        | GEMINI_MODEL_CHAT             | Varsayılan gemini-3.8-flash; Atlas sohbeti                              |
 | backend/.env        | APP_ORIGINS                   | Virgülle ayrılan izinli uygulama origin'leri                            |
 | backend/.env        | HOST / PORT                   | Yerelde 127.0.0.1:3000; konteynerde HOST=0.0.0.0                        |
 
 ## Render'da Gemini'yi etkinleştirme
 
-Gemini henüz gerçek bir anahtarla doğrulanmadı. Google AI Studio'da bir Gemini API anahtarı oluştur; anahtarı sohbete, koda, `frontend/.env` dosyasına veya `VITE_` değişkenine koyma. Render Dashboard > Bun API servisi > Environment bölümüne `GEMINI_API_KEY` olarak doğrudan ekle. Aynı serviste `GEMINI_MODEL` değerini Google'ın güncel `generateContent` destekli model kimliklerinden biri olarak ayarla. `SUPABASE_SECRET_KEY` de aynı backend servisinde bulunmalı; yalnızca AI kotasını tüketmek için kullanılır. Deploy/restart sonrasında `/api/health` yanıtındaki `aiConfigured: true` sadece gerekli değişkenlerin bulunduğunu söyler; gerçek sağlayıcı doğrulaması için giriş yapıp AI önerisi oluştur.
+Gemini henüz gerçek bir anahtarla doğrulanmadı. Google AI Studio'da bir Gemini API anahtarı oluştur; anahtarı sohbete, koda, `frontend/.env` dosyasına veya `VITE_` değişkenine koyma. Render Dashboard > Bun API servisi > Environment bölümüne `GEMINI_API_KEY` olarak doğrudan ekle. Birden fazla anahtar kullanacaksan aynı yere `GEMINI_API_KEYS` ekle ve anahtarları virgül veya satır sonuyla ayır. `GEMINI_MODEL_WORD` varsayılan olarak `gemini-3.5-flash-lite`, `GEMINI_MODEL_CHAT` ise `gemini-3.8-flash` kullanır. `SUPABASE_SECRET_KEY` de aynı backend servisinde bulunmalı; yalnızca AI kotasını tüketmek için kullanılır. Deploy/restart sonrasında `/api/health` yanıtındaki `aiConfigured: true` sadece gerekli değişkenlerin bulunduğunu söyler; gerçek sağlayıcı doğrulaması için giriş yapıp AI önerisi oluştur.
+
+Gemini kotası API anahtarı başına değil **proje başına** uygulanır. Bu nedenle anahtar havuzu ancak anahtarlar ayrı Google projelerinden/hesaplardan alındıysa ek kota sağlar; aynı projede üretilen ikinci anahtar aynı kotayı paylaşır. Havuz sırayla döner: bir anahtar 429 döndürürse Google'ın bildirdiği `retryDelay` kadar (yoksa 60 saniye) dinlenmeye alınır ve istek sıradaki anahtarla tekrarlanır. 401/403 veya `API_KEY_INVALID` dönen anahtar 10 dakika devre dışı kalır. Tüm anahtarlar dinlenmedeyse kullanıcı en kısa süreyi içeren tek bir 429 mesajı görür ve sağlayıcıya gereksiz istek atılmaz. Dinlenme süreleri süreç belleğindedir; Render yeniden başlarsa sıfırlanır. Kelime tamamlama ve sohbet kotaları model bazında ayrı izlendiği için kelime modelinde sınırlanan anahtar sohbet modelinde kullanılabilir.
 
 AI çağrıları Supabase ile giriş yapmış kullanıcıları ve kalıcı kullanıcı kotasını gerektirir. Misafir kelime kayıtları localStorage'da kalır; kimlik doğrulamayı atlayıp Gemini anahtarını tarayıcıya açmayız. Girişli hesapta yeni tekli/toplu kelimelerin eksik bilgileri en fazla beşli isteklerle Gemini'den tamamlanır; 25 yeni kelimeden büyük liste reddedilir. Kullanıcının girdiği anlam, örnek, puan ve diğer alanlar korunur. Herhangi bir tamamlama isteği başarısız olursa depo yazımı yapılmaz; kısmi kelime listesi kaydedilmez. Öğrenme ekranındaki AI listesi beşli öneriler oluşturur ve kelimeler görev başlatılana kadar kaydedilmez. Gemini içeriği sözlük doğrulaması değildir; örnekler `Gemini · model` olarak kaynaklanır.
 
@@ -141,7 +145,7 @@ Yeni tekli/toplu kelime eklemelerinde girişli kullanıcı için önce ücretsiz
 
 Atlas sohbeti `/api/ai/chat` üzerinden çalışır. İstek son 12 mesaj ve toplam 9000 karakterle sınırlandırılır; yalnızca son mesaj kullanıcıdan olabilir. Mesajlar veritabanına kaydedilmez; yanıt Gemini'den gelir ve her sohbet isteği aynı kullanıcı başına AI kotasından bir kullanım tüketir. Chat için istemciden API anahtarı alınmaz ve kota dolduğunda anahtar/model değiştirilmez.
 
-Kota: kullanıcı başına dakikada 5, UTC gününde 40 çağrı; eşzamanlı talepler PostgreSQL satır kilidiyle sayılır. Başarısız sağlayıcı çağrıları da kotadan tüketir. Gemini zaman aşımı 30 saniyedir. Sağlayıcı/model değişkeni istemciden alınmaz. Otomatik ücretli tekrar veya tarayıcıdan Gemini çağrısı yapılmaz.
+Kota: kullanıcı başına dakikada 15, UTC gününde 40 çağrı; eşzamanlı talepler PostgreSQL satır kilidiyle sayılır. Dakika sınırı Flash-Lite'ın 15 RPM ücretsiz kotasına eşittir; günlük 40 sınırı sağlayıcı kotasından bağımsız bir maliyet korumasıdır. Başarısız sağlayıcı çağrıları da kotadan tüketir. Gemini zaman aşımı 30 saniyedir. Sağlayıcı/model değişkeni istemciden alınmaz. Otomatik ücretli tekrar veya tarayıcıdan Gemini çağrısı yapılmaz.
 
 ## Doğrulama kapsamı
 

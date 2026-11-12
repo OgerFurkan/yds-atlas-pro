@@ -1,4 +1,4 @@
-﻿import { describe, expect, spyOn, test } from "bun:test";
+﻿import { beforeEach, describe, expect, spyOn, test } from "bun:test";
 import type { GameSession } from "@yds-atlas/shared";
 import { createApp } from "../src/app";
 import { readConfig } from "../src/config/env";
@@ -10,9 +10,12 @@ import {
   generateWord,
   generateWordList,
 } from "../src/features/ai/gemini";
+import { resetGeminiKeyPool } from "../src/features/ai/gemini-keys";
 import { completionScores } from "../src/features/learning/learning-service";
 import { HttpError } from "../src/shared/errors";
 import type { RequestContext } from "../src/shared/supabase";
+
+beforeEach(resetGeminiKeyPool);
 
 const config = readConfig({
   GEMINI_API_KEY: "test-secret-never-return",
@@ -235,7 +238,7 @@ describe("Gemini provider", () => {
     }) as unknown as typeof fetch;
     await generateChatReply(
       { messages: [{ role: "user", content: "Hello" }] },
-      { ...config, GEMINI_MODEL: "gemini-2.5-flash" },
+      { ...config, GEMINI_MODEL_CHAT: "gemini-2.5-flash" },
       undefined,
       fetcher,
     );
@@ -251,12 +254,44 @@ describe("Gemini provider", () => {
       [429, "AI_QUOTA_EXCEEDED"],
       [500, "AI_UPSTREAM_ERROR"],
     ] as const) {
+      resetGeminiKeyPool();
       const fetcher = (async () =>
         new Response("provider secret detail", { status })) as unknown as typeof fetch;
       await expect(
         generateChatReply({ messages }, config, undefined, fetcher),
       ).rejects.toMatchObject({ code });
     }
+  });
+  test("chat tells the user how long to wait when Gemini rate limits", async () => {
+    const messages = [{ role: "user" as const, content: "Explain indicate." }];
+    const withDelay = (async () =>
+      Response.json(
+        {
+          error: {
+            status: "RESOURCE_EXHAUSTED",
+            details: [{ reason: "RATE_LIMIT_EXCEEDED", retryDelay: "17s" }],
+          },
+        },
+        { status: 429 },
+      )) as unknown as typeof fetch;
+    await expect(
+      generateChatReply({ messages }, config, undefined, withDelay),
+    ).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+      message: expect.stringContaining("17 saniye"),
+    });
+    resetGeminiKeyPool();
+    const withHeader = (async () =>
+      new Response("rate limited", {
+        status: 429,
+        headers: { "retry-after": "42" },
+      })) as unknown as typeof fetch;
+    await expect(
+      generateChatReply({ messages }, config, undefined, withHeader),
+    ).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+      message: expect.stringContaining("42 saniye"),
+    });
   });
   test("chat distinguishes provider network failures from cancellation", async () => {
     const messages = [{ role: "user" as const, content: "Explain indicate." }];
@@ -362,20 +397,50 @@ describe("Gemini provider", () => {
     expect(JSON.parse(input!.body as string).generationConfig.temperature).toBeUndefined();
   });
   test("word and list generation lower Gemini 3 thinking so JSON output is not truncated", async () => {
+    const wordConfig = { ...config, GEMINI_MODEL_WORD: "gemini-3.8-flash" };
     let wordBody = "";
     const fetcher = (async (_url: unknown, init: RequestInit) => {
       wordBody = String(init.body);
       return upstream(suggestion);
     }) as unknown as typeof fetch;
-    await generateWord("Expand", config, undefined, fetcher);
+    await generateWord("Expand", wordConfig, undefined, fetcher);
     expect(JSON.parse(wordBody).generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
     let listBody = "";
     const listFetcher = (async (_url: unknown, init: RequestInit) => {
       listBody = String(init.body);
       return upstream({ suggestions: [suggestion] });
     }) as unknown as typeof fetch;
-    await generateWordList(1, [], config, undefined, listFetcher);
+    await generateWordList(1, [], wordConfig, undefined, listFetcher);
     expect(JSON.parse(listBody).generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+  });
+  test("Flash-Lite keeps its minimal default thinking and does not spend output budget", async () => {
+    let requestBody = "";
+    let url = "";
+    const fetcher = (async (input: unknown, init: RequestInit) => {
+      url = String(input);
+      requestBody = String(init.body);
+      return upstream(suggestion);
+    }) as unknown as typeof fetch;
+    await generateWord("Expand", config, undefined, fetcher);
+    expect(url).toContain("/models/gemini-3.5-flash-lite:generateContent");
+    expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
+  });
+  test("chat runs on Gemini 3.8 Flash by default", async () => {
+    let url = "";
+    const fetcher = (async (input: unknown) => {
+      url = String(input);
+      return Response.json({
+        candidates: [{ finishReason: "STOP", content: { parts: [{ text: "Hello" }] } }],
+      });
+    }) as unknown as typeof fetch;
+    const result = await generateChatReply(
+      { messages: [{ role: "user", content: "Hello" }] },
+      config,
+      undefined,
+      fetcher,
+    );
+    expect(url).toContain("/models/gemini-3.8-flash:generateContent");
+    expect(result.model).toBe("gemini-3.8-flash");
   });
   test("does not send thinking levels to Gemini 2.5 word generation", async () => {
     let requestBody = "";
@@ -385,11 +450,102 @@ describe("Gemini provider", () => {
     }) as unknown as typeof fetch;
     await generateWord(
       "Expand",
-      { ...config, GEMINI_MODEL: "gemini-2.5-flash" },
+      { ...config, GEMINI_MODEL_WORD: "gemini-2.5-flash" },
       undefined,
       fetcher,
     );
     expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
+  });
+  test("a rate-limited key is parked and the next project key serves the request", async () => {
+    const pooled = readConfig({
+      GEMINI_API_KEYS: "project-a-key,project-b-key",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "test-public",
+    });
+    const used: string[] = [];
+    const fetcher = (async (_url: unknown, init: RequestInit) => {
+      const key = new Headers(init.headers).get("x-goog-api-key")!;
+      used.push(key);
+      if (key === "project-a-key")
+        return Response.json(
+          {
+            error: {
+              status: "RESOURCE_EXHAUSTED",
+              details: [{ reason: "RATE_LIMIT_EXCEEDED", retryDelay: "17s" }],
+            },
+          },
+          { status: 429 },
+        );
+      return upstream(suggestion);
+    }) as unknown as typeof fetch;
+
+    const first = await generateWord("Expand", pooled, undefined, fetcher);
+    expect(first.suggestion.word).toBe("Expand");
+    expect(used).toEqual(["project-a-key", "project-b-key"]);
+
+    used.length = 0;
+    await generateWord("Expand", pooled, undefined, fetcher);
+    expect(used).toEqual(["project-b-key"]);
+  });
+  test("reports the soonest usable key when every project is rate limited", async () => {
+    const pooled = readConfig({
+      GEMINI_API_KEYS: "limit-a,limit-b",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "test-public",
+    });
+    let calls = 0;
+    const fetcher = (async () => {
+      calls += 1;
+      return Response.json(
+        {
+          error: {
+            status: "RESOURCE_EXHAUSTED",
+            details: [{ reason: "RATE_LIMIT_EXCEEDED", retryDelay: calls === 1 ? "17s" : "25s" }],
+          },
+        },
+        { status: 429 },
+      );
+    }) as unknown as typeof fetch;
+
+    await expect(generateWord("Expand", pooled, undefined, fetcher)).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+      message: expect.stringContaining("17 saniye"),
+    });
+    expect(calls).toBe(2);
+
+    await expect(generateWord("Expand", pooled, undefined, fetcher)).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+    });
+    expect(calls).toBe(2);
+  });
+  test("falls through a rejected key and follows the rotating key order", async () => {
+    const pooled = readConfig({
+      GEMINI_API_KEYS: "rejected-key,working-key",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "test-public",
+    });
+    const used: string[] = [];
+    const fetcher = (async (_url: unknown, init: RequestInit) => {
+      const key = new Headers(init.headers).get("x-goog-api-key")!;
+      used.push(key);
+      if (key === "rejected-key")
+        return Response.json(
+          { error: { status: "PERMISSION_DENIED", details: [{ reason: "API_KEY_INVALID" }] } },
+          { status: 400 },
+        );
+      return upstream(suggestion);
+    }) as unknown as typeof fetch;
+
+    const result = await generateWord("Expand", pooled, undefined, fetcher);
+    expect(result.suggestion.word).toBe("Expand");
+    expect(used).toEqual(["rejected-key", "working-key"]);
+  });
+  test("configuration pools unique keys and defaults each workload to its own model", () => {
+    const pooled = readConfig({ GEMINI_API_KEYS: "alpha, beta\ngamma", GEMINI_API_KEY: "beta" });
+    expect(pooled.GEMINI_KEYS).toEqual(["alpha", "beta", "gamma"]);
+    const defaults = readConfig({});
+    expect(defaults.GEMINI_MODEL_WORD).toBe("gemini-3.5-flash-lite");
+    expect(defaults.GEMINI_MODEL_CHAT).toBe("gemini-3.8-flash");
   });
   test("falls back to plain JSON when Gemini rejects structured output", async () => {
     const bodies: string[] = [];
@@ -409,7 +565,12 @@ describe("Gemini provider", () => {
         ],
       });
     }) as unknown as typeof fetch;
-    const result = await generateWord("Expand", config, undefined, fetcher);
+    const result = await generateWord(
+      "Expand",
+      { ...config, GEMINI_MODEL_WORD: "gemini-3.8-flash" },
+      undefined,
+      fetcher,
+    );
     expect(result.suggestion.word).toBe("Expand");
     expect(JSON.parse(bodies[0]).generationConfig.responseJsonSchema).toBeDefined();
     const fallbackConfig = JSON.parse(bodies[1]).generationConfig;
@@ -479,7 +640,8 @@ describe("Gemini provider", () => {
     ).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });
   });
   test("maps quota, upstream failures and aborts to safe errors", async () => {
-    for (const status of [429, 500])
+    for (const status of [429, 500]) {
+      resetGeminiKeyPool();
       await expect(
         generateWord(
           "Expand",
@@ -488,6 +650,8 @@ describe("Gemini provider", () => {
           (async () => new Response("secret", { status })) as unknown as typeof fetch,
         ),
       ).rejects.toBeInstanceOf(HttpError);
+    }
+    resetGeminiKeyPool();
     const failing = (async () => {
       throw new Error("network secret");
     }) as unknown as typeof fetch;

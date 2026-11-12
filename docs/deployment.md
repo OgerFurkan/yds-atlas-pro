@@ -29,9 +29,9 @@ Render Free, 15 dakika trafik olmadığında uyur; ilk istek servis açılana ka
 
 ## Gemini'yi en son aç
 
-Google AI Studio'da ücretsiz kotası olan bir proje/model kullan. Render'ın gizli ortam değişkenlerine GEMINI_API_KEY ve SUPABASE_SECRET_KEY ekle. Gizli anahtarları Vercel'in VITE_ değişkenlerine veya GitHub dosyalarına koyma.
+Google AI Studio'da ücretsiz kotası olan bir proje kullan. Render'ın gizli ortam değişkenlerine GEMINI_API_KEY (veya birden fazla proje için GEMINI_API_KEYS) ile SUPABASE_SECRET_KEY ekle. Kelime tamamlama `GEMINI_MODEL_WORD=gemini-3.5-flash-lite`, sohbet `GEMINI_MODEL_CHAT=gemini-3.8-flash` varsayılanlarıyla çalışır. Gizli anahtarları Vercel'in VITE_ değişkenlerine veya GitHub dosyalarına koyma.
 
-AI'nın ücretsiz kotası hesaba, modele ve bölgeye bağlı olarak doğrulanmalıdır. Uygulamadaki günlük 40/dakikalık 5 sınırı sağlayıcı kotasının yerine geçmez. Ücretli kullanım etkinleştirilmeden ücretsiz kota ile canlı deneme yapılır.
+AI'nın ücretsiz kotası hesaba, modele ve bölgeye bağlı olarak doğrulanmalıdır. Uygulamadaki günlük 40/dakikalık 5 sınırı sağlayıcı kotasının yerine geçmez. Anahtar havuzu yalnızca anahtarlar ayrı Google projelerinden alındıysa ek kota sağlar; aynı projedeki anahtarlar aynı dakikalık sınırı paylaşır. Ücretli kullanım etkinleştirilmeden ücretsiz kota ile canlı deneme yapılır.
 
 ## Senden gerekenler
 

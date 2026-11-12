@@ -144,13 +144,13 @@ const resources = {
         apiUnavailable:
           "AI sunucusuna ulaşılamıyor. Yerelde bun run dev:api çalıştır veya VITE_API_URL'i Render API adresine ayarla.",
         notConfigured:
-          "AI sunucusu yapılandırılmamış. GEMINI_API_KEY ve SUPABASE_SECRET_KEY yalnızca backend ortamında olmalı.",
+          "AI sunucusu yapılandırılmamış. GEMINI_API_KEY veya GEMINI_API_KEYS ile SUPABASE_SECRET_KEY yalnızca backend ortamında olmalı.",
         providerUnavailable:
-          "Gemini yanıt veremedi. Render'daki GEMINI_MODEL ve Gemini API ayarlarını kontrol et.",
+          "Gemini yanıt veremedi. Render'daki GEMINI_MODEL_WORD / GEMINI_MODEL_CHAT ve Gemini API ayarlarını kontrol et.",
         providerAuth:
-          "Gemini API anahtarı veya proje izni reddedildi. Render'daki GEMINI_API_KEY ve Google AI Studio erişimini kontrol et.",
+          "Gemini API anahtarı veya proje izni reddedildi. Render'daki GEMINI_API_KEY / GEMINI_API_KEYS ve Google AI Studio erişimini kontrol et.",
         modelUnavailable:
-          "Gemini modeli bulunamadı veya bu projede açık değil. Render'daki GEMINI_MODEL değerini ve model erişimini kontrol et.",
+          "Gemini modeli bulunamadı veya bu projede açık değil. Render'daki GEMINI_MODEL_WORD / GEMINI_MODEL_CHAT değerini ve model erişimini kontrol et.",
         requestRejected:
           "Gemini isteği kabul etmedi. Daha kısa bir soru deneyip aynı hata sürerse Render loglarını kontrol et.",
         timeout: "Gemini yanıtı zaman aşımına uğradı. Biraz sonra yeniden dene.",
@@ -595,13 +595,13 @@ const resources = {
         apiUnavailable:
           "The AI server can't be reached. Run bun run dev:api locally or set VITE_API_URL to your Render API URL.",
         notConfigured:
-          "The AI server isn't configured. Set GEMINI_API_KEY and SUPABASE_SECRET_KEY only in the backend environment.",
+          "The AI server isn't configured. Set GEMINI_API_KEY or GEMINI_API_KEYS and SUPABASE_SECRET_KEY only in the backend environment.",
         providerUnavailable:
-          "Gemini couldn't respond. Check GEMINI_MODEL and the Gemini API settings in Render.",
+          "Gemini couldn't respond. Check GEMINI_MODEL_WORD / GEMINI_MODEL_CHAT and the Gemini API settings in Render.",
         providerAuth:
-          "Gemini rejected the API key or project access. Check GEMINI_API_KEY in Render and Google AI Studio permissions.",
+          "Gemini rejected the API key or project access. Check GEMINI_API_KEY / GEMINI_API_KEYS in Render and Google AI Studio permissions.",
         modelUnavailable:
-          "The Gemini model was not found or is not enabled for this project. Check GEMINI_MODEL in Render and model access.",
+          "The Gemini model was not found or is not enabled for this project. Check GEMINI_MODEL_WORD / GEMINI_MODEL_CHAT in Render and model access.",
         requestRejected:
           "Gemini rejected the request. Try a shorter prompt; if it persists, check the Render logs.",
         timeout: "Gemini timed out. Please try again shortly.",

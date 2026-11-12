@@ -1,4 +1,4 @@
-﻿import { supabase } from "./supabase-client";
+import { supabase } from "./supabase-client";
 export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
@@ -30,7 +30,11 @@ export async function apiRequest<T>(
         ? AbortSignal.any([init.signal, AbortSignal.timeout(40_000)])
         : AbortSignal.timeout(40_000),
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && (error.name === "TimeoutError" ||
+        (error.name === "AbortError" && !init?.signal?.aborted))) {
+      throw new ApiError("İstek zaman aşımına uğradı.", 408, "AI_TIMEOUT");
+    }
     throw new ApiError(
       "Sunucuya ulaşılamadı. Bağlantını kontrol edip yeniden dene.",
       0,

@@ -26,6 +26,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const [needsSignIn, setNeedsSignIn] = useState(false);
   const [error, setError] = useState("");
   const [retryMessages, setRetryMessages] = useState<AiChatRequest["messages"] | null>(null);
+  const [retryCount, setRetryCount] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<AiChatRequest["messages"][]>([]);
@@ -57,10 +58,18 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   async function send(content = draft, previouslyFailed?: AiChatRequest["messages"]) {
     const trimmed = content.trim();
     if ((!trimmed && !previouslyFailed) || busy) return;
+    // Retrying an overloaded provider with the entire chat history may timeout again.
+    // Keep the displayed history, but send only the last question after the first failure.
     const conversation = previouslyFailed ?? [
       ...messages,
       { role: "user" as const, content: trimmed },
     ].slice(-12);
+    const retryAttempt = previouslyFailed ? retryCount + 1 : 0;
+    const requestMessages = previouslyFailed && conversation.length > 1
+      ? conversation.slice(-1)
+      : conversation;
+    if (!previouslyFailed) setRetryCount(0);
+    else setRetryCount(retryAttempt);
     setMessages(conversation);
     if (!previouslyFailed) setDraft("");
     setError("");
@@ -71,8 +80,9 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     const controller = new AbortController();
     activeRequest.current = controller;
     try {
-      const response = await sendChat(conversation, controller.signal);
+      const response = await sendChat(requestMessages, controller.signal);
       if (activeRequest.current !== controller) return;
+      setRetryCount(0);
       setMessages((current) =>
         [...current, { role: "assistant" as const, content: response.reply }].slice(-12),
       );
@@ -92,7 +102,9 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       else if (reason instanceof ApiError && reason.code === "AI_NOT_CONFIGURED")
         setError(t("chat.notConfigured"));
       else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
-        setError(t("chat.timeout"));
+        setError(retryAttempt > 0
+          ? "Gemini yeniden denemede de zaman aşımına uğradı. İstek gönderiliyor fakat sunucudan yanıt gelmiyor; Render/Gemini servis günlükleri kontrol edilmeli."
+          : t("chat.timeout"));
       else if (reason instanceof ApiError && reason.code === "AI_NETWORK_ERROR")
         setError(t("chat.networkError"));
       else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
@@ -140,6 +152,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     setDraft("");
     setError("");
     setRetryMessages(null);
+    setRetryCount(0);
     setNeedsSignIn(false);
     setMenuOpen(false);
     setShowHistory(false);
@@ -283,7 +296,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 ))}
               {busy && (
                 <div className="flex items-center gap-2 text-xs text-slate-500" role="status">
-                  <LoaderCircle size={15} className="animate-spin" /> {t("chat.thinking")}
+                  <LoaderCircle size={15} className="animate-spin" />
+                  {retryCount > 0 ? `Yeniden deneniyor (${retryCount}. deneme)...` : t("chat.thinking")}
                 </div>
               )}
               {error && (
@@ -298,7 +312,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                       disabled={busy}
                       onClick={() => void send("", retryMessages)}
                     >
-                      Aynı isteği tekrar dene
+                      {retryCount > 0 ? "Tekrar dene (sunucu hâlâ yanıt vermiyor)" : "Aynı isteği tekrar dene"}
                     </Button>
                   )}
                 </div>

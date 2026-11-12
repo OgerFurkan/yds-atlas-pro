@@ -33,6 +33,8 @@ export function DailyPlanView({
   onStudyGroup,
   onAddWord,
   onBulkAdd,
+  onBulkAddForDay,
+  onBulkAssignWordIds,
   onCreateForDay,
   onAssignWord,
   onRemoveFromDay,
@@ -47,6 +49,8 @@ export function DailyPlanView({
   onStudyGroup: (group: DailyGroup) => void;
   onAddWord: () => void;
   onBulkAdd: () => void;
+  onBulkAddForDay: (day: number) => void;
+  onBulkAssignWordIds: (wordIds: string[], day: number) => boolean;
   onCreateForDay: (day: number) => void;
   onAssignWord: (wordId: string, day: number) => void;
   onRemoveFromDay: (wordId: string, day: number) => void;
@@ -57,6 +61,10 @@ export function DailyPlanView({
   const [showAll, setShowAll] = useState(false);
   const [search, setSearch] = useState("");
   const [wordToAdd, setWordToAdd] = useState("");
+  const [bulkPickerOpen, setBulkPickerOpen] = useState(false);
+  const [bulkQuery, setBulkQuery] = useState("");
+  const [bulkSelected, setBulkSelected] = useState<string[]>([]);
+  const [bulkUnassignedOnly, setBulkUnassignedOnly] = useState(false);
   const selectedGroup = selectedDay === null ? undefined : plan.groups[selectedDay - 1];
   const percent = plan.totalWords ? Math.round((plan.learned / plan.totalWords) * 100) : 0;
   const nextEmpty = plan.groups.find((group) => group.total === 0);
@@ -74,6 +82,12 @@ export function DailyPlanView({
       .sort((a, b) => a.word.localeCompare(b.word)),
     [words, assignedDays, selectedDay],
   );
+  const bulkCandidates = availableWords.filter((word) =>
+    (!bulkUnassignedOnly || !assignedDays.has(word.id)) &&
+    `${word.word} ${word.meanings.join(" ")}`.toLocaleLowerCase("tr")
+      .includes(bulkQuery.trim().toLocaleLowerCase("tr")),
+  );
+  const availableSlots = Math.max(0, 40 - (selectedGroup?.total ?? 0));
   const filteredWords = selectedGroup?.words.filter((word) =>
     `${word.word} ${word.meanings.join(" ")}`.toLocaleLowerCase("tr")
       .includes(search.trim().toLocaleLowerCase("tr")),
@@ -83,6 +97,10 @@ export function DailyPlanView({
     setSelectedDay(day);
     setSearch("");
     setWordToAdd("");
+    setBulkPickerOpen(false);
+    setBulkQuery("");
+    setBulkSelected([]);
+    setBulkUnassignedOnly(false);
   }
 
   function addExistingWord() {
@@ -93,6 +111,18 @@ export function DailyPlanView({
       return;
     onAssignWord(wordToAdd, selectedDay);
     setWordToAdd("");
+  }
+
+  function addSelectedWords() {
+    if (selectedDay === null || !bulkSelected.length) return;
+    const moved = bulkSelected.filter((id) => assignedDays.has(id));
+    if (moved.length && !window.confirm(
+      `${moved.length} kelime diğer günlerden bu güne taşınacak. Devam edilsin mi?`,
+    )) return;
+    if (onBulkAssignWordIds(bulkSelected, selectedDay)) {
+      setBulkSelected([]);
+      setBulkPickerOpen(false);
+    }
   }
 
   return (
@@ -201,12 +231,70 @@ export function DailyPlanView({
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Button size="sm" disabled={selectedGroup.total >= 40} onClick={() => onCreateForDay(selectedDay)}><Plus size={16} /> Yeni kelime</Button>
+                  <Button size="sm" variant="outline" disabled={selectedGroup.total >= 40} onClick={() => setBulkPickerOpen((open) => !open)}>
+                    <Layers3 size={16} /> Kütüphaneden toplu seç
+                  </Button>
+                  <Button size="sm" variant="outline" disabled={selectedGroup.total >= 40} onClick={() => {
+                    setSelectedDay(null);
+                    onBulkAddForDay(selectedDay);
+                  }}>
+                    <Plus size={16} /> Yeni kelimeleri toplu yaz
+                  </Button>
                   <Button
                     size="sm" variant="outline" disabled={selectedGroup.playable === 0}
                     onClick={() => onStudyGroup(selectedGroup)}
                   ><BookOpenCheck size={15} /> Bu günü çalış</Button>
                 </div>
               </div>
+
+              {bulkPickerOpen && (
+                <section className="space-y-3 rounded-xl border border-border bg-muted/40 p-3" aria-label="Kütüphaneden toplu kelime seç">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold text-foreground">Kütüphaneden toplu kelime seç</h3>
+                      <p className="text-xs text-muted-foreground">{availableSlots} boş yer · {bulkSelected.length} seçili · en fazla 40 kelime/gün</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => setBulkSelected([])} disabled={!bulkSelected.length}>Seçimi temizle</Button>
+                  </div>
+                  <input
+                    type="search" aria-label="Eklenecek kelimelerde ara" value={bulkQuery}
+                    placeholder="İngilizce ya da Türkçe ara..."
+                    onChange={(event) => setBulkQuery(event.target.value)}
+                    className="min-h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground"
+                  />
+                  <label className="inline-flex items-center gap-2 text-xs text-foreground">
+                    <input type="checkbox" checked={bulkUnassignedOnly} onChange={(event) => setBulkUnassignedOnly(event.target.checked)} />
+                    Sadece atanmadıklar
+                  </label>
+                  <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-border bg-card p-2">
+                    {bulkCandidates.slice(0, 150).map((word) => {
+                      const selected = bulkSelected.includes(word.id);
+                      return (
+                        <label key={word.id} className="flex min-w-0 cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-sm text-foreground hover:bg-muted">
+                          <input
+                            type="checkbox" checked={selected} disabled={!selected && bulkSelected.length >= availableSlots}
+                            onChange={(event) => {
+                              const checked = event.currentTarget.checked;
+                              setBulkSelected((current) => checked
+                                ? [...current, word.id]
+                                : current.filter((id) => id !== word.id));
+                            }}
+                          />
+                          <span className="min-w-0 flex-1 break-words">{word.word} <span className="text-xs text-muted-foreground">— {word.meanings[0] || "Anlam yok"}</span></span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{assignedDays.has(word.id) ? `Gün ${assignedDays.get(word.id)}` : "Atanmamış"}</span>
+                        </label>
+                      );
+                    })}
+                    {!bulkCandidates.length && <p className="p-3 text-sm text-muted-foreground">Uygun kelime bulunamadı.</p>}
+                  </div>
+                  <div className="flex flex-wrap justify-between gap-2">
+                    <Button size="sm" variant="outline" disabled={availableSlots === 0 || !bulkCandidates.length} onClick={() =>
+                      setBulkSelected((current) => [...new Set([...current, ...bulkCandidates.map((word) => word.id)])].slice(0, availableSlots))
+                    }>Görünenlerden seç</Button>
+                    <Button size="sm" onClick={addSelectedWords} disabled={!bulkSelected.length}>Seçilen {bulkSelected.length} kelimeyi güne ekle</Button>
+                  </div>
+                </section>
+              )}
 
               <div className="rounded-xl border border-border bg-muted/40 p-3">
                 <label htmlFor="day-word-add" className="mb-2 block text-xs font-semibold text-foreground">

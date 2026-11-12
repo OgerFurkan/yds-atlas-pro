@@ -147,6 +147,37 @@ export class DailyWordGroupsRepository {
     if (excluded.includes(wordId)) writeStorage(EXCLUDED_KEY, excluded.filter((id) => id !== wordId));
   }
 
+  /** Move/add several existing library words in one atomic group write. */
+  assignManyToDay(wordIds: string[], day: number): { added: number; moved: number; already: number } {
+    if (!isValidDay(day)) throw new Error("Gün 1–60 arasında olmalıdır.");
+    const unique = [...new Set(wordIds)];
+    if (unique.some((id) => typeof id !== "string" || !id.trim()))
+      throw new Error("Geçersiz kelime seçimi.");
+    const groups = this.getGroups();
+    const target = groups.find((group) => group.day === day) ?? { day, words: [] };
+    const already = unique.filter((id) => target.words.includes(id)).length;
+    const pending = unique.filter((id) => !target.words.includes(id));
+    if (target.words.length + pending.length > MAX_WORDS_PER_DAY)
+      throw new Error(`Bu günde yalnızca ${Math.max(0, MAX_WORDS_PER_DAY - target.words.length)} boş yer var.`);
+    if (!pending.length) return { added: 0, moved: 0, already };
+
+    let moved = 0;
+    for (const id of pending) {
+      const previous = groups.find((group) => group.day !== day && group.words.includes(id));
+      if (previous) {
+        previous.words = previous.words.filter((wordId) => wordId !== id);
+        moved += 1;
+      }
+      target.words.push(id);
+    }
+    if (!groups.some((group) => group.day === day)) groups.push(target);
+    this.saveGroups(this.sortGroupsByDay(groups.filter((group) => group.words.length > 0)));
+    const excluded = this.getExcludedWordIds();
+    const nextExcluded = excluded.filter((id) => !pending.includes(id));
+    if (excluded.length !== nextExcluded.length) writeStorage(EXCLUDED_KEY, nextExcluded);
+    return { added: pending.length - moved, moved, already };
+  }
+
   // Geriye uyumlu: day verilmezse kelimenin bulunduğu gruptan çıkarılır.
   // day verilirse sadece belirtilen gün hedeflenir.
   removeWordFromDay(wordId: string, day?: number): void {

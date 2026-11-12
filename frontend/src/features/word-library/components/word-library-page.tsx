@@ -24,6 +24,7 @@ import { useWordLibraryView } from "@/features/word-library/hooks/use-word-libra
 import { useWordSelection } from "@/features/word-library/hooks/use-word-selection";
 import type { DailyGroup } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
+import { wordKey } from "@/features/word-library/model/word-normalization";
 import type { GroupFilter } from "@/features/word-library/model/word-library-view";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
@@ -73,6 +74,8 @@ export function WordLibraryPage({
   const [activeView, setActiveView] = useState<LibraryView>("words");
   const [formOpen, setFormOpen] = useState(initialCreate);
   const [bulkOpen, setBulkOpen] = useState(false);
+  const [bulkTargetDay, setBulkTargetDay] = useState<number | null>(null);
+  const pendingBulk = useRef<{ day: number; keys: Set<string> } | null>(null);
   const [editingWord, setEditingWord] = useState<WordEntry>();
   const [createTargetDay, setCreateTargetDay] = useState<number | null>(null);
   const pendingCreate = useRef<{
@@ -99,6 +102,87 @@ export function WordLibraryPage({
       onNotify.error(reason instanceof Error ? reason.message : "Kelime güne atanamadı.");
     }
   }, [words, daily, onNotify]);
+
+  // Words are persisted by the library API first. After its async refresh, match the
+  // actual saved IDs and move all completed/duplicate imports into the requested day.
+  // Never assign fabricated IDs or lose the partial Gemini successes.
+  useEffect(() => {
+    const pending = pendingBulk.current;
+    if (!pending || !pending.keys.size) return;
+    const found = words.filter((word) => pending.keys.has(wordKey(word.word)));
+    if (!found.length) return;
+    try {
+      const result = daily.assignMany(found.map((word) => word.id), pending.day);
+      for (const word of found) pending.keys.delete(wordKey(word.word));
+      if (result.added || result.moved) {
+        onNotify.success(`${found.length} kelime ${pending.day}. güne yerleştirildi.`);
+      }
+    } catch (reason) {
+      // A full target day must never remove the imported words from the library.
+      for (const word of found) pending.keys.delete(wordKey(word.word));
+      onNotify.error(reason instanceof Error ? reason.message : "Toplu eklenen kelimeler güne atanamadı.");
+    }
+    if (pending.keys.size === 0) pendingBulk.current = null;
+  }, [words, daily, onNotify]);
+
+  function bulkAddForDay(day: number) {
+    setBulkTargetDay(day);
+    setBulkOpen(true);
+  }
+
+  function openGeneralBulk() {
+    setBulkTargetDay(null);
+    setBulkOpen(true);
+  }
+
+  function bulkAssignWordIds(wordIds: string[], day: number) {
+    try {
+      const result = daily.assignMany(wordIds, day);
+      onNotify.success(`${result.added} kelime eklendi, ${result.moved} kelime taşındı.`);
+      return true;
+    } catch (reason) {
+      onNotify.error(reason instanceof Error ? reason.message : "Kelimeler güne atanamadı.");
+      return false;
+    }
+  }
+
+  async function addManyToTargetDay(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
+    if (bulkTargetDay === null) return onAddMany(inputs, onProgress);
+    const day = bulkTargetDay;
+    const alreadyInDay = new Set(daily.plan.groups[day - 1]?.words.map((word) => wordKey(word.word)) ?? []);
+    const requested = new Set(inputs.map((input) => wordKey(input.word)).filter((key) => !alreadyInDay.has(key)));
+    const freeSlots = Math.max(0, 40 - (daily.plan.groups[day - 1]?.total ?? 0));
+    if (requested.size > freeSlots) {
+      throw new Error(`${day}. günde ${freeSlots} boş yer var. Lütfen listeyi küçült.`);
+    }
+    const requestedKeys = new Set(inputs.map((input) => wordKey(input.word)));
+    const elsewhere = daily.plan.groups.filter((group) => group.day !== day)
+      .flatMap((group) => group.words)
+      .filter((word) => requestedKeys.has(wordKey(word.word)));
+    if (elsewhere.length && !window.confirm(
+      `${elsewhere.length} mevcut kelime diğer günlerden ${day}. güne taşınacak. Devam edilsin mi?`,
+    )) throw new Error("Günler arası kelime taşıma iptal edildi.");
+    if (pendingBulk.current && pendingBulk.current.day !== day && pendingBulk.current.keys.size)
+      throw new Error("Önce önceki toplu ekleme işlemi tamamlansın.");
+    const pending = pendingBulk.current ?? { day, keys: new Set<string>() };
+    pendingBulk.current = pending;
+    for (const key of requested) pending.keys.add(key);
+    let failedWords = new Set<string>();
+    try {
+      const result = await onAddMany(inputs, (progress) => {
+        failedWords = new Set((progress.failedWords ?? []).map(wordKey));
+        onProgress?.(progress);
+      });
+      // Missing AI words are not saved. Retried words can be enqueued later.
+      for (const key of failedWords) pending.keys.delete(key);
+      if (!pending.keys.size) pendingBulk.current = null;
+      return result;
+    } catch (reason) {
+      for (const key of requested) pending.keys.delete(key);
+      if (!pending.keys.size) pendingBulk.current = null;
+      throw reason;
+    }
+  }
 
   async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void) {
     if (!id && createTargetDay !== null) {
@@ -213,7 +297,7 @@ export function WordLibraryPage({
           <p className="text-sm text-atlas-muted">{t("library.subtitle")}</p>
         </div>
         <div className="flex gap-2 max-sm:grid max-sm:grid-cols-[.9fr_1.1fr]">
-          <Button variant="secondary" type="button" onClick={() => setBulkOpen(true)}>
+          <Button variant="secondary" type="button" onClick={openGeneralBulk}>
             <ListFilter size={16} /> {t("library.bulkAdd")}
           </Button>
           <Button type="button" onClick={openCreate}>
@@ -240,7 +324,9 @@ export function WordLibraryPage({
           onGroupSizeChange={daily.setGroupSize}
           onStudyGroup={onStudyGroup}
           onAddWord={openCreate}
-          onBulkAdd={() => setBulkOpen(true)}
+          onBulkAdd={openGeneralBulk}
+          onBulkAddForDay={bulkAddForDay}
+          onBulkAssignWordIds={bulkAssignWordIds}
           onCreateForDay={addWordToDay}
           onAssignWord={assignWord}
           onRemoveFromDay={removeWordFromDay}
@@ -288,7 +374,7 @@ export function WordLibraryPage({
             ) : words.length ? (
               <LibraryNoResults onReset={view.resetFilters} />
             ) : (
-              <LibraryEmpty onAdd={openCreate} onBulk={() => setBulkOpen(true)} />
+              <LibraryEmpty onAdd={openCreate} onBulk={openGeneralBulk} />
             )}
           </section>
         </>
@@ -304,7 +390,16 @@ export function WordLibraryPage({
         />
       )}
       {bulkOpen && (
-        <BulkWordDialog open onOpenChange={setBulkOpen} onAddMany={onAddMany} onNotify={onNotify} />
+        <BulkWordDialog
+          open
+          targetDay={bulkTargetDay ?? undefined}
+          onOpenChange={(open) => {
+            setBulkOpen(open);
+            if (!open) setBulkTargetDay(null);
+          }}
+          onAddMany={addManyToTargetDay}
+          onNotify={onNotify}
+        />
       )}
     </>
   );

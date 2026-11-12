@@ -60,10 +60,16 @@ export function useDailyPlan(
     return success;
   }
 
+  function assignMany(wordIds: string[], day: number) {
+    const result = repository.assignManyToDay(wordIds, day);
+    if (result.added || result.moved) refresh();
+    return result;
+  }
+
   function removeFromDay(wordId: string, day: number) {
     repository.excludeWordFromDay(wordId, day);
     refresh();
   }
 
-  return { plan, groupSize, error, setGroupSize, assign, removeFromDay, refresh };
+  return { plan, groupSize, error, setGroupSize, assign, assignMany, removeFromDay, refresh };
 }

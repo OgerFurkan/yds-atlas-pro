@@ -1,4 +1,4 @@
-﻿import type { WordInput } from "@yds-atlas/shared";
+import type { WordInput } from "@yds-atlas/shared";
 import { RefreshCw, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import type { Notify } from "@/shared/lib/notify";
@@ -21,9 +21,10 @@ interface BulkWordDialogProps {
     onProgress?: (progress: WordFillProgress) => void,
   ) => Promise<{ added: number; duplicates: number }>;
   onNotify: Notify;
+  targetDay?: number;
 }
 
-export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify }: BulkWordDialogProps) {
+export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, targetDay }: BulkWordDialogProps) {
   const [saving, setSaving] = useState(false);
   const [missingWords, setMissingWords] = useState<string[]>([]);
   const [requestedTotal, setRequestedTotal] = useState(0);
@@ -92,10 +93,11 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify }: Bulk
       <DialogContent>
         <DialogHeader>
           <div>
-            <DialogTitle>Toplu kelime ekle</DialogTitle>
+            <DialogTitle>{targetDay ? `${targetDay}. güne toplu kelime ekle` : "Toplu kelime ekle"}</DialogTitle>
             <DialogDescription>
               Yazımı incele. Giriş yaptıysan eksik bilgiler Gemini ile tamamlanır (bir seferde 25
               kelimeye kadar); misafir kullanımında otomatik tamamlanmaz.
+              {targetDay ? ` Tamamlanan kelimeler doğrudan ${targetDay}. güne yerleştirilir. Gün başına en fazla 40 kelime.` : ""}
             </DialogDescription>
           </div>
         </DialogHeader>

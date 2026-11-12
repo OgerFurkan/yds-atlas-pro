@@ -251,3 +251,35 @@ test("kütüphaneden silinen kelimenin eski günlük ataması temizlenir", () =>
   repository.syncWords(["a", "c"], 20);
   expect(repository.getGroups()[0].words).toEqual(["a", "c"]);
 });
+
+test("toplu gün ataması hem yeni hem başka günün kelimelerini tek işlemde ekler", () => {
+  seed([
+    { day: 1, words: ["already", "move"] },
+    { day: 2, words: ["keep"] },
+  ]);
+  const result = repository.assignManyToDay(["move", "new", "new", "keep"], 2);
+  expect(result).toEqual({ added: 1, moved: 1, already: 1 });
+  expect(repository.getGroups()).toEqual([
+    { day: 1, words: ["already"] },
+    { day: 2, words: ["keep", "move", "new"] },
+  ]);
+});
+
+test("40 limitini aşan toplu seçim hiçbir kelimeyi taşımaz", () => {
+  seed([
+    { day: 1, words: ["source"] },
+    { day: 2, words: Array.from({ length: 39 }, (_, index) => `existing-${index}`) },
+  ]);
+  const before = JSON.stringify(stored());
+  expect(() => repository.assignManyToDay(["source", "extra"], 2)).toThrow();
+  expect(JSON.stringify(stored())).toBe(before);
+});
+
+test("günden çıkarılmış kelimeyi toplu eklemek yeniden atanmasını sağlar", () => {
+  seed([{ day: 1, words: ["excluded"] }]);
+  repository.excludeWordFromDay("excluded", 1);
+  expect(repository.getExcludedWordIds()).toContain("excluded");
+  repository.assignManyToDay(["excluded"], 2);
+  expect(repository.getExcludedWordIds()).not.toContain("excluded");
+  expect(repository.getGroups()).toEqual([{ day: 2, words: ["excluded"] }]);
+});

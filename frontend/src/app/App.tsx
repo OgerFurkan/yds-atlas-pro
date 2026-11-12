@@ -1,4 +1,4 @@
-﻿import type { WordGroup, WordInput } from "@yds-atlas/shared";
+import type { WordGroup, WordInput } from "@yds-atlas/shared";
 import { lazy, Suspense, useCallback, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ToastContainer } from "react-toastify";
@@ -131,10 +131,33 @@ function AppWorkspace({
   }
 
   async function addWords(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
+    let failedWords: string[] = [];
+
     const prepared = auth.user
-      ? await prepareWordInputs(inputs, library.list(), completeWordsWithGemini, onProgress)
+      ? await prepareWordInputs(
+          inputs,
+          library.list(),
+          completeWordsWithGemini,
+          (progress) => {
+            failedWords = progress.failedWords ?? [];
+            onProgress?.(progress);
+          },
+        )
       : inputs;
-    return library.addMany(prepared);
+
+    const result = await library.addMany(prepared);
+
+    if (failedWords.length) {
+      notify.info(
+        <span>
+          Hazir kelimeler kaydedildi. Tamamlanamayan {failedWords.length} kelime:{" "}
+          <strong>{failedWords.join(", ")}</strong>.
+          Bu kelimeleri yeniden deneyebilirsin.
+        </span>,
+      );
+    }
+
+    return result;
   }
 
   return (

@@ -6,7 +6,11 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
   const { t } = useTranslation();
   const { completed, total, batchSize } = progress;
   const percent = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
-  const remaining = Math.max(0, Math.ceil((total - completed) / batchSize));
+  const failedWords = progress.failedWords ?? [];
+  const remaining = Math.max(
+    0,
+    Math.ceil((total - completed - failedWords.length) / batchSize),
+  );
 
   return (
     <div
@@ -42,8 +46,23 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
       <p className="mt-2 text-[11px] leading-4 text-atlas-muted">
         {remaining > 0
           ? t("library.aiProgress.hint", { count: remaining })
-          : t("library.aiProgress.finishing")}
+          : failedWords.length > 0
+            ? `${completed}/${total} kelime hazir. Eksikler tekrar denenebilir.`
+            : t("library.aiProgress.finishing")}
       </p>
+      {failedWords.length > 0 && (
+        <div
+          role="alert"
+          className="mt-2 rounded-lg border border-amber-300/50 bg-amber-50/80 p-2.5 text-xs text-amber-900"
+        >
+          <p className="font-semibold">
+            {failedWords.length} kelime tamamlanamadi
+          </p>
+          <p className="mt-1 break-words">
+            {failedWords.join(", ")}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

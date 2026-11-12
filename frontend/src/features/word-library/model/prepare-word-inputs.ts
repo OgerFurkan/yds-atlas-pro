@@ -11,6 +11,8 @@ export type WordFillProgress = {
   total: number;
   /** Requests are sent in groups of this size. */
   batchSize: number;
+  /** Names of missing AI-generated words. */
+  failedWords?: string[];
 };
 
 export async function prepareWordInputs(
@@ -45,27 +47,58 @@ export async function prepareWordInputs(
   const batchSize = 5;
   const results = new Map<string, ReturnType<typeof aiSuggestionToWordInput>>();
   if (names.length) onProgress?.({ completed: 0, total: names.length, batchSize });
+  let firstFailure: unknown;
   for (let index = 0; index < names.length; index += batchSize) {
     const group = names.slice(index, index + batchSize);
-    const response = await complete(group);
+    let response: AiWordListResponse;
+    try {
+      // The server validates each entry and retries missing headwords once.
+      response = await complete(group);
+    } catch (error) {
+      firstFailure ??= error;
+      // Stop on provider failure (quota/timeout/etc.) to avoid wasting API calls.
+      break;
+    }
     const sources = new Map(
       (response.dictionarySources ?? []).map((source) => [wordKey(source.word), source]),
     );
     const expected = new Set(group.map(wordKey));
     for (const suggestion of response.suggestions) {
       const key = wordKey(suggestion.word);
-      if (!expected.delete(key))
-        throw new Error("AI farklı veya tekrarlanan bir kelime döndürdü. Tekrar dene.");
-      results.set(key, aiSuggestionToWordInput(suggestion, response.model, sources.get(key)));
+      // A response containing a foreign/duplicate word must never overwrite
+      // user data or add the word to the current study batch.
+      if (!expected.delete(key)) continue;
+      try {
+        results.set(key, aiSuggestionToWordInput(suggestion, response.model, sources.get(key)));
+      } catch {
+        // Reject only the malformed word, not previously validated entries.
+      }
     }
-    if (expected.size) throw new Error("AI bazı kelimeleri tamamlayamadı. Tekrar dene.");
     onProgress?.({
-      completed: Math.min(index + group.length, names.length),
+      completed: results.size,
       total: names.length,
       batchSize,
+      ...(names.slice(0, index + group.length).some((name) => !results.has(wordKey(name)))
+        ? { failedWords: names.slice(0, index + group.length).filter((name) => !results.has(wordKey(name))) }
+        : {}),
     });
   }
-  return prepared.map((input) => {
+
+  const failedWords = names.filter((name) => !results.has(wordKey(name)));
+  if (failedWords.length) {
+    onProgress?.({ completed: results.size, total: names.length, batchSize, failedWords });
+  }
+  // Keep already-complete entries and the AI-validated subset. Never persist
+  // an incomplete new word merely because Gemini could not enrich it.
+  const safePrepared = prepared.filter((input) => {
+    const key = wordKey(input.word);
+    return !missing.has(key) || results.has(key);
+  });
+  if (!safePrepared.length && firstFailure) throw firstFailure;
+  if (!safePrepared.length && missing.size)
+    throw new Error("AI hiçbir kelimeyi güvenle tamamlayamadı. Tekrar dene.");
+
+  return safePrepared.map((input) => {
     const generated = results.get(wordKey(input.word));
     if (!generated) return input;
     const sentences = new Set(

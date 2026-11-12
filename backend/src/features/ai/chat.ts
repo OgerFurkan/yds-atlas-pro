@@ -1,6 +1,7 @@
 import { type AiChatRequest, type AiChatResponse, aiChatResponseSchema } from "@yds-atlas/shared";
 import type { ServerConfig } from "../../config/env";
 import { HttpError } from "../../shared/errors";
+import { thinkingConfigFor } from "./gemini-generation";
 import { assertGeminiResponse } from "./gemini-errors";
 
 export async function generateChatReply(
@@ -36,9 +37,7 @@ export async function generateChatReply(
           })),
           generationConfig: {
             maxOutputTokens: 1200,
-            ...(/^gemini-3[.-]/.test(config.GEMINI_MODEL)
-              ? { thinkingConfig: { thinkingLevel: "low" } }
-              : {}),
+            ...thinkingConfigFor(config.GEMINI_MODEL),
           },
         }),
       },

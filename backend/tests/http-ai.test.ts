@@ -361,6 +361,49 @@ describe("Gemini provider", () => {
     );
     expect(JSON.parse(input!.body as string).generationConfig.temperature).toBeUndefined();
   });
+  test("word and list generation lower Gemini 3 thinking so JSON output is not truncated", async () => {
+    let wordBody = "";
+    const fetcher = (async (_url: unknown, init: RequestInit) => {
+      wordBody = String(init.body);
+      return upstream(suggestion);
+    }) as unknown as typeof fetch;
+    await generateWord("Expand", config, undefined, fetcher);
+    expect(JSON.parse(wordBody).generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+    let listBody = "";
+    const listFetcher = (async (_url: unknown, init: RequestInit) => {
+      listBody = String(init.body);
+      return upstream({ suggestions: [suggestion] });
+    }) as unknown as typeof fetch;
+    await generateWordList(1, [], config, undefined, listFetcher);
+    expect(JSON.parse(listBody).generationConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+  });
+  test("does not send thinking levels to Gemini 2.5 word generation", async () => {
+    let requestBody = "";
+    const fetcher = (async (_url: unknown, init: RequestInit) => {
+      requestBody = String(init.body);
+      return upstream(suggestion);
+    }) as unknown as typeof fetch;
+    await generateWord(
+      "Expand",
+      { ...config, GEMINI_MODEL: "gemini-2.5-flash" },
+      undefined,
+      fetcher,
+    );
+    expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
+  });
+  test("accepts regular inflected example forms when alternatives omit them", async () => {
+    const results = await generateWord("Expand", config, undefined, (async () =>
+      upstream({
+        ...suggestion,
+        alternatives: [],
+        examples: ["expanded", "expanding", "expands", "expand", "expanded"].map((form, index) => ({
+          sentence: `We ${form} the project in year ${index}.`,
+          translation: `Projeyi ${index}. yılda genişletiriz.`,
+          translationFocus: ["genişletiriz"],
+        })),
+      })) as unknown as typeof fetch);
+    expect(results.suggestion.examples).toHaveLength(5);
+  });
   test("word validation logs only the failure stage and safe finish reason", async () => {
     const log = spyOn(console, "error").mockImplementation(() => {});
     try {
@@ -419,11 +462,17 @@ describe("Gemini provider", () => {
           (async () => new Response("secret", { status })) as unknown as typeof fetch,
         ),
       ).rejects.toBeInstanceOf(HttpError);
-    await expect(
-      generateWord("Expand", config, undefined, (async () => {
-        throw new Error("network secret");
-      }) as unknown as typeof fetch),
-    ).rejects.toMatchObject({ code: "AI_TIMEOUT" });
+    const failing = (async () => {
+      throw new Error("network secret");
+    }) as unknown as typeof fetch;
+    await expect(generateWord("Expand", config, undefined, failing)).rejects.toMatchObject({
+      code: "AI_NETWORK_ERROR",
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await expect(generateWord("Expand", config, controller.signal, failing)).rejects.toMatchObject({
+      code: "AI_CANCELLED",
+    });
   });
   test("completion scores use measured knowledge, ignore supplied score changes and require all stages", () => {
     const snapshot = {

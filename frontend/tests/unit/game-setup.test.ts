@@ -125,6 +125,40 @@ test("new inputs are completed in batches without overwriting user data or exist
   expect(result[2].examples).toHaveLength(0);
 });
 
+test("completion progress reports only words that need AI and advances per batch", async () => {
+  const progress: { completed: number; total: number; batchSize: number }[] = [];
+  const complete = async (words: string[]) => ({
+    provider: "Gemini" as const,
+    model: "test",
+    suggestions: words.map((word) => ({
+      word,
+      alternatives: [],
+      meanings: ["AI anlamı"],
+      usageNote: "AI notu",
+      partOfSpeech: "Verb" as const,
+      cefr: "B2" as const,
+      examples: Array.from({ length: 5 }, (_, index) => ({
+        sentence: `We ${word} item ${index}.`,
+        translation: `${index} öğesini ölçeriz.`,
+        translationFocus: ["ölçeriz"],
+      })),
+    })),
+  });
+  const words = Array.from({ length: 12 }, (_, index) => ({ word: `probe${index}` }));
+  await prepareWordInputs(words, [], complete, (next) => progress.push(next));
+  expect(progress).toEqual([
+    { completed: 0, total: 12, batchSize: 5 },
+    { completed: 5, total: 12, batchSize: 5 },
+    { completed: 10, total: 12, batchSize: 5 },
+    { completed: 12, total: 12, batchSize: 5 },
+  ]);
+  const alreadyComplete: typeof progress = [];
+  await prepareWordInputs([{ word: "existing" }], [{ word: "existing" }], complete, (next) =>
+    alreadyComplete.push(next),
+  );
+  expect(alreadyComplete).toEqual([]);
+});
+
 test("completion failures and oversized batches do not produce partial results", async () => {
   let calls = 0;
   const fail = async () => {

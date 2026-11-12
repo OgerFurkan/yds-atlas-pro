@@ -6,6 +6,7 @@ import {
   aiSuggestionToWordInput,
   suggestWordsWithGemini,
 } from "@/features/word-library/api/ai-word-api";
+import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { Alert, AlertDescription } from "@/shared/ui/alert";
 import { Card, CardContent } from "@/shared/ui/card";
@@ -42,7 +43,10 @@ export function GameSetup({
   onResume: () => void;
   onTutorial: () => void;
   onOpenLibrary: () => void;
-  onAddMany: (words: WordInput[]) => Promise<{ added: number; duplicates: number }>;
+  onAddMany: (
+    words: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+  ) => Promise<{ added: number; duplicates: number }>;
 }) {
   const { t } = useTranslation();
   const [source, setSource] = useState<SetupSource>("starter");
@@ -51,6 +55,7 @@ export function GameSetup({
   const [ownKeys, setOwnKeys] = useState<string[]>([]);
   const [aiWords, setAiWords] = useState<WordInput[]>([]);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<WordFillProgress | null>(null);
   const [error, setError] = useState("");
   const {
     guide,
@@ -80,7 +85,7 @@ export function GameSetup({
     if (guide === 9 && next === 10) goTo(10);
   }
 
-  async function importOwn(names: string[]) {
+  async function importOwn(names: string[], onProgress?: (progress: WordFillProgress) => void) {
     if (guide !== null) {
       setSource("starter");
       goTo(8);
@@ -88,7 +93,10 @@ export function GameSetup({
     }
     setBusy(true);
     try {
-      await onAddMany(names.map((word) => ({ word })));
+      await onAddMany(
+        names.map((word) => ({ word })),
+        onProgress,
+      );
       setOwnKeys(names.map(wordKey));
     } finally {
       setBusy(false);
@@ -124,17 +132,19 @@ export function GameSetup({
   async function start(short = false) {
     if (guide !== null) return;
     setBusy(true);
+    setProgress(null);
     setError("");
     try {
       const selected = selectTaskWords(candidates, target, short, source === "starter");
       if (!selected.length) return;
-      if (source === "ai") await onAddMany(selected);
+      if (source === "ai") await onAddMany(selected, setProgress);
       const chosen = alignChosenWords(selected, listWords());
       if (chosen.length !== selected.length) throw new Error(t("setup.incomplete"));
       await onStart(chosen, batch);
     } catch (error) {
       setError(error instanceof Error ? error.message : t("setup.startFailed"));
     } finally {
+      setProgress(null);
       setBusy(false);
     }
   }
@@ -191,6 +201,7 @@ export function GameSetup({
           candidateCount={candidates.length}
           batch={batch}
           busy={busy}
+          progress={progress}
           saved={saved}
           onStart={(short) => void start(short)}
         />

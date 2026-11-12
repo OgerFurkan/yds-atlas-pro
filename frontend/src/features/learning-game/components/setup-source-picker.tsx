@@ -2,6 +2,7 @@ import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { BookOpen, LoaderCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { WordImportReview } from "@/features/word-library/components/word-import-review";
+import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/shared/ui/tabs";
@@ -32,7 +33,7 @@ export function SetupSourcePicker({
   onOpenLibrary: () => void;
   onReviewed: () => void;
   onCorrected: () => void;
-  onImport: (names: string[]) => Promise<void>;
+  onImport: (names: string[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
   aiWords: WordInput[];
   onGenerateAi: () => void;
 }) {

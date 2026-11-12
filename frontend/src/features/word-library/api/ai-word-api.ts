@@ -9,24 +9,37 @@
   wordInputSchema,
 } from "@yds-atlas/shared";
 import { apiRequest } from "@/shared/api/api-client";
+import { recordAiIssue } from "@/shared/lib/ai-issues";
+
 export async function enrichWithGemini(word: string, signal?: AbortSignal) {
   const request = aiWordRequestSchema.parse({ word });
-  return aiWordResponseSchema.parse(
-    await apiRequest("/api/ai/words/enrich", {
-      method: "POST",
-      body: JSON.stringify(request),
-      signal,
-    }),
-  );
+  try {
+    return aiWordResponseSchema.parse(
+      await apiRequest("/api/ai/words/enrich", {
+        method: "POST",
+        body: JSON.stringify(request),
+        signal,
+      }),
+    );
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    recordAiIssue(error);
+    throw error;
+  }
 }
 export async function completeWordsWithGemini(words: string[]) {
   const request = aiNamedWordsRequestSchema.parse({ words });
-  return aiWordListResponseSchema.parse(
-    await apiRequest("/api/ai/words/complete", {
-      method: "POST",
-      body: JSON.stringify(request),
-    }),
-  );
+  try {
+    return aiWordListResponseSchema.parse(
+      await apiRequest("/api/ai/words/complete", {
+        method: "POST",
+        body: JSON.stringify(request),
+      }),
+    );
+  } catch (error) {
+    recordAiIssue(error);
+    throw error;
+  }
 }
 export async function suggestWordsWithGemini(
   count: number,
@@ -34,13 +47,19 @@ export async function suggestWordsWithGemini(
   signal?: AbortSignal,
 ) {
   const request = aiWordListRequestSchema.parse({ count, exclude });
-  return aiWordListResponseSchema.parse(
-    await apiRequest("/api/ai/words/suggest", {
-      method: "POST",
-      body: JSON.stringify(request),
-      signal,
-    }),
-  );
+  try {
+    return aiWordListResponseSchema.parse(
+      await apiRequest("/api/ai/words/suggest", {
+        method: "POST",
+        body: JSON.stringify(request),
+        signal,
+      }),
+    );
+  } catch (error) {
+    if (signal?.aborted) throw error;
+    recordAiIssue(error);
+    throw error;
+  }
 }
 export function aiSuggestionToWordInput(
   suggestion: AiWordResponse["suggestion"],

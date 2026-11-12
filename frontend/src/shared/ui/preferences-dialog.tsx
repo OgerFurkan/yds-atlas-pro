@@ -13,6 +13,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
+import { GeminiStatusCard } from "@/shared/ui/gemini-status-card";
 
 export function PreferencesDialog({
   open,
@@ -80,6 +81,7 @@ export function PreferencesDialog({
               ))}
             </div>
           </fieldset>
+          <GeminiStatusCard />
         </div>
       </DialogContent>
     </Dialog>

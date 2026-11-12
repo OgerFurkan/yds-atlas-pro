@@ -69,7 +69,34 @@ describe("Bun API boundary", () => {
   test("health remains usable before credentials are configured", async () => {
     const response = await createApp(readConfig({}))(new Request("http://localhost/api/health"));
     expect(response.status).toBe(200);
-    expect((await response.json()).databaseConfigured).toBe(false);
+    const body = await response.json();
+    expect(body.databaseConfigured).toBe(false);
+    expect(body.ai).toMatchObject({
+      configured: false,
+      keyCount: 0,
+      quotaConfigured: false,
+      modelWord: "gemini-3.5-flash-lite",
+      modelChat: "gemini-3.8-flash",
+    });
+    expect(body.ai.word).toEqual({ readyKeys: 0, waitSeconds: null });
+  });
+  test("health reports the key pool state without exposing key material", async () => {
+    const pooled = readConfig({
+      GEMINI_API_KEYS: "project-alpha-key,project-beta-key",
+      SUPABASE_URL: "https://example.supabase.co",
+      SUPABASE_PUBLISHABLE_KEY: "test-public",
+      SUPABASE_SECRET_KEY: "test-secret",
+    });
+    const response = await createApp(pooled)(new Request("http://localhost/api/health"));
+    const body = await response.json();
+    expect(body.ai).toMatchObject({
+      configured: true,
+      keyCount: 2,
+      quotaConfigured: true,
+      word: { readyKeys: 2, waitSeconds: null },
+      chat: { readyKeys: 2, waitSeconds: null },
+    });
+    expect(JSON.stringify(body)).not.toContain("project-alpha-key");
   });
   test("spoofed user headers do not authenticate API calls", async () => {
     const response = await createApp(config)(

@@ -5,7 +5,9 @@ import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
 import { checkSpelling } from "../api/spellcheck";
 import type { SpellcheckResult } from "../model/spellcheck.types";
+import type { WordFillProgress } from "../model/prepare-word-inputs";
 import { parseWordList } from "../model/word-normalization";
+import { AiFillProgress } from "./ai-fill-progress";
 
 interface ReviewRow extends SpellcheckResult {
   original: string;
@@ -20,7 +22,7 @@ export function WordImportReview({
   onReviewed,
   onCorrected,
 }: {
-  onAccept: (words: string[]) => Promise<void>;
+  onAccept: (words: string[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
   busy?: boolean;
   label?: string;
   demo?: boolean;
@@ -34,6 +36,7 @@ export function WordImportReview({
   const [rows, setRows] = useState<ReviewRow[]>([]);
   const [checking, setChecking] = useState(false);
   const [error, setError] = useState("");
+  const [progress, setProgress] = useState<WordFillProgress | null>(null);
   const [typing, setTyping] = useState(demo && !reduceMotion);
   useEffect(() => {
     if (!demo || reduceMotion) return;
@@ -171,6 +174,7 @@ export function WordImportReview({
           ))}
         </div>
       )}
+      {progress && <AiFillProgress progress={progress} />}
       <div className="flex justify-end gap-2">
         {rows.length === 0 ? (
           <Button
@@ -186,10 +190,15 @@ export function WordImportReview({
             disabled={!valid || busy}
             onClick={async () => {
               setError("");
+              setProgress(null);
               try {
-                await onAccept([...new Set(rows.map((row) => row.normalized))]);
+                await onAccept([...new Set(rows.map((row) => row.normalized))], (next) =>
+                  setProgress(next),
+                );
               } catch (error) {
                 setError(error instanceof Error ? error.message : "Kelimeler eklenemedi.");
+              } finally {
+                setProgress(null);
               }
             }}
           >

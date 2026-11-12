@@ -16,6 +16,7 @@ import { WordFormDialog } from "@/features/word-library/components/word-form-dia
 import { WordList } from "@/features/word-library/components/word-list";
 import { useWordLibraryView } from "@/features/word-library/hooks/use-word-library-view";
 import { useWordSelection } from "@/features/word-library/hooks/use-word-selection";
+import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import type { GroupFilter } from "@/features/word-library/model/word-library-view";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
@@ -27,8 +28,15 @@ interface WordLibraryPageProps {
   loading: boolean;
   loadError: string;
   onReload: () => void;
-  onSave: (input: WordInput, id?: string) => Promise<void>;
-  onAddMany: (words: WordInput[]) => Promise<{ added: number; duplicates: number }>;
+  onSave: (
+    input: WordInput,
+    id?: string,
+    onProgress?: (progress: WordFillProgress) => void,
+  ) => Promise<void>;
+  onAddMany: (
+    words: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+  ) => Promise<{ added: number; duplicates: number }>;
   onRemove: (id: string) => Promise<void>;
   onRemoveMany: (ids: string[]) => Promise<void>;
   onNotify: Notify;

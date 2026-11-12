@@ -16,6 +16,7 @@ import {
   generateWord,
   generateWordList,
 } from "./features/ai/gemini";
+import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
@@ -66,6 +67,15 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             status: "ok",
             databaseConfigured: !!(config.SUPABASE_URL && config.SUPABASE_PUBLISHABLE_KEY),
             aiConfigured: !!(config.GEMINI_KEYS.length && config.SUPABASE_SECRET_KEY),
+            ai: {
+              configured: !!(config.GEMINI_KEYS.length && config.SUPABASE_SECRET_KEY),
+              keyCount: config.GEMINI_KEYS.length,
+              quotaConfigured: !!config.SUPABASE_SECRET_KEY,
+              modelWord: config.GEMINI_MODEL_WORD,
+              modelChat: config.GEMINI_MODEL_CHAT,
+              word: geminiPoolStatus(config.GEMINI_KEYS, config.GEMINI_MODEL_WORD),
+              chat: geminiPoolStatus(config.GEMINI_KEYS, config.GEMINI_MODEL_CHAT),
+            },
           },
           { headers },
         );

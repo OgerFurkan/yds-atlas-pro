@@ -20,6 +20,7 @@ import { LoginPage } from "@/features/auth/components/login-page";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { DashboardPage } from "@/features/dashboard/components/dashboard-page";
 import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api";
+import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
 
@@ -104,17 +105,21 @@ function AppWorkspace({
     navigate("library");
   }
 
-  async function saveWord(input: WordInput, id?: string) {
+  async function saveWord(
+    input: WordInput,
+    id?: string,
+    onProgress?: (progress: WordFillProgress) => void,
+  ) {
     const [prepared] =
       !id && auth.user
-        ? await prepareWordInputs([input], library.list(), completeWordsWithGemini)
+        ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
         : [input];
     await library.save(prepared, id);
   }
 
-  async function addWords(inputs: WordInput[]) {
+  async function addWords(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
     const prepared = auth.user
-      ? await prepareWordInputs(inputs, library.list(), completeWordsWithGemini)
+      ? await prepareWordInputs(inputs, library.list(), completeWordsWithGemini, onProgress)
       : inputs;
     return library.addMany(prepared);
   }

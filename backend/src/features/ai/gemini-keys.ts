@@ -40,6 +40,19 @@ export function coolGeminiKey(
   });
 }
 
+export type GeminiPoolStatus = { readyKeys: number; waitSeconds: number | null };
+
+// Health reporting only: shows how many projects can answer right now without exposing keys.
+export function geminiPoolStatus(keys: string[], model: string): GeminiPoolStatus {
+  if (!keys.length) return { readyKeys: 0, waitSeconds: null };
+  const now = Date.now();
+  const readyKeys = keys.filter(
+    (key) => (cooldowns.get(slot(model, key))?.until ?? 0) <= now,
+  ).length;
+  if (readyKeys) return { readyKeys, waitSeconds: null };
+  return { readyKeys: 0, waitSeconds: geminiKeyWait(keys, model).seconds };
+}
+
 export function geminiKeyWait(keys: string[], model: string) {
   const now = Date.now();
   const active = keys

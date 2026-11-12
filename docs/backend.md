@@ -118,7 +118,7 @@ words içinde lower/boşluk normalize edilmiş kullanıcı başına benzersiz in
 
 | Yöntem       | Yol                                 | İşlem                                                              |
 | ------------ | ----------------------------------- | ------------------------------------------------------------------ |
-| GET          | /api/health                         | Yapılandırma durumunu anahtar göstermeden döndürür                 |
+| GET          | /api/health                         | Yapılandırma ve Gemini havuz durumunu anahtar göstermeden döndürür  |
 | GET          | /api/account                        | Hedef, son görev ve günlük tarihçe                                 |
 | PUT          | /api/account/goal                   | Günlük hedef; tamamlanmış günü korur                               |
 | GET / POST   | /api/words                          | Liste / tekli ekleme                                               |

@@ -8,12 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
+import type { WordFillProgress } from "../model/prepare-word-inputs";
 import { WordImportReview } from "./word-import-review";
 
 interface BulkWordDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onAddMany: (words: WordInput[]) => Promise<{ added: number; duplicates: number }>;
+  onAddMany: (
+    words: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+  ) => Promise<{ added: number; duplicates: number }>;
   onNotify: Notify;
 }
 export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify }: BulkWordDialogProps) {
@@ -33,10 +37,13 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify }: Bulk
         <div className="p-5">
           <WordImportReview
             busy={saving}
-            onAccept={async (words) => {
+            onAccept={async (words, onProgress) => {
               setSaving(true);
               try {
-                const result = await onAddMany(words.map((word) => ({ word })));
+                const result = await onAddMany(
+                  words.map((word) => ({ word })),
+                  onProgress,
+                );
                 onNotify.success(
                   `${result.added} kelime eklendi, ${result.duplicates} tekrar atlandı.`,
                 );

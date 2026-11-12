@@ -1,5 +1,7 @@
 import { ArrowRight, CalendarCheck2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { AiFillProgress } from "@/features/word-library/components/ai-fill-progress";
+import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { Button } from "@/shared/ui/button";
 import type { GameSession } from "../model/game-session";
 import { taskGroupCount } from "../model/game-setup";
@@ -9,6 +11,7 @@ export function SetupSummary({
   candidateCount,
   batch,
   busy,
+  progress,
   saved,
   onStart,
 }: {
@@ -16,6 +19,7 @@ export function SetupSummary({
   candidateCount: number;
   batch: 5 | 10;
   busy: boolean;
+  progress?: WordFillProgress | null;
   saved: GameSession | null;
   onStart: (short?: boolean) => void;
 }) {
@@ -61,6 +65,7 @@ export function SetupSummary({
           </div>
         ))}
       </div>
+      {progress && <AiFillProgress progress={progress} />}
       <Button
         id="task-start"
         className="mt-auto w-full whitespace-normal px-3"

@@ -2,7 +2,7 @@
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { wordInputSchema } from "@yds-atlas/shared";
 import { ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
@@ -15,8 +15,10 @@ import {
 } from "@/shared/ui/dialog";
 import { enrichWordInput } from "../data/starter-vocabulary";
 import { useWordSpellcheck } from "../hooks/use-word-spellcheck";
+import type { WordFillProgress } from "../model/prepare-word-inputs";
 import { type WordFormValues, wordFormSchema } from "../model/word-form.schema";
 import { toFormValues, toWordInput } from "../model/word-form-mappers";
+import { AiFillProgress } from "./ai-fill-progress";
 import { AiWordAssist } from "./ai-word-assist";
 import { WordMetadataFields, WordTextField } from "./word-form-fields";
 
@@ -24,7 +26,11 @@ interface WordFormDialogProps {
   open: boolean;
   word?: WordEntry;
   onOpenChange: (open: boolean) => void;
-  onSave: (input: WordInput, id?: string) => Promise<void>;
+  onSave: (
+    input: WordInput,
+    id?: string,
+    onProgress?: (progress: WordFillProgress) => void,
+  ) => Promise<void>;
   onNotify: Notify;
 }
 
@@ -50,6 +56,7 @@ export function WordFormDialog({
   const wordField = register("word");
   const score = useWatch({ control, name: "score" });
   const currentWord = useWatch({ control, name: "word" });
+  const [progress, setProgress] = useState<WordFillProgress | null>(null);
   const aiSource = useRef<WordInput | undefined>(undefined);
   const spelling = useWordSpellcheck({
     setWord: (value, options) =>
@@ -76,11 +83,13 @@ export function WordFormDialog({
           ? { ...example, translationFocus: original.translationFocus, source: original.source }
           : example;
       });
-      await onSave(enrichWordInput(input), word?.id);
+      await onSave(enrichWordInput(input), word?.id, setProgress);
       onOpenChange(false);
       onNotify.success(word ? "Kelime güncellendi." : "Kelime kütüphanene eklendi.");
     } catch (error) {
       onNotify.error(error instanceof Error ? error.message : "Kelime kaydedilemedi.");
+    } finally {
+      setProgress(null);
     }
   }
 
@@ -149,6 +158,7 @@ export function WordFormDialog({
               spelling.reset();
             }}
           />
+          {progress && <AiFillProgress progress={progress} />}
           <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
             <Button variant="secondary" type="button" onClick={() => onOpenChange(false)}>
               Vazgeç
@@ -157,7 +167,8 @@ export function WordFormDialog({
               {isSubmitting || spelling.checking ? (
                 <LoaderCircle className="animate-spin" size={15} />
               ) : null}
-              {word ? "Değişiklikleri kaydet" : "Kütüphaneye ekle"} <ArrowRight size={16} />
+              {isSubmitting ? "Kaydediliyor…" : word ? "Değişiklikleri kaydet" : "Kütüphaneye ekle"}{" "}
+              <ArrowRight size={16} />
             </Button>
           </div>
         </form>

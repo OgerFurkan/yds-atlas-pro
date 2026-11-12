@@ -1,4 +1,12 @@
-﻿import { ArrowRight, Eye, EyeOff, LoaderCircle, LockKeyhole, Mail } from "lucide-react";
+﻿import {
+  ArrowRight,
+  Eye,
+  EyeOff,
+  LoaderCircle,
+  LockKeyhole,
+  Mail,
+  SquareExclamationPoint,
+} from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
@@ -160,10 +168,8 @@ export function AuthForm({
           </div>
         )}
         {message && (
-          <p
-            role="status"
-            className="rounded-xl bg-orange-50 p-3 text-sm leading-6 text-orange-900"
-          >
+          <p role="status" className="flex gap-2 rounded-xl bg-red-500/40 p-3 text-sm leading-6">
+            <SquareExclamationPoint />
             {message}
           </p>
         )}

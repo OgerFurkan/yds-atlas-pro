@@ -8,6 +8,7 @@ import { z } from "zod";
 import type { ServerConfig } from "../../config/env";
 import { HttpError } from "../../shared/errors";
 import { lookupDictionaryWord } from "./dictionary-api";
+import { assertGeminiResponse } from "./gemini-errors";
 
 function validExamples(suggestion: z.infer<typeof aiWordSchema>) {
   const forms = [suggestion.word, ...suggestion.alternatives].map((value) =>
@@ -59,7 +60,6 @@ export async function generateWord(
             },
           ],
           generationConfig: {
-            temperature: 0.3,
             maxOutputTokens: 5000,
             responseMimeType: "application/json",
             responseJsonSchema: z.toJSONSchema(aiWordSchema),
@@ -74,14 +74,9 @@ export async function generateWord(
       "AI_TIMEOUT",
     );
   }
-  if (!response.ok)
-    throw new HttpError(
-      response.status === 429 ? 429 : 502,
-      response.status === 429
-        ? "AI kullanım sınırına ulaşıldı. Biraz sonra yeniden dene."
-        : "Gemini şu anda yanıt veremiyor.",
-      "AI_UPSTREAM_ERROR",
-    );
+  await assertGeminiResponse(response);
+  let validationStage = "response";
+  let finishReason = "unknown";
   try {
     const payload = (await response.json()) as {
       candidates?: {
@@ -90,19 +85,31 @@ export async function generateWord(
       }[];
     };
     const candidate = payload.candidates?.[0];
+    finishReason = ["STOP", "MAX_TOKENS", "SAFETY", "RECITATION"].includes(
+      candidate?.finishReason ?? "",
+    )
+      ? (candidate?.finishReason ?? "unknown")
+      : "unknown";
+    validationStage = "finish_reason";
     if (candidate?.finishReason !== "STOP") throw new Error("incomplete generation");
+    validationStage = "json";
     const text =
       candidate.content?.parts
         ?.filter((part) => !part.thought)
         .map((part) => part.text ?? "")
         .join("") ?? "";
     if (text.length > 60_000) throw new Error("oversized");
-    const suggestion = aiWordSchema.parse(JSON.parse(text));
+    const parsed: unknown = JSON.parse(text);
+    validationStage = "schema";
+    const suggestion = aiWordSchema.parse(parsed);
+    validationStage = "headword";
     if (suggestion.word.toLocaleLowerCase("en") !== word.toLocaleLowerCase("en"))
       throw new Error("wrong headword");
+    validationStage = "examples";
     if (!validExamples(suggestion)) throw new Error("invalid example");
     return { suggestion, provider: "Gemini", model: config.GEMINI_MODEL, dictionarySource };
   } catch {
+    console.error({ service: "gemini-word", validationStage, finishReason });
     throw new HttpError(
       502,
       "AI yanıtı içerik denetiminden geçemedi. Hiçbir kelime değiştirilmedi.",
@@ -148,7 +155,6 @@ export async function generateWordList(
             },
           ],
           generationConfig: {
-            temperature: 0.4,
             maxOutputTokens: 12000,
             responseMimeType: "application/json",
             responseJsonSchema: z.toJSONSchema(schema),
@@ -163,14 +169,7 @@ export async function generateWordList(
       "AI_TIMEOUT",
     );
   }
-  if (!response.ok)
-    throw new HttpError(
-      response.status === 429 ? 429 : 502,
-      response.status === 429
-        ? "AI kullanım sınırına ulaşıldı. Biraz sonra yeniden dene."
-        : "Gemini şu anda yanıt veremiyor.",
-      "AI_UPSTREAM_ERROR",
-    );
+  await assertGeminiResponse(response);
   try {
     const payload = (await response.json()) as {
       candidates?: {

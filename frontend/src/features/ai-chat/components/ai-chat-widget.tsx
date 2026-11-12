@@ -5,6 +5,7 @@ import {
   ChevronDown,
   History,
   LoaderCircle,
+  MessageCircleText,
   Plus,
   Sparkles,
   X,
@@ -194,7 +195,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </div>
               )}
             </header>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-4">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {showHistory ? (
                 <div className="space-y-2">
                   <h2 className="font-bold">{t("chat.history")}</h2>
@@ -229,17 +230,17 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </div>
               ) : null}
               {!showHistory && !messages.length && !busy && (
-                <div className="flex min-h-full flex-col">
-                  <h2 className="mt-8 text-center text-2xl font-bold">{t("chat.greeting")}</h2>
+                <div className="flex flex-col">
+                  <h2 className="text-center text-xl font-bold">{t("chat.greeting")}</h2>
                   <p className="mt-2 text-center text-sm text-[#536b7d]">{t("chat.welcome")}</p>
-                  <div className="mt-6">
+                  <div className="mt-1">
                     {suggestions.map((suggestion, index) => {
                       const Icon = suggestionIcons[index] ?? Sparkles;
                       return (
                         <button
                           type="button"
                           key={suggestion}
-                          className="flex w-full items-center gap-4 border-b border-[#dce6ec] px-2 py-4 text-left text-sm hover:bg-white/70"
+                          className="flex w-full items-center gap-4 border-b border-[#dce6ec] px-2 py-4 text-left text-sm hover:bg-atlas-navy/70"
                           onClick={() => void send(suggestion)}
                         >
                           <Icon size={20} className="shrink-0 text-[#f27637]" />
@@ -251,7 +252,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                   <img
                     src="/brand/atlas-mascot.png"
                     alt=""
-                    className="mx-auto mt-auto h-32 w-40 object-contain object-bottom"
+                    className="mx-auto mt-4 h-32 w-40 object-contain object-bottom"
                   />
                 </div>
               )}
@@ -279,7 +280,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </p>
               )}
               {needsSignIn && (
-                <div className="rounded-lg border border-orange-200 bg-orange-50 p-3 text-sm text-orange-950">
+                <div className="rounded-lg border border-orange-200 bg-atlas-orange/50 p-3 text-sm text-black">
                   <p>{t("chat.loginRequired")}</p>
                   <Button
                     className="mt-2"
@@ -301,7 +302,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
             onSubmit={submit}
             className="shrink-0 rounded-3xl border border-[#dce6ec] bg-[#ffffff] p-3 shadow-[0_8px_30px_rgba(18,59,89,0.20)]"
           >
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-2 bg">
               <Textarea
                 value={draft}
                 onChange={(event) => setDraft(event.target.value)}
@@ -340,7 +341,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
           />
           <span className="flex-1 text-left">{t("chat.placeholder")}</span>
           <span className="rounded-full bg-[#123b59] px-4 py-2 text-white">
-            {t("chat.launcher")}
+            {<MessageCircleText />}
           </span>
         </Button>
       )}

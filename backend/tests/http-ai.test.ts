@@ -1,4 +1,4 @@
-﻿import { describe, expect, test } from "bun:test";
+﻿import { describe, expect, spyOn, test } from "bun:test";
 import type { GameSession } from "@yds-atlas/shared";
 import { createApp } from "../src/app";
 import { readConfig } from "../src/config/env";
@@ -359,6 +359,26 @@ describe("Gemini provider", () => {
     expect(JSON.parse(input!.body as string).generationConfig.responseMimeType).toBe(
       "application/json",
     );
+    expect(JSON.parse(input!.body as string).generationConfig.temperature).toBeUndefined();
+  });
+  test("word validation logs only the failure stage and safe finish reason", async () => {
+    const log = spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const fetcher = (async () =>
+        upstream({ privateText: "secret input" })) as unknown as typeof fetch;
+      await expect(generateWord("Expand", config, undefined, fetcher)).rejects.toMatchObject({
+        code: "AI_INVALID_RESPONSE",
+      });
+      expect(log).toHaveBeenCalledWith({
+        service: "gemini-word",
+        validationStage: "schema",
+        finishReason: "STOP",
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toContain("secret input");
+      expect(JSON.stringify(log.mock.calls)).not.toContain("Expand");
+    } finally {
+      log.mockRestore();
+    }
   });
   test("rejects malformed, wrong-headword, truncated and ungrounded focus responses", async () => {
     for (const value of [

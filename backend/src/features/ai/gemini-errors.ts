@@ -1,13 +1,23 @@
 import { HttpError } from "../../shared/errors";
 
 // Never return provider bodies: they may contain request content or credentials.
-export async function assertGeminiResponse(response: Response): Promise<void> {
+export async function assertGeminiResponse(response: Response, service = "gemini"): Promise<void> {
   if (response.ok) return;
   const payload = (await response.json().catch(() => null)) as {
-    error?: { details?: { reason?: string }[] };
+    error?: { status?: string; details?: { reason?: string }[] };
   } | null;
-  const invalidKey = payload?.error?.details?.some((detail) =>
-    ["API_KEY_INVALID", "API_KEY_EXPIRED"].includes(detail.reason ?? ""),
+  const reasons = payload?.error?.details
+    ?.map((detail) => detail.reason)
+    .filter((reason): reason is string => Boolean(reason));
+  console.error({
+    service,
+    stage: "upstream_error",
+    status: response.status,
+    providerStatus: payload?.error?.status,
+    reasons,
+  });
+  const invalidKey = reasons?.some((reason) =>
+    ["API_KEY_INVALID", "API_KEY_EXPIRED"].includes(reason),
   );
   if (invalidKey || response.status === 401 || response.status === 403)
     throw new HttpError(503, "Gemini API anahtarı veya proje erişimi reddedildi.", "AI_AUTH_ERROR");
@@ -31,7 +41,7 @@ export async function assertGeminiResponse(response: Response): Promise<void> {
     );
   throw new HttpError(
     502,
-    "Gemini şu anda yanıt veremiyor. Biraz sonra yeniden dene.",
+    `Gemini şu anda yanıt veremiyor (HTTP ${response.status}). Biraz sonra yeniden dene.`,
     "AI_UPSTREAM_ERROR",
   );
 }

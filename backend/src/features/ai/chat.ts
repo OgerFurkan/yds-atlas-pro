@@ -58,7 +58,7 @@ export async function generateChatReply(
     );
   }
 
-  await assertGeminiResponse(response);
+  await assertGeminiResponse(response, "gemini-chat");
 
   try {
     const payload = (await response.json()) as {

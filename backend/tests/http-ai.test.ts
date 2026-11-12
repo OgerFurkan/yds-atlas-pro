@@ -391,6 +391,32 @@ describe("Gemini provider", () => {
     );
     expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
   });
+  test("falls back to plain JSON when Gemini rejects structured output", async () => {
+    const bodies: string[] = [];
+    const fetcher = (async (_url: unknown, init: RequestInit) => {
+      bodies.push(String(init.body));
+      if (bodies.length === 1)
+        return Response.json(
+          { error: { status: "INTERNAL", details: [{ reason: "INTERNAL" }] } },
+          { status: 500 },
+        );
+      return Response.json({
+        candidates: [
+          {
+            finishReason: "STOP",
+            content: { parts: [{ text: "```json\n" + JSON.stringify(suggestion) + "\n```" }] },
+          },
+        ],
+      });
+    }) as unknown as typeof fetch;
+    const result = await generateWord("Expand", config, undefined, fetcher);
+    expect(result.suggestion.word).toBe("Expand");
+    expect(JSON.parse(bodies[0]).generationConfig.responseJsonSchema).toBeDefined();
+    const fallbackConfig = JSON.parse(bodies[1]).generationConfig;
+    expect(fallbackConfig.responseJsonSchema).toBeUndefined();
+    expect(fallbackConfig.responseMimeType).toBeUndefined();
+    expect(fallbackConfig.thinkingConfig).toEqual({ thinkingLevel: "low" });
+  });
   test("accepts regular inflected example forms when alternatives omit them", async () => {
     const results = await generateWord("Expand", config, undefined, (async () =>
       upstream({

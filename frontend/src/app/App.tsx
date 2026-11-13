@@ -252,6 +252,7 @@ function AppWorkspace({
               onAddMany={addWords}
               onRemove={library.remove}
               onRemoveMany={library.removeMany}
+              cloudPreflightUserId={auth.user?.id ?? null}
               onStudyGroup={studyDailyGroup}
               onNotify={notify}
               onInitialCreateHandled={() => setOpenCreateOnLibrary(false)}

@@ -26,11 +26,13 @@ import {
   dailyGroupSizes,
 } from "@/features/word-library/model/daily-groups";
 import { DailyGroupCard } from "./daily-group-card";
+import { DailyPlanSyncPreview } from "./daily-plan-sync-preview";
 
 export function DailyPlanView({
   plan,
   groupSize,
   words,
+  cloudPreflightUserId,
   error,
   onGroupSizeChange,
   onStudyGroup,
@@ -47,6 +49,7 @@ export function DailyPlanView({
   plan: DailyPlan;
   groupSize: number;
   words: WordEntry[];
+  cloudPreflightUserId?: string | null;
   error?: string;
   onGroupSizeChange: (size: number) => void;
   onStudyGroup: (group: DailyGroup) => void;
@@ -219,6 +222,8 @@ export function DailyPlanView({
           </div>
         </div>
       </section>
+
+      <DailyPlanSyncPreview userId={cloudPreflightUserId ?? null} words={words} />
 
       {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {plan.overflow > 0 && (

@@ -1,4 +1,5 @@
 import type { WordEntry } from "@yds-atlas/shared";
+import { getStudyReadiness } from "@/features/learning-game/model/game-engine";
 import type { DailyGroup, DailyPlan } from "@/features/word-library/model/daily-groups";
 import { ArrowRightLeft, Pencil, Trash2, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
@@ -18,7 +19,6 @@ interface DailyPlanWordCardProps {
 /** A single daily word row with accessible edit, remove, delete, and move controls. */
 export function DailyPlanWordCard({
   word,
-  group,
   groups,
   selectedDay,
   onEditWord,
@@ -50,9 +50,11 @@ export function DailyPlanWordCard({
               {word.examples[0].sentence}
             </p>
           )}
-          {!group.playableWords.some((ready) => ready.id === word.id) && (
-            <span className="mt-1 inline-block text-[11px] font-medium text-orange-600">
-              {t("library.daily.manage.notReady")}
+          {!getStudyReadiness(word).ready && (
+            <span className="mt-1 inline-block text-[11px] font-medium text-orange-600" role="status">
+              {getStudyReadiness(word).missingMeanings
+                ? "Çalışma için Türkçe anlam eksik. Kelimeyi düzenle."
+                : `Çalışma için ${getStudyReadiness(word).usable}/5 uygun örnek var. Kelimeyi düzenleyip Gemini ile tamamla.`}
             </span>
           )}
         </div>

@@ -2,6 +2,9 @@ import { z } from "zod";
 
 export const cefrLevelSchema = z.enum(["A1", "A2", "B1", "B2", "C1", "C2", "Belirtilmedi"]);
 export const wordGroupSchema = z.enum(["hard", "review", "learned"]);
+export const wordPartOfSpeechSchema = z.enum([
+  "Noun", "Verb", "Adjective", "Adverb", "Preposition", "Conjunction", "Pronoun", "Phrase",
+]);
 
 export const wordExampleSchema = z.object({
   sentence: z.string().trim().min(1),
@@ -10,12 +13,22 @@ export const wordExampleSchema = z.object({
   source: z.string().trim().optional(),
 });
 
+/** One headword, multiple independently described grammatical senses. */
+export const wordSenseSchema = z.object({
+  partOfSpeech: wordPartOfSpeechSchema,
+  meanings: z.array(z.string().trim().min(1)).min(1).max(4),
+  usageNote: z.string().trim().default(""),
+  cefr: cefrLevelSchema.default("Belirtilmedi"),
+  examples: z.array(wordExampleSchema).min(1).max(5),
+});
+
 export const wordInputSchema = z.object({
   word: z.string().trim().min(1, "İngilizce kelime alanı zorunludur.").max(120),
   alternatives: z.array(z.string().trim().min(1)).default([]),
   meanings: z.array(z.string().trim().min(1)).default([]),
   usageNote: z.string().trim().default(""),
   partOfSpeech: z.string().trim().default(""),
+  senses: z.array(wordSenseSchema).max(8).default([]),
   cefr: cefrLevelSchema.default("Belirtilmedi"),
   score: z.number().int().min(0).max(100).default(0),
   examples: z.array(wordExampleSchema).default([]),
@@ -30,6 +43,8 @@ export const wordCheckSchema = z.object({
 
 export type CefrLevel = z.infer<typeof cefrLevelSchema>;
 export type WordGroup = z.infer<typeof wordGroupSchema>;
+export type WordPartOfSpeech = z.infer<typeof wordPartOfSpeechSchema>;
+export type WordSense = z.infer<typeof wordSenseSchema>;
 export type WordExample = z.infer<typeof wordExampleSchema>;
 export const wordEntrySchema = wordInputSchema.extend({
   id: z.string().min(1),

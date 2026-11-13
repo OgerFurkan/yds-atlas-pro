@@ -6,13 +6,14 @@
   aiWordRequestSchema,
   aiWordResponseSchema,
   type DictionarySource,
+  type WordPartOfSpeech,
   wordInputSchema,
 } from "@yds-atlas/shared";
 import { apiRequest } from "@/shared/api/api-client";
 import { recordAiIssue } from "@/shared/lib/ai-issues";
 
-export async function enrichWithGemini(word: string, signal?: AbortSignal) {
-  const request = aiWordRequestSchema.parse({ word });
+export async function enrichWithGemini(word: string, signal?: AbortSignal, partOfSpeech?: WordPartOfSpeech) {
+  const request = aiWordRequestSchema.parse({ word, partOfSpeech });
   try {
     return aiWordResponseSchema.parse(
       await apiRequest("/api/ai/words/enrich", {

@@ -57,7 +57,7 @@ test("group statistics expose learned, hard, review and playable words", () => {
   expect(group.learned).toBe(15);
   expect(group.hard).toBe(3);
   expect(group.review).toBe(2);
-  expect(group.playable).toBe(5);
+  expect(group.playable).toBe(20);
   expect(group.progress).toBe(0.75);
   expect(plan.completedDays).toBe(0);
   expect(
@@ -68,7 +68,7 @@ test("group statistics expose learned, hard, review and playable words", () => {
   ).toBe(1);
 });
 
-test("empty days stay empty and completed groups have no playable words", () => {
+test("empty days stay empty and completed groups remain studyable", () => {
   const empty = buildDailyPlan([], 20);
   expect(empty.groups.every((group) => group.total === 0)).toBe(true);
   expect(empty.activeDays).toBe(0);
@@ -78,8 +78,8 @@ test("empty days stay empty and completed groups have no playable words", () => 
   const words = Array.from({ length: 20 }, (_, index) => word(`Done${index}`, 90, index));
   const plan = buildDailyPlan(words, 20);
   expect(plan.completedDays).toBe(1);
-  expect(plan.groups[0].playable).toBe(0);
-  expect(plan.groups[0].playableWords).toEqual([]);
+  expect(plan.groups[0].playable).toBe(20);
+  expect(plan.groups[0].playableWords).toEqual(words);
 });
 
 test("words beyond the 60-day capacity are reported as overflow", () => {

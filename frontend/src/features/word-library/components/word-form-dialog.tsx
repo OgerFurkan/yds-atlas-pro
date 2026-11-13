@@ -5,6 +5,7 @@ import { ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import type { Notify } from "@/shared/lib/notify";
+import { getStudyReadiness } from "@/features/learning-game/model/game-engine";
 import { Button } from "@/shared/ui/button";
 import {
   Dialog,
@@ -83,9 +84,26 @@ export function WordFormDialog({
           ? { ...example, translationFocus: original.translationFocus, source: original.source }
           : example;
       });
-      await onSave(enrichWordInput(input), word?.id, setProgress);
+      if (source.word.toLocaleLowerCase("en") === input.word.toLocaleLowerCase("en")) {
+        const canKeepMainSense = Boolean(input.meanings?.length && input.examples?.length);
+        input.senses = source.senses.flatMap((sense) => {
+          if (sense.partOfSpeech !== input.partOfSpeech) return [sense];
+          return canKeepMainSense
+            ? [{ ...sense, meanings: input.meanings ?? [], usageNote: input.usageNote ?? "", cefr: input.cefr ?? "Belirtilmedi", examples: (input.examples ?? []).slice(0, 5) }]
+            : [];
+        });
+      }
+      const prepared = wordInputSchema.parse(enrichWordInput(input));
+      await onSave(prepared, word?.id, setProgress);
       onOpenChange(false);
-      onNotify.success(word ? "Kelime güncellendi." : "Kelime kütüphanene eklendi.");
+      const readiness = getStudyReadiness(prepared);
+      if (readiness.ready) {
+        onNotify.success(word ? "Kelime güncellendi, çalışmaya hazır." : "Kelime eklendi, çalışmaya hazır.");
+      } else {
+        onNotify.info(readiness.missingMeanings
+          ? "Kelime kütüphaneye kaydedildi. Çalışmaya almak için Türkçe anlam ekle."
+          : `Kelime kaydedildi fakat çalışmaya henüz hazır değil (${readiness.usable}/5 uygun örnek). Gemini ile tamamlayabilirsin.`);
+      }
     } catch (error) {
       onNotify.error(error instanceof Error ? error.message : "Kelime kaydedilemedi.");
     } finally {
@@ -121,6 +139,7 @@ export function WordFormDialog({
               checking={spelling.checking}
               allowUnknown={spelling.allowUnknown}
               onWordChange={(event) => {
+                aiSource.current = undefined;
                 spelling.reset();
                 void wordField.onChange(event);
               }}

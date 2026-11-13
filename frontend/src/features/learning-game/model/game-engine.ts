@@ -1,4 +1,4 @@
-import { getVisibleWordGroup, type WordEntry } from "@yds-atlas/shared";
+import type { WordEntry } from "@yds-atlas/shared";
 import { getStarterWord, starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { escapeRegExp } from "@/shared/lib/regexp";
@@ -15,7 +15,7 @@ export function shuffle<T>(items: readonly T[]): T[] {
   return result;
 }
 
-function wordPattern(word: WordEntry) {
+function wordPattern(word: Pick<WordEntry, "word" | "alternatives">) {
   const alternatives = [word.word, ...word.alternatives]
     .filter(Boolean)
     .sort((a, b) => b.length - a.length)
@@ -23,13 +23,21 @@ function wordPattern(word: WordEntry) {
   return new RegExp(`(^|[^a-z])(${alternatives.join("|")})(?=$|[^a-z])`, "i");
 }
 
-export function usableExamples(word: WordEntry) {
+type StudyContent = Pick<WordEntry, "word" | "alternatives" | "meanings" | "examples">;
+
+export function usableExamples(word: StudyContent) {
   return word.examples.filter((example) => wordPattern(word).test(example.sentence));
 }
 
+/** Content readiness is independent of mastery or manual group labels. */
+export function getStudyReadiness(word: StudyContent) {
+  const usable = usableExamples(word).length;
+  const missingMeanings = word.meanings.length === 0;
+  return { ready: !missingMeanings && usable >= 5, usable, required: 5, missingMeanings };
+}
+
 export function isGameReady(word: WordEntry) {
-  return getVisibleWordGroup(word) !== "learned" &&
-    word.meanings.length > 0 && usableExamples(word).length >= 5;
+  return getStudyReadiness(word).ready;
 }
 
 export function isFinal(session: GameSession) {

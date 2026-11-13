@@ -3,6 +3,7 @@
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
   aiWordRequestSchema,
+  dailyPlanSaveSchema,
   gameSessionSchema,
   wordInputSchema,
 } from "@yds-atlas/shared";
@@ -18,6 +19,7 @@ import {
 } from "./features/ai/gemini";
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
+import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
@@ -114,6 +116,10 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");
       } else if (path === "/api/account" && request.method === "GET")
         result = await accountState(ctx);
+      else if (path === "/api/account/daily-plan" && request.method === "GET")
+        result = await readDailyPlan(ctx);
+      else if (path === "/api/account/daily-plan" && request.method === "PUT")
+        result = await saveDailyPlan(ctx, dailyPlanSaveSchema.parse(await readJson(request, 128_000)));
       else if (path === "/api/account/goal" && request.method === "PUT") {
         const { goal } = z
           .object({ goal: z.number().int().min(10).max(100).multipleOf(10) })

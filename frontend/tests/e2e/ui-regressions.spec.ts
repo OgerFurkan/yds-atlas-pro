@@ -1,4 +1,4 @@
-﻿import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { installSpeechMock } from "../helpers/speech-mock";
 
 async function openPronunciationStep(page: Page) {
@@ -231,7 +231,7 @@ test("appearance and language preferences persist and library cards stay distinc
       "rgb(58, 49, 32)",
     );
   } else {
-    const mobileCard = page.locator(".library-word-card").first();
+    const mobileCard = page.locator(".library-word-card").filter({ has: page.getByRole("checkbox", { name: "Select Zebra", exact: true }) });
     await mobileCard.getByRole("checkbox", { name: "Select Zebra" }).click();
     await expect(mobileCard).toHaveAttribute("data-selected", "true");
     await expect(mobileCard).toHaveClass(/is-selected/);

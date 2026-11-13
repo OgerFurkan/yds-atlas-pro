@@ -3,6 +3,7 @@ import {
   ArrowRightLeft,
   BookOpenCheck,
   CalendarDays,
+  CircleHelp,
   Check,
   ChevronDown,
   ChevronUp,
@@ -13,9 +14,10 @@ import {
   Trash2,
   XCircle,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
+import { GuidedTour, type GuideStep } from "@/shared/ui/guided-tour";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { LibraryEmpty } from "@/features/word-library/components/library-status";
 import {
@@ -60,6 +62,26 @@ export function DailyPlanView({
 }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [tourStep, setTourStep] = useState<number | null>(null);
+  useEffect(() => {
+    const startGuide = () => {
+      setSelectedDay(null);
+      setTourStep(0);
+    };
+    window.addEventListener("atlas:daily-plan-help", startGuide);
+    if (sessionStorage.getItem("atlas:daily-plan-help") === "1") {
+      sessionStorage.removeItem("atlas:daily-plan-help");
+      startGuide();
+    }
+    return () => window.removeEventListener("atlas:daily-plan-help", startGuide);
+  }, []);
+  const tourSteps: GuideStep[] = [
+    { id: "overview", target: "#daily-plan-hero", title: t("library.daily.manage.tourOverviewTitle"), description: t("library.daily.manage.tourOverviewDescription") },
+    { id: "target", target: "#daily-plan-target-selector", title: t("library.daily.manage.tourTargetTitle"), description: t("library.daily.manage.tourTargetDescription") },
+    { id: "days", target: "#daily-plan-groups", title: t("library.daily.manage.tourDaysTitle"), description: t("library.daily.manage.tourDaysDescription") },
+    { id: "bulk", target: "#daily-plan-bulk-add", title: t("library.daily.manage.tourBulkTitle"), description: t("library.daily.manage.tourBulkDescription") },
+    { id: "study", target: "#daily-plan-study-area", title: t("library.daily.manage.tourStudyTitle"), description: t("library.daily.manage.tourStudyDescription") },
+  ];
   const [showAll, setShowAll] = useState(false);
   const [search, setSearch] = useState("");
   const [wordToAdd, setWordToAdd] = useState("");
@@ -129,19 +151,19 @@ export function DailyPlanView({
 
   return (
     <div className="mt-4 space-y-5">
-      <section data-testid="daily-plan-hero" className="overflow-hidden rounded-2xl border border-[#28658b] bg-gradient-to-br from-[#103b58] via-[#164c6c] to-[#1b7095] text-white shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
+      <section id="daily-plan-hero" data-testid="daily-plan-hero" className="overflow-hidden rounded-2xl border border-[#28658b] bg-gradient-to-br from-[#103b58] via-[#164c6c] to-[#1b7095] text-white shadow-sm">
+        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_320px] lg:items-center">
           <div className="min-w-0">
-            <div className="flex items-start justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-widest text-white">
                 <CalendarDays size={14} /> {t("library.daily.manage.heroBadge")}
               </span>
-              <img
-                src="/brand/atlas-mascot.png"
-                alt="Atlas"
-                draggable={false}
-                className="pointer-events-none h-16 w-14 shrink-0 select-none object-contain drop-shadow-lg sm:hidden"
-              />
+              <button type="button" onClick={() => setTourStep(0)} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/25 bg-white/10 px-3 text-xs font-semibold text-white hover:bg-white/20 focus-visible:outline-2 focus-visible:outline-white" aria-label={t("library.daily.manage.tourStart")}>
+                <CircleHelp size={15} /> {t("library.daily.manage.tourStart")}
+              </button>
+              <button id="daily-plan-bulk-add" type="button" onClick={onBulkAdd} className="inline-flex min-h-9 items-center gap-1.5 rounded-full border border-white/25 px-3 text-xs font-semibold text-white hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-white">
+                <Layers3 size={15} /> {t("library.daily.manage.tourBulkAction")}
+              </button>
             </div>
             <h2 className="mt-3 font-display text-2xl font-semibold leading-snug text-white sm:text-3xl">
               {t("library.daily.manage.heroTitle")}
@@ -164,14 +186,17 @@ export function DailyPlanView({
               <span className="inline-flex items-center gap-1.5"><Check size={15} /> {plan.completedDays} {t("library.daily.manage.completedShort")}</span>
             </div>
           </div>
-          <div className="flex min-w-0 items-end justify-end gap-3">
-            <img
-              src="/brand/atlas-mascot.png"
-              alt="Atlas"
-              draggable={false}
-              className="pointer-events-none hidden h-32 w-28 shrink-0 select-none object-contain drop-shadow-xl sm:block lg:h-44 lg:w-[132px]"
-            />
-            <div className="w-full min-w-0 rounded-2xl border border-white/25 bg-[#0a314c]/55 p-4 sm:w-[270px]">
+          <div className="flex min-w-0 items-center justify-end">
+            <div id="daily-plan-target-selector" className="w-full min-w-0 rounded-2xl border border-white/25 bg-[#0a314c]/70 p-4 shadow-[0_15px_35px_rgba(0,15,32,0.16)]">
+              <div className="mb-3 flex items-center gap-3 border-b border-white/15 pb-3">
+                <span className="grid size-16 shrink-0 place-items-center rounded-xl bg-white/10 p-1.5">
+                  <img src="/brand/atlas-mascot.png" alt="Atlas" draggable={false} className="h-full w-full select-none object-contain drop-shadow-md" />
+                </span>
+                <div className="min-w-0">
+                  <strong className="block text-xs font-bold text-white">{t("library.daily.manage.atlasTipTitle")}</strong>
+                  <p className="mt-1 text-[11px] leading-relaxed text-[#e0f1f9]">{t("library.daily.manage.atlasTip")}</p>
+                </div>
+              </div>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-xs font-semibold text-white">{t("library.daily.manage.dailyTarget")}</p>
                 <strong className="text-2xl text-white">{groupSize}</strong>
@@ -206,7 +231,7 @@ export function DailyPlanView({
         <LibraryEmpty onAdd={onAddWord} onBulk={onBulkAdd} />
       )}
 
-      <section aria-label={t("library.daily.gridAria")}>
+      <section id="daily-plan-groups" aria-label={t("library.daily.gridAria")}>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <h3 className="text-lg font-semibold text-foreground">{t("library.daily.manage.groupsHeading")}</h3>
@@ -217,7 +242,7 @@ export function DailyPlanView({
             {showAll ? t("library.daily.manage.hideEmpty") : t("library.daily.manage.showAll")}
           </Button>
         </div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+        <div id="daily-plan-study-area" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visibleGroups.map((group) => (
             <DailyGroupCard
               key={group.day}
@@ -230,6 +255,16 @@ export function DailyPlanView({
         </div>
       </section>
 
+      {tourStep !== null && (
+        <GuidedTour
+          step={tourSteps[tourStep]}
+          index={tourStep}
+          total={tourSteps.length}
+          name={t("library.daily.manage.tourName")}
+          onNext={() => setTourStep((current) => current === null || current >= tourSteps.length - 1 ? null : current + 1)}
+          onExit={() => setTourStep(null)}
+        />
+      )}
       <Dialog open={selectedDay !== null} onOpenChange={(open) => { if (!open) setSelectedDay(null); }}>
         <DialogContent className="!w-[min(880px,calc(100vw-24px))] max-w-none">
           <DialogHeader>

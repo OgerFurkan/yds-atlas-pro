@@ -87,3 +87,42 @@ test("Daily target choice stays readable in dark mode and Atlas appears in the p
   await expect(other).toHaveCSS("color", "rgb(18, 59, 89)");
   await expect(active).toHaveAttribute("aria-pressed", "false");
 });
+
+
+test("Navbar help launches Daily Plan tour in place and shows the integrated Atlas tip", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("yds-atlas-language", "tr"));
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await expect(page.getByTestId("daily-plan-hero").getByText("Atlas'ın ipucu")).toBeVisible();
+  const helpButton = page.getByRole("button", { name: "Yardım", exact: true });
+  if (!await helpButton.isVisible()) await page.getByRole("button", { name: "Menüyü aç" }).click();
+  await helpButton.click();
+  await expect(page.locator(".driver-popover.atlas-guide")).toContainText("Günlük Plan'a hoş geldin");
+  await expect(page).toHaveURL(/#library/);
+  await page.getByRole("button", { name: /Anladım, devam et/ }).click();
+  await expect(page.locator(".driver-popover.atlas-guide")).toContainText("Günlük kelime hedefi");
+});
+
+test("Home navbar help can open the Daily Plan tutorial without redirecting to game", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("yds-atlas-language", "en"));
+  await page.goto("/#home");
+  const helpButton = page.getByRole("button", { name: "Help", exact: true });
+  if (!await helpButton.isVisible()) await page.getByRole("button", { name: "Open menu" }).click();
+  await helpButton.click();
+  await expect(page.getByRole("dialog", { name: "Help" })).toBeVisible();
+  await page.getByRole("button", { name: "Open Daily Plan tour" }).click();
+  await expect(page.getByRole("tab", { name: "Daily Plan" })).toHaveAttribute("aria-selected", "true");
+  await expect(page.locator(".driver-popover.atlas-guide")).toContainText("Welcome to Daily Plan");
+});
+
+test("Game navbar help reuses the existing preparation guide", async ({ page }) => {
+  await page.addInitScript(() => localStorage.setItem("yds-atlas-language", "tr"));
+  await page.goto("/#game");
+  const helpButton = page.getByRole("button", { name: "Yardım", exact: true });
+  if (!await helpButton.isVisible()) await page.getByRole("button", { name: "Menüyü aç" }).click();
+  await helpButton.click();
+  await expect(page.locator(".driver-popover.atlas-guide")).toContainText("Bu, Günlük Görev'in hazırlık ekranı");
+  // A queued click must be consumed, not replayed when returning to the game.
+  await expect.poll(() => page.evaluate(() => sessionStorage.getItem("atlas:game-setup-help"))).toBeNull();
+  await expect(page).toHaveURL(/#game/);
+});

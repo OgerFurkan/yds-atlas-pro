@@ -28,6 +28,7 @@ import { wordKey } from "@/features/word-library/model/word-normalization";
 import type { GroupFilter } from "@/features/word-library/model/word-library-view";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
+import { GuidedTour, type GuideStep } from "@/shared/ui/guided-tour";
 
 interface WordLibraryPageProps {
   initialGroup?: GroupFilter;
@@ -72,6 +73,23 @@ export function WordLibraryPage({
   const daily = useDailyPlan(words, 20, !loading && !loadError);
   const selection = useWordSelection();
   const [activeView, setActiveView] = useState<LibraryView>("words");
+  const [libraryGuide, setLibraryGuide] = useState<number | null>(null);
+  useEffect(() => {
+    const onHelp = () => {
+      if (activeView === "plan") window.dispatchEvent(new Event("atlas:daily-plan-help"));
+      else setLibraryGuide(0);
+    };
+    window.addEventListener("atlas:help-request", onHelp);
+    return () => window.removeEventListener("atlas:help-request", onHelp);
+  }, [activeView]);
+  useEffect(() => {
+    if (sessionStorage.getItem("atlas:daily-plan-help") === "1") setActiveView("plan");
+  }, []);
+  const librarySteps: GuideStep[] = [
+    { id: "library-overview", target: "#library-page-header", title: t("nav.libraryGuideIntro"), description: t("nav.libraryGuideIntroDescription") },
+    { id: "library-tabs", target: "#library-view-tabs", title: t("nav.libraryGuideTabs"), description: t("nav.libraryGuideTabsDescription") },
+    { id: "library-words", target: "#library-word-controls", title: t("nav.libraryGuideWords"), description: t("nav.libraryGuideWordsDescription") },
+  ];
   const [formOpen, setFormOpen] = useState(initialCreate);
   const [bulkOpen, setBulkOpen] = useState(false);
   const [bulkTargetDay, setBulkTargetDay] = useState<number | null>(null);
@@ -285,7 +303,7 @@ export function WordLibraryPage({
 
   return (
     <>
-      <div className="mb-5 flex items-end justify-between gap-6 max-sm:flex-col max-sm:items-stretch">
+      <div id="library-page-header" className="mb-5 flex items-end justify-between gap-6 max-sm:flex-col max-sm:items-stretch">
         <div>
           <p className="text-xs text-slate-400">
             Atlas <span className="px-1.5">/</span>
@@ -306,7 +324,7 @@ export function WordLibraryPage({
         </div>
       </div>
 
-      <div className="mt-5">
+      <div id="library-view-tabs" className="mt-5">
         <LibraryViewTabs
           value={activeView}
           wordCount={words.length}
@@ -335,7 +353,7 @@ export function WordLibraryPage({
         />
       ) : (
         <>
-          <div className="mt-4">
+          <div id="library-word-controls" className="mt-4">
             <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
           </div>
 
@@ -378,6 +396,16 @@ export function WordLibraryPage({
             )}
           </section>
         </>
+      )}
+      {libraryGuide !== null && activeView === "words" && (
+        <GuidedTour
+          step={librarySteps[libraryGuide]}
+          index={libraryGuide}
+          total={librarySteps.length}
+          name={t("nav.libraryGuide")}
+          onNext={() => setLibraryGuide((current) => current === null || current >= librarySteps.length - 1 ? null : current + 1)}
+          onExit={() => setLibraryGuide(null)}
+        />
       )}
       {formOpen && (
         <WordFormDialog

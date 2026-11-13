@@ -9,7 +9,7 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AtlasLogo } from "@/shared/brand/atlas-logo";
 import type { Notify } from "@/shared/lib/notify";
@@ -35,9 +35,36 @@ export function AppHeader({
 }: AppHeaderProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  useEffect(() => {
+    if (!helpOpen) return;
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setHelpOpen(false);
+    };
+    window.addEventListener("keydown", close);
+    return () => window.removeEventListener("keydown", close);
+  }, [helpOpen]);
+  function openHelp() {
+    setMenuOpen(false);
+    if (screen === "library" || screen === "game") {
+      // The game route is lazy-loaded. If the help button is clicked before
+      // GameSetup mounts, the event alone would be lost. Queue one request
+      // until the game guide consumes it.
+      if (screen === "game") sessionStorage.setItem("atlas:game-setup-help", "1");
+      window.dispatchEvent(new Event("atlas:help-request"));
+    } else {
+      setHelpOpen((value) => !value);
+    }
+  }
+  function goToGuide(next: "library" | "game") {
+    sessionStorage.setItem(next === "library" ? "atlas:daily-plan-help" : "atlas:game-setup-help", "1");
+    setHelpOpen(false);
+    go(next);
+  }
   function go(next: AppScreen) {
     onNavigate(next);
     setMenuOpen(false);
+    setHelpOpen(false);
   }
   return (
     <header className="sticky top-0 z-40 border-b border-atlas-line bg-white/95 backdrop-blur">
@@ -113,10 +140,7 @@ export function AppHeader({
           <Button
             variant="ghost"
             className="justify-start sm:hidden"
-            onClick={() => {
-              go("game");
-              onNotify.info(t("nav.helpMessage"));
-            }}
+            onClick={openHelp}
           >
             <CircleHelp size={18} />
             {t("nav.help")}
@@ -148,10 +172,7 @@ export function AppHeader({
             size="icon"
             aria-label={t("nav.help")}
             className="hidden sm:inline-flex"
-            onClick={() => {
-              go("game");
-              onNotify.info(t("nav.helpMessage"));
-            }}
+            onClick={openHelp}
           >
             <CircleHelp size={20} />
           </Button>
@@ -171,6 +192,16 @@ export function AppHeader({
             <span className="hidden sm:inline">{signedIn ? t("nav.account") : t("nav.login")}</span>
           </Button>
         </div>
+        {helpOpen && (
+          <div role="dialog" aria-label={t("nav.help")} className="absolute right-4 top-[calc(100%+8px)] z-50 w-[min(290px,calc(100vw-32px))] space-y-2 rounded-xl border border-atlas-line bg-card p-4 text-foreground shadow-xl">
+            <div className="flex items-center justify-between gap-2">
+              <strong className="text-sm">{t("nav.helpCenter")}</strong>
+              <button type="button" className="rounded-md p-1 hover:bg-muted" aria-label={t("common.close")} onClick={() => setHelpOpen(false)}><X size={17}/></button>
+            </div>
+            <button type="button" className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => goToGuide("library")}>{t("nav.helpDailyPlan")}</button>
+            <button type="button" className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => goToGuide("game")}>{t("nav.helpGame")}</button>
+          </div>
+        )}
       </div>
     </header>
   );

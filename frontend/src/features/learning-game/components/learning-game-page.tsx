@@ -166,6 +166,17 @@ export function LearningGamePage({
     setGuide(0);
     commit(createSession([word], 5, true));
   }
+  useEffect(() => {
+    if (!session) return;
+    const begin = () => {
+      // The active game tutorial, rather than GameSetup, owns this help request.
+      sessionStorage.removeItem("atlas:game-setup-help");
+      tutorial();
+    };
+    window.addEventListener("atlas:help-request", begin);
+    if (sessionStorage.getItem("atlas:game-setup-help") === "1") begin();
+    return () => window.removeEventListener("atlas:help-request", begin);
+  }, [session]);
   function nextGuide() {
     setGuide((index) => Math.min(index + 1, playGuide.length - 1));
   }

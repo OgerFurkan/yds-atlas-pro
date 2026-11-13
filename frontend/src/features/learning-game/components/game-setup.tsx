@@ -1,5 +1,5 @@
 ﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { dailyGoal } from "@/features/dashboard/model/daily-progress";
 import {
@@ -71,6 +71,18 @@ export function GameSetup({
     },
     onSourceChange: setSource,
   });
+
+  useEffect(() => {
+    const begin = () => {
+      // Consume the pending help request whether it arrived before mounting
+      // or through the live event listener. Never replay it on later visits.
+      sessionStorage.removeItem("atlas:game-setup-help");
+      startGuide();
+    };
+    window.addEventListener("atlas:help-request", begin);
+    if (sessionStorage.getItem("atlas:game-setup-help") === "1") begin();
+    return () => window.removeEventListener("atlas:help-request", begin);
+  }, [startGuide]);
 
   const ready = words.filter(isGameReady);
   const candidates = source === "ai" ? aiWords : setupCandidates(words, source, ownKeys);

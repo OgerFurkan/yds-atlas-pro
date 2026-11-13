@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 const optional = z
   .string()
@@ -34,7 +34,7 @@ const schema = z
     GEMINI_API_KEY: optional,
     GEMINI_API_KEYS: optional,
     GEMINI_MODEL_WORD: modelName.default("gemini-3.5-flash-lite"),
-    GEMINI_MODEL_CHAT: modelName.default("gemini-3.8-flash"),
+    GEMINI_MODEL_CHAT: modelName.default("gemini-3.5-flash-lite"),
   })
   .transform((value) => {
     const GEMINI_KEYS = apiKeys(value.GEMINI_API_KEYS, value.GEMINI_API_KEY);

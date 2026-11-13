@@ -14,6 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/shared/ui/dialog";
 import { LibraryEmpty } from "@/features/word-library/components/library-status";
@@ -57,6 +58,7 @@ export function DailyPlanView({
   onEditWord: (word: WordEntry) => void;
   onDeleteWord: (word: WordEntry) => void;
 }) {
+  const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [search, setSearch] = useState("");
@@ -107,7 +109,7 @@ export function DailyPlanView({
     if (!wordToAdd || selectedDay === null) return;
     const existingDay = assignedDays.get(wordToAdd);
     if (existingDay && existingDay !== selectedDay &&
-      !window.confirm(`Bu kelime ${existingDay}. günden ${selectedDay}. güne taşınacak. Devam edilsin mi?`))
+      !window.confirm(t("library.daily.manage.confirmMoveOne", { from: existingDay, to: selectedDay })))
       return;
     onAssignWord(wordToAdd, selectedDay);
     setWordToAdd("");
@@ -117,7 +119,7 @@ export function DailyPlanView({
     if (selectedDay === null || !bulkSelected.length) return;
     const moved = bulkSelected.filter((id) => assignedDays.has(id));
     if (moved.length && !window.confirm(
-      `${moved.length} kelime diğer günlerden bu güne taşınacak. Devam edilsin mi?`,
+      t("library.daily.manage.confirmMoveMany", { count: moved.length }),
     )) return;
     if (onBulkAssignWordIds(bulkSelected, selectedDay)) {
       setBulkSelected([]);
@@ -131,17 +133,17 @@ export function DailyPlanView({
         <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_270px] lg:items-center">
           <div className="min-w-0">
             <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-widest text-white">
-              <CalendarDays size={14} /> 60 GÜNLÜK KELİME PLANI
+              <CalendarDays size={14} /> {t("library.daily.manage.heroBadge")}
             </span>
             <h2 className="mt-3 font-display text-2xl font-semibold leading-snug text-white sm:text-3xl">
-              Kendi öğrenme rotanı yönet
+              {t("library.daily.manage.heroTitle")}
             </h2>
             <p className="mt-2 max-w-xl text-sm leading-6 text-[#e0f1f9]">
-              Günlere kelime ekle, düzenle, taşı veya çıkar. Gün kartına tıklayarak tüm kelimeleri gör.
+              {t("library.daily.manage.heroDescription")}
             </p>
             <div className="mt-5 max-w-xl">
               <div className="flex items-center justify-between gap-2 text-xs font-semibold text-white">
-                <span>{plan.learned} / {plan.totalWords} kelime öğrenildi</span>
+                <span>{t("library.daily.manage.learnedProgress", { learned: plan.learned, total: plan.totalWords })}</span>
                 <span>%{percent}</span>
               </div>
               <div className="mt-2 h-2 overflow-hidden rounded-full bg-white/25">
@@ -149,17 +151,17 @@ export function DailyPlanView({
               </div>
             </div>
             <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-xs text-white">
-              <span className="inline-flex items-center gap-1.5"><Layers3 size={15} /> {plan.totalWords} planlı</span>
-              <span className="inline-flex items-center gap-1.5"><Clock3 size={15} /> {plan.activeDays} aktif gün</span>
-              <span className="inline-flex items-center gap-1.5"><Check size={15} /> {plan.completedDays} tamamlanan gün</span>
+              <span className="inline-flex items-center gap-1.5"><Layers3 size={15} /> {plan.totalWords} {t("library.daily.manage.plannedShort")}</span>
+              <span className="inline-flex items-center gap-1.5"><Clock3 size={15} /> {plan.activeDays} {t("library.daily.manage.activeShort")}</span>
+              <span className="inline-flex items-center gap-1.5"><Check size={15} /> {plan.completedDays} {t("library.daily.manage.completedShort")}</span>
             </div>
           </div>
           <div className="rounded-2xl border border-white/25 bg-[#0a314c]/55 p-4">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-white">Günlük kelime hedefi</p>
+              <p className="text-xs font-semibold text-white">{t("library.daily.manage.dailyTarget")}</p>
               <strong className="text-2xl text-white">{groupSize}</strong>
             </div>
-            <div role="group" aria-label="Günlük kelime hedefi" className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-[#082a43] p-1">
+            <div role="group" aria-label={t("library.daily.manage.dailyTarget")} className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-[#082a43] p-1">
               {dailyGroupSizes.map((size) => (
                 <button
                   key={size}
@@ -171,7 +173,7 @@ export function DailyPlanView({
               ))}
             </div>
             <p className="mt-2 text-[11px] leading-relaxed text-[#e0f1f9]">
-              Yeni kelimelerin otomatik yerleşimini belirler. Mevcut günler değişmez.
+              {t("library.daily.manage.targetHint")}
             </p>
           </div>
         </div>
@@ -180,7 +182,7 @@ export function DailyPlanView({
       {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}
       {plan.overflow > 0 && (
         <p className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-          {plan.overflow} kelime şu anda bir güne atanmadı. Gün detayından bunları ekleyebilirsin.
+          {t("library.daily.manage.overflow", { count: plan.overflow })}
         </p>
       )}
 
@@ -188,15 +190,15 @@ export function DailyPlanView({
         <LibraryEmpty onAdd={onAddWord} onBulk={onBulkAdd} />
       )}
 
-      <section aria-label="Günlük kelime grupları">
+      <section aria-label={t("library.daily.gridAria")}>
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h3 className="text-lg font-semibold text-foreground">Günlük grupların</h3>
-            <p className="text-xs text-muted-foreground">Dolu günler ve sonraki boş gün gösteriliyor.</p>
+            <h3 className="text-lg font-semibold text-foreground">{t("library.daily.manage.groupsHeading")}</h3>
+            <p className="text-xs text-muted-foreground">{t("library.daily.manage.groupsHint")}</p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowAll((current) => !current)}>
             {showAll ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-            {showAll ? "Boş günleri gizle" : "60 günü göster"}
+            {showAll ? t("library.daily.manage.hideEmpty") : t("library.daily.manage.showAll")}
           </Button>
         </div>
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -216,9 +218,9 @@ export function DailyPlanView({
         <DialogContent className="!w-[min(880px,calc(100vw-24px))] max-w-none">
           <DialogHeader>
             <div className="min-w-0 pr-9">
-              <DialogTitle>{selectedDay}. günün kelimeleri</DialogTitle>
+              <DialogTitle>{t("library.daily.manage.dayTitle", { day: selectedDay ?? 1 })}</DialogTitle>
               <DialogDescription>
-                Kelimelerini yönet. Günden çıkarmak kütüphaneden silmez.
+                {t("library.daily.manage.dayDescription")}
               </DialogDescription>
             </div>
           </DialogHeader>
@@ -227,44 +229,44 @@ export function DailyPlanView({
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <strong className="text-2xl text-foreground">{selectedGroup.total}</strong>
-                  <span className="ml-2 text-sm text-muted-foreground">kelime · {selectedGroup.learned} öğrenilen</span>
+                  <span className="ml-2 text-sm text-muted-foreground">{t("library.daily.manage.wordCountLearned", { count: selectedGroup.learned })}</span>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button size="sm" disabled={selectedGroup.total >= 40} onClick={() => onCreateForDay(selectedDay)}><Plus size={16} /> Yeni kelime</Button>
+                  <Button size="sm" disabled={selectedGroup.total >= 40} onClick={() => onCreateForDay(selectedDay)}><Plus size={16} /> {t("library.daily.manage.newWord")}</Button>
                   <Button size="sm" variant="outline" disabled={selectedGroup.total >= 40} onClick={() => setBulkPickerOpen((open) => !open)}>
-                    <Layers3 size={16} /> Kütüphaneden toplu seç
+                    <Layers3 size={16} /> {t("library.daily.manage.bulkSelect")}
                   </Button>
                   <Button size="sm" variant="outline" disabled={selectedGroup.total >= 40} onClick={() => {
                     setSelectedDay(null);
                     onBulkAddForDay(selectedDay);
                   }}>
-                    <Plus size={16} /> Yeni kelimeleri toplu yaz
+                    <Plus size={16} /> {t("library.daily.manage.bulkWrite")}
                   </Button>
                   <Button
                     size="sm" variant="outline" disabled={selectedGroup.playable === 0}
                     onClick={() => onStudyGroup(selectedGroup)}
-                  ><BookOpenCheck size={15} /> Bu günü çalış</Button>
+                  ><BookOpenCheck size={15} /> {t("library.daily.manage.studyDay")}</Button>
                 </div>
               </div>
 
               {bulkPickerOpen && (
-                <section className="space-y-3 rounded-xl border border-border bg-muted/40 p-3" aria-label="Kütüphaneden toplu kelime seç">
+                <section className="space-y-3 rounded-xl border border-border bg-muted/40 p-3" aria-label={t("library.daily.manage.pickerAria")}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <h3 className="text-sm font-semibold text-foreground">Kütüphaneden toplu kelime seç</h3>
-                      <p className="text-xs text-muted-foreground">{availableSlots} boş yer · {bulkSelected.length} seçili · en fazla 40 kelime/gün</p>
+                      <h3 className="text-sm font-semibold text-foreground">{t("library.daily.manage.pickerAria")}</h3>
+                      <p className="text-xs text-muted-foreground">{t("library.daily.manage.pickerSummary", { slots: availableSlots, selected: bulkSelected.length })}</p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setBulkSelected([])} disabled={!bulkSelected.length}>Seçimi temizle</Button>
+                    <Button size="sm" variant="outline" onClick={() => setBulkSelected([])} disabled={!bulkSelected.length}>{t("library.daily.manage.clearSelection")}</Button>
                   </div>
                   <input
-                    type="search" aria-label="Eklenecek kelimelerde ara" value={bulkQuery}
-                    placeholder="İngilizce ya da Türkçe ara..."
+                    type="search" aria-label={t("library.daily.manage.searchToAddAria")} value={bulkQuery}
+                    placeholder={t("library.daily.manage.searchPlaceholder")}
                     onChange={(event) => setBulkQuery(event.target.value)}
                     className="min-h-10 w-full min-w-0 rounded-lg border border-border bg-card px-3 text-sm text-foreground"
                   />
                   <label className="inline-flex items-center gap-2 text-xs text-foreground">
                     <input type="checkbox" checked={bulkUnassignedOnly} onChange={(event) => setBulkUnassignedOnly(event.target.checked)} />
-                    Sadece atanmadıklar
+                    {t("library.daily.manage.unassignedOnly")}
                   </label>
                   <div className="max-h-52 space-y-1 overflow-y-auto rounded-lg border border-border bg-card p-2">
                     {bulkCandidates.slice(0, 150).map((word) => {
@@ -280,25 +282,25 @@ export function DailyPlanView({
                                 : current.filter((id) => id !== word.id));
                             }}
                           />
-                          <span className="min-w-0 flex-1 break-words">{word.word} <span className="text-xs text-muted-foreground">— {word.meanings[0] || "Anlam yok"}</span></span>
-                          <span className="shrink-0 text-[11px] text-muted-foreground">{assignedDays.has(word.id) ? `Gün ${assignedDays.get(word.id)}` : "Atanmamış"}</span>
+                          <span className="min-w-0 flex-1 break-words">{word.word} <span className="text-xs text-muted-foreground">— {word.meanings[0] || t("library.daily.manage.noMeaning")}</span></span>
+                          <span className="shrink-0 text-[11px] text-muted-foreground">{assignedDays.has(word.id) ? t("library.daily.manage.assignedDay", { day: assignedDays.get(word.id) }) : t("library.daily.manage.unassigned")}</span>
                         </label>
                       );
                     })}
-                    {!bulkCandidates.length && <p className="p-3 text-sm text-muted-foreground">Uygun kelime bulunamadı.</p>}
+                    {!bulkCandidates.length && <p className="p-3 text-sm text-muted-foreground">{t("library.daily.manage.noCandidate")}</p>}
                   </div>
                   <div className="flex flex-wrap justify-between gap-2">
                     <Button size="sm" variant="outline" disabled={availableSlots === 0 || !bulkCandidates.length} onClick={() =>
                       setBulkSelected((current) => [...new Set([...current, ...bulkCandidates.map((word) => word.id)])].slice(0, availableSlots))
-                    }>Görünenlerden seç</Button>
-                    <Button size="sm" onClick={addSelectedWords} disabled={!bulkSelected.length}>Seçilen {bulkSelected.length} kelimeyi güne ekle</Button>
+                    }>{t("library.daily.manage.selectVisible")}</Button>
+                    <Button size="sm" onClick={addSelectedWords} disabled={!bulkSelected.length}>{t("library.daily.manage.addSelected", { count: bulkSelected.length })}</Button>
                   </div>
                 </section>
               )}
 
               <div className="rounded-xl border border-border bg-muted/40 p-3">
                 <label htmlFor="day-word-add" className="mb-2 block text-xs font-semibold text-foreground">
-                  Kütüphaneden kelime ekle / başka günden taşı
+                  {t("library.daily.manage.addExisting")}
                 </label>
                 <div className="flex flex-col gap-2 sm:flex-row">
                   <select
@@ -307,28 +309,28 @@ export function DailyPlanView({
                     onChange={(event) => setWordToAdd(event.target.value)}
                     className="min-h-10 min-w-0 flex-1 rounded-lg border border-border bg-card px-3 text-sm text-foreground"
                   >
-                    <option value="">Kelime seç ({availableWords.length})</option>
+                    <option value="">{t("library.daily.manage.chooseWord", { count: availableWords.length })}</option>
                     {availableWords.map((word) => (
                       <option key={word.id} value={word.id}>
-                        {word.word} — {word.meanings[0] || "Anlam yok"}{assignedDays.has(word.id) ? ` (Gün ${assignedDays.get(word.id)})` : " (atanmamış)"}
+                        {word.word} — {word.meanings[0] || t("library.daily.manage.noMeaning")}{assignedDays.has(word.id) ? ` (${t("library.daily.manage.assignedDay", { day: assignedDays.get(word.id) })})` : ` (${t("library.daily.manage.unassigned").toLocaleLowerCase()})`}
                       </option>
                     ))}
                   </select>
                   <Button size="sm" disabled={!wordToAdd || selectedGroup.total >= 40} onClick={addExistingWord}>
-                    <Plus size={15} /> Güne ekle
+                    <Plus size={15} /> {t("library.daily.manage.addToDay")}
                   </Button>
                 </div>
-                {selectedGroup.total >= 40 && <p className="mt-2 text-xs text-orange-700">Bir güne en fazla 40 kelime atanabilir.</p>}
+                {selectedGroup.total >= 40 && <p className="mt-2 text-xs text-orange-700">{t("library.daily.manage.maxWords")}</p>}
               </div>
 
               {selectedGroup.total > 0 && (
                 <label className="block">
-                  <span className="mb-1.5 block text-xs font-semibold text-foreground">Günün kelimelerinde ara</span>
+                  <span className="mb-1.5 block text-xs font-semibold text-foreground">{t("library.daily.manage.searchDay")}</span>
                   <input
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
-                    placeholder="İngilizce veya Türkçe kelime..."
+                    placeholder={t("library.daily.manage.searchDayPlaceholder")}
                     className="min-h-10 w-full rounded-lg border border-border bg-card px-3 text-sm text-foreground placeholder:text-muted-foreground"
                   />
                 </label>
@@ -342,10 +344,10 @@ export function DailyPlanView({
                         <div className="flex flex-wrap items-center gap-2">
                           <strong className="break-words text-base text-foreground">{word.word}</strong>
                           <span className="rounded-md bg-muted px-2 py-0.5 text-[11px] font-bold text-muted-foreground">{word.cefr}</span>
-                          <span className="text-xs text-muted-foreground">{word.partOfSpeech || "Tür belirtilmedi"}</span>
+                          <span className="text-xs text-muted-foreground">{word.partOfSpeech || t("library.daily.manage.unspecifiedType")}</span>
                         </div>
                         <p className="mt-1 break-words text-sm text-muted-foreground">
-                          {word.meanings.length ? word.meanings.join(" · ") : "Türkçe anlam henüz eklenmedi"}
+                          {word.meanings.length ? word.meanings.join(" · ") : t("library.daily.manage.meaningMissing")}
                         </p>
                         {word.examples[0] && (
                           <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
@@ -354,25 +356,25 @@ export function DailyPlanView({
                         )}
                         {!selectedGroup.playableWords.some((ready) => ready.id === word.id) && (
                           <span className="mt-1 inline-block text-[11px] font-medium text-orange-600">
-                            Çalışmaya hazır değil · kelimeyi düzenleyip eksik bilgilerini tamamla
+                            {t("library.daily.manage.notReady")}
                           </span>
                         )}
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
-                        <Button size="icon" variant="ghost" title="Kelimeyi düzenle" aria-label={`${word.word} kelimesini düzenle`} onClick={() => onEditWord(word)}>
+                        <Button size="icon" variant="ghost" title={t("library.daily.manage.editWord", { word: word.word })} aria-label={t("library.daily.manage.editWord", { word: word.word })} onClick={() => onEditWord(word)}>
                           <Pencil size={16} />
                         </Button>
-                        <Button size="icon" variant="ghost" title="Sadece bu günden çıkar" aria-label={`${word.word} kelimesini günden çıkar`} onClick={() => onRemoveFromDay(word.id, selectedDay)}>
+                        <Button size="icon" variant="ghost" title={t("library.daily.manage.removeWordTitle")} aria-label={t("library.daily.manage.removeWord", { word: word.word })} onClick={() => onRemoveFromDay(word.id, selectedDay)}>
                           <XCircle size={16} />
                         </Button>
-                        <Button size="icon" variant="ghost" title="Kütüphaneden kalıcı sil" aria-label={`${word.word} kelimesini kütüphaneden sil`} onClick={() => onDeleteWord(word)}>
+                        <Button size="icon" variant="ghost" title={t("library.daily.manage.deleteWordTitle")} aria-label={t("library.daily.manage.deleteWord", { word: word.word })} onClick={() => onDeleteWord(word)}>
                           <Trash2 size={16} className="text-red-600" />
                         </Button>
                       </div>
                     </div>
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border pt-2">
                       <ArrowRightLeft size={14} className="text-muted-foreground" />
-                      <label htmlFor={`move-${word.id}`} className="text-xs text-muted-foreground">Başka güne taşı:</label>
+                      <label htmlFor={`move-${word.id}`} className="text-xs text-muted-foreground">{t("library.daily.manage.moveToDay")}</label>
                       <select
                         id={`move-${word.id}`}
                         value={selectedDay}
@@ -380,7 +382,7 @@ export function DailyPlanView({
                         className="rounded-md border border-border bg-card px-2 py-1 text-xs text-foreground"
                       >
                         {plan.groups.filter((group) => group.day === selectedDay || group.total < 40).map((group) => (
-                          <option key={group.day} value={group.day}>Gün {group.day}</option>
+                          <option key={group.day} value={group.day}>{t("library.daily.manage.assignedDay", { day: group.day })}</option>
                         ))}
                       </select>
                     </div>
@@ -388,16 +390,16 @@ export function DailyPlanView({
                 ))}
                 {selectedGroup.total === 0 && (
                   <div className="rounded-xl border border-dashed border-border p-6 text-center">
-                    <p className="font-semibold text-foreground">Bu gün henüz boş</p>
-                    <p className="mt-1 text-sm text-muted-foreground">Yukarıdan yeni veya mevcut bir kelime ekleyebilirsin.</p>
+                    <p className="font-semibold text-foreground">{t("library.daily.manage.emptyDayTitle")}</p>
+                    <p className="mt-1 text-sm text-muted-foreground">{t("library.daily.manage.emptyDayHint")}</p>
                   </div>
                 )}
                 {selectedGroup.total > 0 && filteredWords.length === 0 && (
-                  <p className="rounded-lg border border-border p-5 text-center text-sm text-muted-foreground">Aramanla eşleşen kelime yok.</p>
+                  <p className="rounded-lg border border-border p-5 text-center text-sm text-muted-foreground">{t("library.daily.manage.noSearchResults")}</p>
                 )}
               </div>
               <p className="text-[11px] leading-relaxed text-muted-foreground">
-                Not: Gün atamaları şu anda bu tarayıcı ve hesap için yerel saklanır; cihazlar arası eşitleme henüz eklenmedi.
+                {t("library.daily.manage.localOnly")}
               </p>
             </div>
           )}

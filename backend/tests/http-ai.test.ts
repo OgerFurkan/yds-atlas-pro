@@ -76,7 +76,7 @@ describe("Bun API boundary", () => {
       keyCount: 0,
       quotaConfigured: false,
       modelWord: "gemini-3.5-flash-lite",
-      modelChat: "gemini-3.8-flash",
+      modelChat: "gemini-3.5-flash-lite",
     });
     expect(body.ai.word).toEqual({ readyKeys: 0, waitSeconds: null });
   });
@@ -248,9 +248,7 @@ describe("Gemini provider", () => {
     );
     expect(result.reply).toBe("Indicate means to show.");
     expect(new Headers(input!.headers).get("x-goog-api-key")).toBe(config.GEMINI_API_KEY!);
-    expect(JSON.parse(input?.body as string).generationConfig.thinkingConfig).toEqual({
-      thinkingLevel: "low",
-    });
+    expect(JSON.parse(input?.body as string).generationConfig.thinkingConfig).toBeUndefined();
     expect(
       JSON.parse(input!.body as string).contents.map((message: { role: string }) => message.role),
     ).toEqual(["user", "model", "user"]);
@@ -474,7 +472,7 @@ describe("Gemini provider", () => {
     expect(url).toContain("/models/gemini-3.5-flash-lite:generateContent");
     expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
   });
-  test("chat runs on Gemini 3.8 Flash by default", async () => {
+  test("chat uses Gemini 3.5 Flash-Lite by default", async () => {
     let url = "";
     const fetcher = (async (input: unknown) => {
       url = String(input);
@@ -488,8 +486,8 @@ describe("Gemini provider", () => {
       undefined,
       fetcher,
     );
-    expect(url).toContain("/models/gemini-3.8-flash:generateContent");
-    expect(result.model).toBe("gemini-3.8-flash");
+    expect(url).toContain("/models/gemini-3.5-flash-lite:generateContent");
+    expect(result.model).toBe("gemini-3.5-flash-lite");
   });
   test("does not send thinking levels to Gemini 2.5 word generation", async () => {
     let requestBody = "";
@@ -594,7 +592,7 @@ describe("Gemini provider", () => {
     expect(pooled.GEMINI_KEYS).toEqual(["alpha", "beta", "gamma"]);
     const defaults = readConfig({});
     expect(defaults.GEMINI_MODEL_WORD).toBe("gemini-3.5-flash-lite");
-    expect(defaults.GEMINI_MODEL_CHAT).toBe("gemini-3.8-flash");
+    expect(defaults.GEMINI_MODEL_CHAT).toBe("gemini-3.5-flash-lite");
   });
   test("falls back to plain JSON when Gemini rejects structured output", async () => {
     const bodies: string[] = [];

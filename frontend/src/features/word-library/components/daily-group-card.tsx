@@ -1,5 +1,6 @@
 import { ArrowUpRight, CircleCheck, Plus, Play } from "lucide-react";
 import { Button } from "@/shared/ui/button";
+import { useTranslation } from "react-i18next";
 import type { DailyGroup } from "../model/daily-groups";
 
 export function DailyGroupCard({
@@ -13,6 +14,7 @@ export function DailyGroupCard({
   onOpen: (day: number) => void;
   onStudy: (group: DailyGroup) => void;
 }) {
+  const { t } = useTranslation();
   const isEmpty = group.total === 0;
   const isDone = group.total > 0 && group.learned === group.total;
   const percentage = group.total ? Math.round(group.progress * 100) : 0;
@@ -23,13 +25,13 @@ export function DailyGroupCard({
         type="button"
         onClick={() => onOpen(group.day)}
         className="group flex min-h-28 flex-col justify-between gap-4 rounded-2xl border border-dashed border-border bg-card/40 p-4 text-left transition-colors hover:border-[#f27637] hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#f27637]"
-        aria-label={`${group.day}. güne kelime ekle`}
+        aria-label={t("library.daily.manage.emptyCardAria", { day: group.day })}
       >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-muted-foreground">GÜN {group.day}</span>
+          <span className="text-xs font-bold text-muted-foreground">{t("library.daily.manage.dayCardLabel", { day: group.day })}</span>
           <Plus size={18} className="text-muted-foreground transition-colors group-hover:text-[#f27637]" />
         </div>
-        <span className="text-sm font-semibold text-foreground">Bu güne kelime ekle</span>
+        <span className="text-sm font-semibold text-foreground">{t("library.daily.manage.addToEmptyCard")}</span>
       </button>
     );
   }
@@ -40,16 +42,16 @@ export function DailyGroupCard({
         type="button"
         onClick={() => onOpen(group.day)}
         className="flex w-full flex-col gap-3 px-4 pt-4 pb-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#f27637] sm:px-5"
-        aria-label={`${group.day}. günü aç, ${group.total} kelimeyi yönet`}
+        aria-label={t("library.daily.manage.filledCardAria", { day: group.day, count: group.total })}
       >
         <div className="flex w-full items-center justify-between gap-3">
-          <span className="text-xs font-bold tracking-wider text-muted-foreground">GÜN {group.day}</span>
+          <span className="text-xs font-bold tracking-wider text-muted-foreground">{t("library.daily.manage.dayCardLabel", { day: group.day })}</span>
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
               isDone ? "bg-emerald-500/10 text-emerald-600" : "bg-[#f27637]/10 text-[#d85b20]"
             }`}
           >
-            {isDone ? "Tamamlandı" : `${group.total} / ${targetSize} kelime`}
+            {isDone ? t("library.daily.manage.completed") : t("library.daily.manage.wordTarget", { count: group.total, target: targetSize })}
           </span>
         </div>
         <div className="flex w-full items-end justify-between gap-3">
@@ -57,7 +59,7 @@ export function DailyGroupCard({
             <strong className="block text-2xl leading-none text-foreground">
               {group.learned}<span className="text-base font-medium text-muted-foreground">/{group.total}</span>
             </strong>
-            <span className="mt-1 block text-xs text-muted-foreground">Öğrenilen kelime</span>
+            <span className="mt-1 block text-xs text-muted-foreground">{t("library.daily.manage.learnedWord")}</span>
           </div>
           <ArrowUpRight size={19} className="text-muted-foreground" />
         </div>
@@ -74,21 +76,21 @@ export function DailyGroupCard({
       </button>
       <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 sm:px-5">
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-          <span className="font-semibold text-orange-600">{group.hard} zor</span>
-          <span>·</span><span>{group.review} tekrar</span>
-          <span>·</span><span className="text-emerald-600">{group.learned} öğrenilen</span>
+          <span className="font-semibold text-orange-600">{t("library.daily.manage.hardCount", { count: group.hard })}</span>
+          <span>·</span><span>{t("library.daily.manage.reviewCount", { count: group.review })}</span>
+          <span>·</span><span className="text-emerald-600">{t("library.daily.manage.learnedCount", { count: group.learned })}</span>
         </div>
         <Button
           type="button"
           size="sm"
           disabled={group.playable === 0}
-          title={group.playable === 0 ? "Çalışmaya hazır kelime yok" : undefined}
+          title={group.playable === 0 ? t("library.daily.manage.noReadyTitle") : undefined}
           className="min-h-8 shrink-0 px-3"
           onClick={() => onStudy(group)}
-          aria-label={`${group.day}. günün kelimeleriyle çalış`}
+          aria-label={t("library.daily.manage.studyCardAria", { day: group.day })}
         >
           {isDone ? <CircleCheck size={14} /> : <Play size={14} />}
-          Çalış
+          {t("library.daily.manage.study")}
         </Button>
       </div>
     </article>

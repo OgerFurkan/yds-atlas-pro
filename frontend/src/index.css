@@ -283,14 +283,24 @@ html[data-theme="dark"] .atlas-card-back {
   --color-atlas-blue-pale: #e9f2f7;
 }
 
+/* The card back is white in BOTH themes. Preserve dark ink, borders and chip contrast. */
 html[data-theme="dark"] .atlas-card-back .text-slate-700,
 html[data-theme="dark"] .atlas-card-back .text-slate-600 {
-  color: #43515a;
+  color: #334155;
 }
 
 html[data-theme="dark"] .atlas-card-back .text-slate-500,
 html[data-theme="dark"] .atlas-card-back .text-slate-400 {
-  color: #5d6b73;
+  color: #475569;
+}
+
+html[data-theme="dark"] .atlas-card-back .border-slate-200 {
+  border-color: #cbd5e1;
+}
+
+html[data-theme="dark"] .atlas-card-back .bg-white\/80,
+html[data-theme="dark"] .atlas-card-back .bg-white\/75 {
+  background-color: #fff;
 }
 
 .goal-hero__eyebrow,

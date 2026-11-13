@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { AlertTriangle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
 
@@ -47,25 +47,43 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
       <p className="mt-2 text-[11px] leading-4 text-atlas-muted">
         {retry?.secondsRemaining
           ? retry.reason === "rate-limit"
-            ? `AI istek sınırı: ${retry.secondsRemaining} sn sonra yalnızca eksik kelimeler tekrar denenecek. Pencereyi kapatma.`
-            : `Gemini geçici olarak meşgul: ${retry.secondsRemaining} sn sonra otomatik tekrar denenecek.`
+            ? t("library.aiProgress.retryRateLimit", { seconds: retry.secondsRemaining })
+            : t("library.aiProgress.retryBusy", { seconds: retry.secondsRemaining })
           : remaining > 0
           ? t("library.aiProgress.hint", { count: remaining })
           : failedWords.length > 0
-            ? `${completed}/${total} kelime hazir. Eksikler tekrar denenebilir.`
+            ? t("library.aiProgress.partial", { completed, total })
             : t("library.aiProgress.finishing")}
       </p>
       {failedWords.length > 0 && (
         <div
           role="alert"
-          className="mt-2 rounded-lg border border-amber-300/50 bg-amber-50/80 p-2.5 text-xs text-amber-900"
+          className="mt-3 rounded-xl border border-[#b88735] bg-[#302517] p-3 text-[#fff8e8] shadow-sm"
         >
-          <p className="font-semibold">
-            {failedWords.length} kelime tamamlanamadi
-          </p>
-          <p className="mt-1 break-words">
-            {failedWords.join(", ")}
-          </p>
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle aria-hidden="true" size={17} className="mt-0.5 shrink-0 text-[#ffd17b]" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold leading-5 text-[#fff8e8]">
+                {t("library.aiProgress.failedTitle", { count: failedWords.length })}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-[#f4dfb3]">
+                {t("library.aiProgress.failedDescription")}
+              </p>
+            </div>
+          </div>
+          <ul
+            aria-label={t("library.aiProgress.failedListLabel")}
+            className="mt-2.5 flex max-h-32 flex-wrap items-start gap-1.5 overflow-y-auto"
+          >
+            {failedWords.map((word, index) => (
+              <li
+                key={`${word}-${index}`}
+                className="max-w-full break-words rounded-md border border-[#956f34] bg-[#4b3822] px-2.5 py-1 text-xs font-semibold leading-5 text-[#fff8e8]"
+              >
+                {word}
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>

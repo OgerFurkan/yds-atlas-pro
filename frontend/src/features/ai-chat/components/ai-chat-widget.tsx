@@ -16,6 +16,7 @@ import { ApiError } from "@/shared/api/api-client";
 import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
 import { sendChat } from "../api/ai-chat-api";
+import { lastFailedUserQuestion } from "../model/chat-retry";
 
 export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
@@ -65,9 +66,12 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       { role: "user" as const, content: trimmed },
     ].slice(-12);
     const retryAttempt = previouslyFailed ? retryCount + 1 : 0;
-    const requestMessages = previouslyFailed && conversation.length > 1
-      ? conversation.slice(-1)
+    // Never re-send an assistant reply accidentally on a manual retry. Keep the
+    // history visible while replaying exactly the question that failed.
+    const requestMessages = previouslyFailed
+      ? lastFailedUserQuestion(conversation)
       : conversation;
+    if (!requestMessages.length) return;
     if (!previouslyFailed) setRetryCount(0);
     else setRetryCount(retryAttempt);
     setMessages(conversation);
@@ -102,9 +106,11 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       else if (reason instanceof ApiError && reason.code === "AI_NOT_CONFIGURED")
         setError(t("chat.notConfigured"));
       else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
-        setError(retryAttempt > 0
-          ? "Gemini yeniden denemede de zaman aşımına uğradı. İstek gönderiliyor fakat sunucudan yanıt gelmiyor; Render/Gemini servis günlükleri kontrol edilmeli."
-          : t("chat.timeout"));
+        setError(t(retryAttempt > 0 ? "chat.timeoutAgain" : "chat.timeout"));
+      else if (reason instanceof ApiError && reason.status === 429)
+        setError(reason.retryAfterSeconds !== undefined
+          ? t("chat.rateLimitedFor", { seconds: Math.ceil(reason.retryAfterSeconds) })
+          : t("chat.rateLimited"));
       else if (reason instanceof ApiError && reason.code === "AI_NETWORK_ERROR")
         setError(t("chat.networkError"));
       else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
@@ -113,8 +119,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         setError(t("chat.modelUnavailable"));
       else if (reason instanceof ApiError && reason.code === "AI_REQUEST_REJECTED")
         setError(t("chat.requestRejected"));
-      else if (reason instanceof ApiError && reason.code === "AI_UPSTREAM_ERROR")
-        setError(t("chat.providerUnavailable"));
+      else if (reason instanceof ApiError && (reason.code === "AI_UPSTREAM_ERROR" || reason.status === 503))
+        setError(t("chat.providerBusy"));
       else setError(reason instanceof Error ? reason.message : t("chat.error"));
     } finally {
       if (activeRequest.current === controller) {
@@ -297,7 +303,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
               {busy && (
                 <div className="flex items-center gap-2 text-xs text-slate-500" role="status">
                   <LoaderCircle size={15} className="animate-spin" />
-                  {retryCount > 0 ? `Yeniden deneniyor (${retryCount}. deneme)...` : t("chat.thinking")}
+                  {retryCount > 0 ? t("chat.retrying", { count: retryCount }) : t("chat.thinking")}
                 </div>
               )}
               {error && (
@@ -312,7 +318,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                       disabled={busy}
                       onClick={() => void send("", retryMessages)}
                     >
-                      {retryCount > 0 ? "Tekrar dene (sunucu hâlâ yanıt vermiyor)" : "Aynı isteği tekrar dene"}
+                      {t("chat.retrySameQuestion")}
                     </Button>
                   )}
                 </div>

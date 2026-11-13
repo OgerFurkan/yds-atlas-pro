@@ -1,5 +1,5 @@
 ﻿import { z } from "zod";
-import { cefrLevelSchema } from "./word-schema";
+import { cefrLevelSchema, wordPartOfSpeechSchema } from "./word-schema";
 export const aiWordRequestSchema = z
   .object({
     word: z
@@ -8,6 +8,7 @@ export const aiWordRequestSchema = z
       .min(1)
       .max(120)
       .regex(/^[a-zA-Z]+(?:[ '-][a-zA-Z]+)*$/, "Tek bir İngilizce kelime veya kısa ifade yaz."),
+    partOfSpeech: wordPartOfSpeechSchema.optional(),
   })
   .strict();
 export const aiWordSchema = z
@@ -16,16 +17,7 @@ export const aiWordSchema = z
     alternatives: z.array(z.string().min(1).max(120)).max(8),
     meanings: z.array(z.string().min(1).max(200)).min(1).max(4),
     usageNote: z.string().min(1).max(1500),
-    partOfSpeech: z.enum([
-      "Noun",
-      "Verb",
-      "Adjective",
-      "Adverb",
-      "Preposition",
-      "Conjunction",
-      "Pronoun",
-      "Phrase",
-    ]),
+    partOfSpeech: wordPartOfSpeechSchema,
     cefr: cefrLevelSchema,
     examples: z
       .array(

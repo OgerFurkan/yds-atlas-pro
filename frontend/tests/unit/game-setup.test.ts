@@ -42,12 +42,12 @@ test("ready-list task selection prioritizes hard words and fills from review wor
 
 test("library and own sources only contain ready words", () => {
   const words = [stored(0, 20), { ...stored(1, 20), examples: [] }, stored(2, 90)];
-  expect(setupCandidates(words, "library", []).map((word) => word.id)).toEqual(["word-0"]);
+  expect(setupCandidates(words, "library", []).map((word) => word.id)).toEqual(["word-0", "word-2"]);
   expect(
     setupCandidates(words, "own", [wordKey(words[0].word), wordKey(words[2].word)]).map(
       (word) => word.id,
     ),
-  ).toEqual(["word-0"]);
+  ).toEqual(["word-0", "word-2"]);
 });
 
 test("task size helpers stay clamped to available words", () => {

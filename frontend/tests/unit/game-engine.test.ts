@@ -49,7 +49,10 @@ describe("learning loop", () => {
     for (const word of deck()) {
       expect(usableExamples(word)).toHaveLength(5);
       expect(isGameReady(word)).toBe(true);
-      expect(isGameReady({ ...word, score: 80 })).toBe(false);
+      expect(isGameReady({ ...word, score: 80 })).toBe(true);
+      expect(isGameReady({ ...word, score: 100 })).toBe(true);
+      expect(isGameReady({ ...word, meanings: [] })).toBe(false);
+      expect(isGameReady({ ...word, examples: word.examples.slice(0, 4) })).toBe(false);
     }
   });
 

@@ -52,10 +52,21 @@ test("daily plan groups words by day and starts the selected group directly", as
     (key) => JSON.parse(localStorage.getItem(key) ?? "null"),
     sessionKey,
   );
-  expect(session.words).toHaveLength(5);
-  expect(session.words.every((word: { id: string }) => word.id.match(/daily-word-1[5-9]/))).toBe(
-    true,
+  const selectedIds = session.words.map((word: { id: string }) => word.id);
+
+  expect(selectedIds).toHaveLength(20);
+
+  expect(new Set(selectedIds)).toEqual(
+    new Set(Array.from({ length: 20 }, (_, index) => `daily-word-${index}`)),
   );
+
+  expect(
+    session.words.filter((word: { score: number }) => word.score >= 80),
+  ).toHaveLength(15);
+
+  expect(
+    session.words.filter((word: { score: number }) => word.score < 80),
+  ).toHaveLength(5);
 });
 
 

@@ -177,11 +177,13 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           "messages" in input
             ? await (dependencies.generateChat ?? generateChatReply)(input, config, request.signal)
             : "word" in input
-              ? await (dependencies.generate ?? generateEnrichedWord)(
-                  input.word,
-                  config,
-                  request.signal,
-                )
+              ? input.partOfSpeech
+                ? await generateEnrichedWord(input.word, config, request.signal, undefined, undefined, input.partOfSpeech)
+                : await (dependencies.generate ?? generateEnrichedWord)(
+                    input.word,
+                    config,
+                    request.signal,
+                  )
               : "words" in input
                 ? await (dependencies.generateNamed ?? generateNamedWordsWithDictionary)(
                     input.words,

@@ -53,6 +53,17 @@ export function WordDetails({ word }: { word: WordEntry }) {
               <WordStatus score={word.score} />
             </div>
             {word.usageNote && <p className="text-sm leading-7 text-slate-600">{word.usageNote}</p>}
+            {word.senses?.some((sense) => sense.partOfSpeech !== word.partOfSpeech) && (
+              <section className="space-y-2 rounded-lg border border-border p-3" aria-label="Diğer kelime türleri">
+                <h3 className="text-sm font-semibold">Ek kelime türleri</h3>
+                {word.senses.filter((sense) => sense.partOfSpeech !== word.partOfSpeech).map((sense) => (
+                  <div key={sense.partOfSpeech} className="text-xs leading-5">
+                    <strong>{formatWordType(sense.partOfSpeech)}</strong> · {sense.meanings.join(" · ")}
+                    {sense.examples[0] && <p className="mt-1 text-muted-foreground">{sense.examples[0].sentence} — {sense.examples[0].translation}</p>}
+                  </div>
+                ))}
+              </section>
+            )}
             <PronunciationButtons
               word={word.word}
               uk={word.pronunciationUk}

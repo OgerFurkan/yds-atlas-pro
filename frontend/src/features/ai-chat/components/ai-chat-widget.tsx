@@ -8,6 +8,7 @@ import {
   MessageCircleText,
   Plus,
   Sparkles,
+  Trash2,
   X,
 } from "lucide-react";
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
@@ -17,6 +18,8 @@ import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
 import { sendChat } from "../api/ai-chat-api";
 import { lastFailedUserQuestion } from "../model/chat-retry";
+import { deleteHistoryConversation } from "../model/chat-history";
+import { ChatMessageMarkdown } from "./chat-message-markdown";
 
 export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const { t } = useTranslation();
@@ -31,6 +34,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<AiChatRequest["messages"][]>([]);
+  const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
+  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
   const messageEnd = useRef<HTMLDivElement>(null);
   const activeRequest = useRef<AbortController | null>(null);
 
@@ -162,6 +167,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     setNeedsSignIn(false);
     setMenuOpen(false);
     setShowHistory(false);
+    setPendingDeleteIndex(null);
+    setConfirmClearHistory(false);
   }
 
   return (
@@ -216,6 +223,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                       setRetryMessages(null);
                       setNeedsSignIn(false);
                       setShowHistory(true);
+                      setPendingDeleteIndex(null);
+                      setConfirmClearHistory(false);
                       setMenuOpen(false);
                     }}
                   >
@@ -227,36 +236,89 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
             </header>
             <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
               {showHistory ? (
-                <div className="space-y-2">
-                  <h2 className="font-bold">{t("chat.history")}</h2>
-                  {history.length ? (
-                    history.map((conversation, index) => (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <h2 className="font-bold">{t("chat.history")}</h2>
+                    {history.length > 0 && (
                       <button
                         type="button"
-                        key={index}
-                        className="block w-full truncate rounded-lg bg-[#ffffff] p-3 text-left text-sm"
+                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-[#a3332c] hover:bg-[#fff0ee] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
                         onClick={() => {
-                          if (messages.length)
-                            setHistory((previous) => [
-                              messages,
-                              ...previous.filter((_, itemIndex) => itemIndex !== index),
-                            ]);
-                          else
-                            setHistory((previous) =>
-                              previous.filter((_, itemIndex) => itemIndex !== index),
-                            );
-                          setMessages(conversation);
-                          setShowHistory(false);
-                          setNeedsSignIn(false);
-                          setError("");
-                          setRetryMessages(null);
+                          setConfirmClearHistory((current) => !current);
+                          setPendingDeleteIndex(null);
                         }}
                       >
-                        {conversation[0]?.content}
+                        <Trash2 size={15} aria-hidden="true" />
+                        {t("chat.clearHistory")}
                       </button>
+                    )}
+                  </div>
+                  {confirmClearHistory && history.length > 0 && (
+                    <div className="space-y-2 rounded-xl border border-[#efc5c0] bg-[#fff5f3] p-3 text-sm text-[#7c2620]" role="group" aria-label={t("chat.clearHistory")}>
+                      <p>{t("chat.clearHistoryConfirm")}</p>
+                      <div className="flex justify-end gap-2">
+                        <button type="button" className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 text-xs font-medium" onClick={() => setConfirmClearHistory(false)}>{t("chat.cancelDelete")}</button>
+                        <button type="button" className="rounded-lg bg-[#a3332c] px-3 py-1.5 text-xs font-semibold text-white" onClick={() => { setHistory([]); setConfirmClearHistory(false); setPendingDeleteIndex(null); }}>{t("chat.confirmDelete")}</button>
+                      </div>
+                    </div>
+                  )}
+                  {history.length ? (
+                    history.map((conversation, index) => (
+                      <div key={index} className="overflow-hidden rounded-xl border border-[#e3ecf2] bg-white shadow-sm">
+                        <div className="flex min-w-0 items-center gap-1 p-1.5">
+                          <button
+                            type="button"
+                            className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-sm text-[#123b59] hover:bg-[#eff5f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17649c]"
+                            onClick={() => {
+                              if (messages.length)
+                                setHistory((previous) => [
+                                  messages,
+                                  ...previous.filter((_, itemIndex) => itemIndex !== index),
+                                ]);
+                              else
+                                setHistory((previous) =>
+                                  previous.filter((_, itemIndex) => itemIndex !== index),
+                                );
+                              setMessages(conversation);
+                              setShowHistory(false);
+                              setPendingDeleteIndex(null);
+                              setConfirmClearHistory(false);
+                              setNeedsSignIn(false);
+                              setError("");
+                              setRetryMessages(null);
+                            }}
+                          >
+                            {conversation.find((message) => message.role === "user")?.content ?? conversation[0]?.content}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label={t("chat.deleteConversationNamed", { title: conversation.find((message) => message.role === "user")?.content ?? t("chat.history") })}
+                            title={t("chat.deleteConversation")}
+                            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#8b4a47] hover:bg-[#fff0ee] hover:text-[#a3332c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
+                            onClick={() => {
+                              setPendingDeleteIndex((current) => current === index ? null : index);
+                              setConfirmClearHistory(false);
+                            }}
+                          >
+                            <Trash2 size={17} aria-hidden="true" />
+                          </button>
+                        </div>
+                        {pendingDeleteIndex === index && (
+                          <div className="space-y-2 border-t border-[#efdedb] bg-[#fff8f7] px-3 py-3 text-xs text-[#7c2620]" role="group" aria-label={t("chat.deleteConversation")}>
+                            <p>{t("chat.deleteConversationConfirm")}</p>
+                            <div className="flex justify-end gap-2">
+                              <button type="button" className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 font-medium" onClick={() => setPendingDeleteIndex(null)}>{t("chat.cancelDelete")}</button>
+                              <button type="button" className="rounded-lg bg-[#a3332c] px-3 py-1.5 font-semibold text-white" onClick={() => {
+                                setHistory((previous) => deleteHistoryConversation(previous, index));
+                                setPendingDeleteIndex(null);
+                              }}>{t("chat.confirmDelete")}</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     ))
                   ) : (
-                    <p className="text-sm">{t("chat.historyEmpty")}</p>
+                    <p className="text-sm text-[#536b7d]">{t("chat.historyEmpty")}</p>
                   )}
                 </div>
               ) : null}
@@ -293,11 +355,15 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                     key={`${index}-${message.role}`}
                     className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                   >
-                    <p
-                      className={`max-w-[88%] whitespace-pre-wrap rounded-xl px-3 py-2.5 text-sm leading-6 ${message.role === "user" ? "bg-[#123b59] text-white" : "bg-[#ffffff] text-[#123b59] shadow-sm"}`}
-                    >
-                      {message.content}
-                    </p>
+                    {message.role === "user" ? (
+                      <p className="max-w-[88%] whitespace-pre-wrap break-words rounded-2xl bg-[#123b59] px-3.5 py-2.5 text-sm leading-6 text-white">
+                        {message.content}
+                      </p>
+                    ) : (
+                      <div className="min-w-0 max-w-[93%] rounded-2xl border border-[#e5edf3] bg-white px-4 py-3 shadow-sm">
+                        <ChatMessageMarkdown content={message.content} />
+                      </div>
+                    )}
                   </div>
                 ))}
               {busy && (

@@ -59,3 +59,31 @@ test("White flashcard back keeps readable dark text and light badges in dark the
   const note = page.locator(".atlas-card-back").getByText("YDS sınavında çevre konularında kullanılabilir.");
   await expect(note).toHaveCSS("color", "rgb(51, 65, 85)");
 });
+
+test("Daily target choice stays readable in dark mode and Atlas appears in the plan hero", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("yds-atlas-language", "tr");
+    localStorage.setItem("yds-atlas-theme", "dark");
+  });
+
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+
+  const hero = page.getByTestId("daily-plan-hero");
+  const target = hero.getByRole("group", { name: "Günlük kelime hedefi" });
+  const active = target.getByRole("button", { name: "20", exact: true });
+  await expect(active).toHaveAttribute("aria-pressed", "true");
+  await expect(active).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(active).toHaveCSS("color", "rgb(18, 59, 89)");
+  const mascot = hero.locator('img[src="/brand/atlas-mascot.png"]:visible');
+  await expect(mascot).toHaveCount(1);
+  await expect.poll(() => mascot.evaluate((image: HTMLImageElement) => image.naturalWidth)).toBeGreaterThan(0);
+
+  // Both the selected state and label should update without dark-theme contrast loss.
+  const other = target.getByRole("button", { name: "30", exact: true });
+  await other.click();
+  await expect(other).toHaveAttribute("aria-pressed", "true");
+  await expect(other).toHaveCSS("background-color", "rgb(255, 255, 255)");
+  await expect(other).toHaveCSS("color", "rgb(18, 59, 89)");
+  await expect(active).toHaveAttribute("aria-pressed", "false");
+});

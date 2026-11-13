@@ -356,7 +356,7 @@ test("Atlas chat opens as a branded assistant and asks guests to sign in before 
   ).toBeVisible();
   await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
   await chat.getByRole("button", { name: "Sohbet geçmişi" }).click();
-  await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+  await chat.getByRole("button", { name: "Indicate ne demek?", exact: true }).click();
   await expect(chat.getByText("Indicate ne demek?", { exact: true })).toBeVisible();
   await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
   await chat.getByRole("button", { name: "Yeni sohbet" }).click();

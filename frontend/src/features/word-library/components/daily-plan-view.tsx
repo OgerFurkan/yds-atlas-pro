@@ -129,12 +129,20 @@ export function DailyPlanView({
 
   return (
     <div className="mt-4 space-y-5">
-      <section className="overflow-hidden rounded-2xl border border-[#28658b] bg-gradient-to-br from-[#103b58] via-[#164c6c] to-[#1b7095] text-white shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_270px] lg:items-center">
+      <section data-testid="daily-plan-hero" className="overflow-hidden rounded-2xl border border-[#28658b] bg-gradient-to-br from-[#103b58] via-[#164c6c] to-[#1b7095] text-white shadow-sm">
+        <div className="grid gap-6 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_420px] lg:items-center">
           <div className="min-w-0">
-            <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-widest text-white">
-              <CalendarDays size={14} /> {t("library.daily.manage.heroBadge")}
-            </span>
+            <div className="flex items-start justify-between gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[11px] font-bold tracking-widest text-white">
+                <CalendarDays size={14} /> {t("library.daily.manage.heroBadge")}
+              </span>
+              <img
+                src="/brand/atlas-mascot.png"
+                alt="Atlas"
+                draggable={false}
+                className="pointer-events-none h-16 w-14 shrink-0 select-none object-contain drop-shadow-lg sm:hidden"
+              />
+            </div>
             <h2 className="mt-3 font-display text-2xl font-semibold leading-snug text-white sm:text-3xl">
               {t("library.daily.manage.heroTitle")}
             </h2>
@@ -156,25 +164,33 @@ export function DailyPlanView({
               <span className="inline-flex items-center gap-1.5"><Check size={15} /> {plan.completedDays} {t("library.daily.manage.completedShort")}</span>
             </div>
           </div>
-          <div className="rounded-2xl border border-white/25 bg-[#0a314c]/55 p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold text-white">{t("library.daily.manage.dailyTarget")}</p>
-              <strong className="text-2xl text-white">{groupSize}</strong>
+          <div className="flex min-w-0 items-end justify-end gap-3">
+            <img
+              src="/brand/atlas-mascot.png"
+              alt="Atlas"
+              draggable={false}
+              className="pointer-events-none hidden h-32 w-28 shrink-0 select-none object-contain drop-shadow-xl sm:block lg:h-44 lg:w-[132px]"
+            />
+            <div className="w-full min-w-0 rounded-2xl border border-white/25 bg-[#0a314c]/55 p-4 sm:w-[270px]">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs font-semibold text-white">{t("library.daily.manage.dailyTarget")}</p>
+                <strong className="text-2xl text-white">{groupSize}</strong>
+              </div>
+              <div role="group" aria-label={t("library.daily.manage.dailyTarget")} className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-[#082a43] p-1">
+                {dailyGroupSizes.map((size) => (
+                  <button
+                    key={size}
+                    type="button"
+                    aria-pressed={groupSize === size}
+                    className={`rounded-lg px-2 py-2 text-sm font-semibold transition-colors ${groupSize === size ? "bg-[#ffffff] text-[#123b59] shadow-sm" : "text-white hover:bg-white/15"}`}
+                    onClick={() => onGroupSizeChange(size)}
+                  >{size}</button>
+                ))}
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-[#e0f1f9]">
+                {t("library.daily.manage.targetHint")}
+              </p>
             </div>
-            <div role="group" aria-label={t("library.daily.manage.dailyTarget")} className="mt-3 grid grid-cols-4 gap-1 rounded-xl bg-[#082a43] p-1">
-              {dailyGroupSizes.map((size) => (
-                <button
-                  key={size}
-                  type="button"
-                  aria-pressed={groupSize === size}
-                  className={`rounded-lg px-2 py-2 text-sm font-semibold transition-colors ${groupSize === size ? "bg-white text-[#123b59] shadow-sm" : "text-white hover:bg-white/15"}`}
-                  onClick={() => onGroupSizeChange(size)}
-                >{size}</button>
-              ))}
-            </div>
-            <p className="mt-2 text-[11px] leading-relaxed text-[#e0f1f9]">
-              {t("library.daily.manage.targetHint")}
-            </p>
           </div>
         </div>
       </section>

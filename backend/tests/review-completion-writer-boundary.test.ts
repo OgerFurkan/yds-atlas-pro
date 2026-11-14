@@ -20,7 +20,7 @@ const session = (version: 2 | 3 = 3): GameSession => ({
   version, groupMatching: true, id: SESSION,
   words: [{
     id: WORD, word: "abandon", alternatives: [], meanings: ["terk etmek"],
-    usageNote: "", partOfSpeech: "verb", cefr: "B2", score: 20, examples: [],
+    usageNote: "", partOfSpeech: "verb", cefr: "B2", score: 20, senses: [], examples: [],
     pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
     createdAt: "2026-11-14T12:00:00.000Z", updatedAt: "2026-11-14T12:00:00.000Z",
   }],

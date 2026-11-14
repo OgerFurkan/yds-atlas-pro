@@ -1,4 +1,4 @@
-﻿import {
+import {
   aiChatRequestSchema,
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
@@ -21,12 +21,13 @@ import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { completeSessionWithReviewWriter } from "./features/learning/review-completion-service";
 import { saveSessionWithPrivilegedWriter } from "./features/learning/session-save-writer-service";
+import { setDailyGoalWithPrivilegedWriter } from "./features/learning/goal-writer-service";
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
-import { authenticate, dailyPlanWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
+import { authenticate, dailyPlanWriterClient, goalWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
 
 type Dependencies = {
   authenticate?: (request: Request) => Promise<RequestContext>;
@@ -34,6 +35,7 @@ type Dependencies = {
   dailyPlanWriter?: () => RequestContext["db"];
   reviewWriter?: () => RequestContext["db"];
   sessionSaveWriter?: () => RequestContext["db"];
+  goalWriter?: () => RequestContext["db"];
   generate?: typeof generateWord;
   generateList?: typeof generateWordList;
   generateNamed?: typeof generateNamedWords;
@@ -137,9 +139,16 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           .object({ goal: z.number().int().min(10).max(100).multipleOf(10) })
           .strict()
           .parse(await readJson(request));
-        const update = await ctx.db.rpc("set_daily_goal", { p_goal: goal });
-        databaseError(update.error);
-        result = { goal };
+        if (config.GOAL_WRITE_V6_ENABLED) {
+          result = await setDailyGoalWithPrivilegedWriter(
+            ctx, goal,
+            () => dependencies.goalWriter?.() ?? goalWriterClient(config),
+          );
+        } else {
+          const update = await ctx.db.rpc("set_daily_goal", { p_goal: goal });
+          databaseError(update.error);
+          result = { goal };
+        }
       } else if (path === "/api/learning/session" && request.method === "PUT") {
         const { snapshot, revision } = sessionBody.parse(await readJson(request));
         uuid.parse(snapshot.id);

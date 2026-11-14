@@ -1,4 +1,4 @@
-﻿import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import type { ServerConfig } from "../config/env";
 import { HttpError } from "./errors";
 export interface RequestContext {
@@ -71,6 +71,16 @@ export function reviewWriterClient(config: ServerConfig): SupabaseClient {
 export function sessionSaveWriterClient(config: ServerConfig): SupabaseClient {
   if (!config.SUPABASE_URL || !config.SUPABASE_SECRET_KEY)
     throw new HttpError(503, "Oturum kaydetme servisi yapılandırılmadı.", "SESSION_SAVE_WRITER_NOT_CONFIGURED");
+  return createClient(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY, {
+    global: { fetch: timedFetch },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}
+
+/** Privileged daily-goal writer. Requires verified ctx.userId; never accepts browser owner fields. */
+export function goalWriterClient(config: ServerConfig): SupabaseClient {
+  if (!config.SUPABASE_URL || !config.SUPABASE_SECRET_KEY)
+    throw new HttpError(503, "Günlük hedef yazma servisi yapılandırılmadı.", "GOAL_WRITER_NOT_CONFIGURED");
   return createClient(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY, {
     global: { fetch: timedFetch },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },

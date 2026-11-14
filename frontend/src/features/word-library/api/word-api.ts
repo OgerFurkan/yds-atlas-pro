@@ -28,5 +28,8 @@ export function remoteWordRepository(userId: string): WordRepository {
     async applyScores(updates) {
       await call("/api/words/scores", { method: "PUT", body: JSON.stringify(updates) });
     },
+    async setGroups(updates) {
+      await call("/api/words/groups", { method: "PUT", body: JSON.stringify(updates) });
+    },
   };
 }

@@ -1,4 +1,4 @@
-import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
+import { getVisibleWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { CalendarClock, CircleAlert, Clock3, Play, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 import { isGameReady } from "@/features/learning-game/model/game-engine";
@@ -82,8 +82,8 @@ export function SmartPlanPreview({
       playableWords: readyWords,
       total: readyWords.length,
       playable: readyWords.length,
-      hard: readyWords.filter((word) => getWordGroup(word.score) === "hard").length,
-      review: readyWords.filter((word) => getWordGroup(word.score) === "review").length,
+      hard: readyWords.filter((word) => getVisibleWordGroup(word) === "hard").length,
+      review: readyWords.filter((word) => getVisibleWordGroup(word) === "review").length,
       learned: 0,
       progress: 0,
     });

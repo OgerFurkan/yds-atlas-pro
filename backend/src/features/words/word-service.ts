@@ -1,8 +1,9 @@
-﻿import {
+import {
   wordInputSchema,
   wordEntrySchema,
   type WordEntry,
   type WordInput,
+  type WordGroup,
 } from "@yds-atlas/shared";
 import type { RequestContext } from "../../shared/supabase";
 import { databaseError, HttpError } from "../../shared/errors";
@@ -10,6 +11,7 @@ type WordRow = {
   id: string;
   word: string;
   score: number;
+  manual_group?: WordGroup | null;
   content: Record<string, unknown>;
   created_at: string;
   updated_at: string;
@@ -25,6 +27,8 @@ export function mapWord(row: WordRow): WordEntry {
     id: row.id,
     word: row.word,
     score: row.score,
+    // Never trust content.manualGroup: only the constrained DB column is authoritative.
+    manualGroup: row.manual_group ?? null,
     createdAt: new Date(row.created_at).toISOString(),
     updatedAt: new Date(row.updated_at).toISOString(),
   });

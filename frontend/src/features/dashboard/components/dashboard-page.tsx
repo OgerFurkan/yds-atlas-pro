@@ -1,5 +1,5 @@
-﻿import type { WordEntry } from "@yds-atlas/shared";
-import { getWordGroup } from "@yds-atlas/shared";
+import type { WordEntry } from "@yds-atlas/shared";
+import { getVisibleWordGroup } from "@yds-atlas/shared";
 import {
   ArrowDownUp,
   ArrowRight,
@@ -89,9 +89,9 @@ export function DashboardPage({
 
   const counts = {
     all: words.length,
-    hard: words.filter((word) => getWordGroup(word.score) === "hard").length,
-    review: words.filter((word) => getWordGroup(word.score) === "review").length,
-    learned: words.filter((word) => getWordGroup(word.score) === "learned").length,
+    hard: words.filter((word) => getVisibleWordGroup(word) === "hard").length,
+    review: words.filter((word) => getVisibleWordGroup(word) === "review").length,
+    learned: words.filter((word) => getVisibleWordGroup(word) === "learned").length,
   };
 
   function changeGoal(step: number) {

@@ -1,5 +1,6 @@
 import {
   type WordEntry,
+  type WordGroup,
   type WordInput,
   wordEntrySchema,
   wordInputSchema,
@@ -9,6 +10,7 @@ import { storageKeys } from "@/shared/lib/storage-keys";
 import { enrichWordInput } from "../data/starter-vocabulary";
 import { normalizeWord, wordKey } from "../model/word-normalization";
 import type { WordRepository } from "./word-repository";
+import { applyManualGroupUpdates } from "../model/manual-group-updates";
 
 const storageKey = storageKeys.words;
 
@@ -32,6 +34,7 @@ function save(input: WordInput, id?: string) {
   const previous = entries.find((entry) => entry.id === id);
   const saved: WordEntry = {
     ...data,
+    manualGroup: previous?.manualGroup ?? null,
     id: id ?? crypto.randomUUID(),
     createdAt: previous?.createdAt ?? now,
     updatedAt: now,
@@ -46,6 +49,10 @@ function save(input: WordInput, id?: string) {
 export const localWordRepository = {
   list,
   save,
+  setGroups(updates: { id: string; group: WordGroup }[]) {
+    const next = applyManualGroupUpdates(list(), updates);
+    writeStorage(storageKey, next);
+  },
   applyScores(updates: { id: string; score: number }[]) {
     const scores = new Map(
       updates.map((update) => [update.id, Math.max(0, Math.min(100, Math.round(update.score)))]),

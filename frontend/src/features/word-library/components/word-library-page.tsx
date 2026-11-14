@@ -1,4 +1,4 @@
-import type { WordEntry, WordInput } from "@yds-atlas/shared";
+import type { WordEntry, WordGroup, WordInput } from "@yds-atlas/shared";
 import { CirclePlus, ListFilter } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -48,6 +48,8 @@ interface WordLibraryPageProps {
   ) => Promise<{ added: number; duplicates: number }>;
   onRemove: (id: string) => Promise<void>;
   onRemoveMany: (ids: string[]) => Promise<void>;
+  onSetGroups: (updates: { id: string; group: WordGroup }[]) => Promise<void>;
+  manualGroupsEnabled?: boolean;
   cloudPreflightUserId?: string | null;
   onStudyGroup: (group: DailyGroup) => void;
   onNotify: Notify;
@@ -65,6 +67,8 @@ export function WordLibraryPage({
   onAddMany,
   onRemove,
   onRemoveMany,
+  onSetGroups,
+  manualGroupsEnabled = false,
   cloudPreflightUserId,
   onStudyGroup,
   onNotify,
@@ -76,6 +80,8 @@ export function WordLibraryPage({
   const selection = useWordSelection();
   const [activeView, setActiveView] = useState<LibraryView>("words");
   const [libraryGuide, setLibraryGuide] = useState<number | null>(null);
+  const [draggedWordId, setDraggedWordId] = useState<string | null>(null);
+  const [manualGroupBusy, setManualGroupBusy] = useState(false);
   useEffect(() => {
     const onHelp = () => {
       if (activeView === "plan") window.dispatchEvent(new Event("atlas:daily-plan-help"));
@@ -292,6 +298,25 @@ export function WordLibraryPage({
     }
   }
 
+  async function changeManualGroup(ids: string[], group: WordGroup) {
+    if (!manualGroupsEnabled || manualGroupBusy || !ids.length) return;
+    const validIds = new Set(words.map((word) => word.id));
+    if (ids.some((id) => !validIds.has(id))) {
+      onNotify.error("Grup değişikliği iptal edildi: kelime kütüphanede bulunamadı.");
+      return;
+    }
+    setManualGroupBusy(true);
+    try {
+      await onSetGroups(ids.map((id) => ({ id, group })));
+      onNotify.success(`${ids.length} kelimenin manuel grubu güncellendi; oyun puanı değişmedi.`);
+      setDraggedWordId(null);
+    } catch (error) {
+      onNotify.error(error instanceof Error ? error.message : "Manuel grup değiştirilemedi.");
+    } finally {
+      setManualGroupBusy(false);
+    }
+  }
+
   async function deleteAll() {
     if (!words.length || !window.confirm(t("library.confirmDeleteAll"))) return;
     try {
@@ -365,6 +390,29 @@ export function WordLibraryPage({
             aria-label={t("library.aria")}
           >
             <LibraryFilterTabs group={view.group} counts={view.counts} onChange={view.setGroup} />
+            {manualGroupsEnabled && (
+              <div className="flex flex-wrap items-center gap-2 border-b border-border bg-muted/40 px-4 py-3" aria-label="Manuel kelime grubu hedefleri">
+                <span className="w-full text-xs text-muted-foreground">Kelimeyi sürükle veya karttaki grup seçimini kullan. Öğrenme puanı değişmez.</span>
+                {(["hard", "review", "learned"] as const).map((group) => (
+                  <div
+                    key={group}
+                    role="group"
+                    aria-label={t(`wordStatus.${group}`)}
+                    onDragOver={(event) => {
+                      if (draggedWordId && !manualGroupBusy) event.preventDefault();
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedWordId) void changeManualGroup([draggedWordId], group);
+                    }}
+                    className={`rounded-lg border px-3 py-2 text-xs font-semibold text-foreground ${draggedWordId ? "border-atlas-blue bg-background" : "border-border bg-background"}`}
+                    data-testid={`manual-group-drop-${group}`}
+                  >
+                    {t(`wordStatus.${group}`)}
+                  </div>
+                ))}
+              </div>
+            )}
             <LibraryToolbar
               search={view.search}
               onSearchChange={view.setSearch}
@@ -391,6 +439,11 @@ export function WordLibraryPage({
                 }
                 onEdit={editWord}
                 onDelete={(word) => void deleteWord(word)}
+                manualGroupsEnabled={manualGroupsEnabled}
+                manualGroupsBusy={manualGroupBusy}
+                onSetManualGroup={(id, group) => void changeManualGroup([id], group)}
+                onWordDragStart={setDraggedWordId}
+                onWordDragEnd={() => setDraggedWordId(null)}
               />
             ) : words.length ? (
               <LibraryNoResults onReset={view.resetFilters} />

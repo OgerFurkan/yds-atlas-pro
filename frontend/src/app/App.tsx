@@ -252,6 +252,8 @@ function AppWorkspace({
               onAddMany={addWords}
               onRemove={library.remove}
               onRemoveMany={library.removeMany}
+              onSetGroups={library.setGroups}
+              manualGroupsEnabled={import.meta.env.VITE_MANUAL_WORD_GROUPS_ENABLED === "true"}
               cloudPreflightUserId={auth.user?.id ?? null}
               onStudyGroup={studyDailyGroup}
               onNotify={notify}

@@ -1,4 +1,4 @@
-import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
+import { getVisibleWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { isGameReady } from "@/features/learning-game/model/game-engine";
 import { dueReviews, type ReviewSchedule } from "@/features/review/model/spaced-repetition";
 import type { DayAssignment } from "./daily-groups";
@@ -103,7 +103,7 @@ export function buildSmartDailyPlan(input: SmartPlanInput): SmartDailyPlan {
   const difficult = [...byId.values()]
     .filter((word) =>
       !excluded.has(word.id) && !scheduled.has(word.id) &&
-      getWordGroup(word.score) !== "learned" &&
+      getVisibleWordGroup(word) !== "learned" &&
       // Unseen words in the active group belong to the new-word stage.
       !(word.score === 0 && dayByWordId.get(word.id) === activeDay) &&
       // Only previously or currently assigned words can be catch-up work.
@@ -119,7 +119,8 @@ export function buildSmartDailyPlan(input: SmartPlanInput): SmartDailyPlan {
   const needsEnrichment: string[] = [];
   for (const id of activeDayIds) {
     const word = byId.get(id);
-    if (!word || excluded.has(id) || scheduled.has(id) || word.score !== 0) continue;
+    if (!word || excluded.has(id) || scheduled.has(id) || word.score !== 0 ||
+        getVisibleWordGroup(word) === "learned") continue;
     if (isGameReady(word)) newWords.push(id);
     else needsEnrichment.push(id);
   }

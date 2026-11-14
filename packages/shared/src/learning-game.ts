@@ -1,4 +1,4 @@
-﻿import { wordInputSchema } from "./word-schema";
+﻿import { wordGroupSchema, wordInputSchema } from "./word-schema";
 import { z } from "zod";
 
 export const phases = [
@@ -23,6 +23,7 @@ export const phaseLabels: Record<GamePhase, string> = {
   complete: "Tamamlandı",
 };
 export const sessionWordSchema = wordInputSchema.extend({
+  manualGroup: wordGroupSchema.nullable().optional(),
   id: z.string(),
   createdAt: z.string(),
   updatedAt: z.string(),

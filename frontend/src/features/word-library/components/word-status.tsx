@@ -8,9 +8,9 @@ const tones: Record<WordGroup, string> = {
   learned: "bg-emerald-50 text-emerald-800",
 };
 
-export function WordStatus({ score }: { score: number }) {
+export function WordStatus({ score, manualGroup }: { score: number; manualGroup?: WordGroup | null }) {
   const { t } = useTranslation();
-  const group = getWordGroup(score);
+  const group = manualGroup ?? getWordGroup(score);
   return (
     <span
       className={`inline-flex min-h-7 w-fit items-center gap-1.5 whitespace-nowrap rounded-md px-2 text-xs font-semibold ${tones[group]}`}

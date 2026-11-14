@@ -1,6 +1,6 @@
-﻿import type { WordEntry } from "@yds-atlas/shared";
+﻿import { getVisibleWordGroup, type WordEntry, type WordGroup } from "@yds-atlas/shared";
 import { Pencil, Trash2 } from "lucide-react";
-import { useState } from "react";
+import { useState, type DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { WordDetails } from "@/features/word-library/components/word-details";
 import { WordStatus } from "@/features/word-library/components/word-status";
@@ -12,6 +12,11 @@ import { formatWordType } from "../model/word-normalization";
 export interface WordListActions {
   onEdit: (word: WordEntry) => void;
   onDelete: (word: WordEntry) => void;
+  onSetManualGroup?: (id: string, group: WordGroup) => void;
+  onWordDragStart?: (id: string) => void;
+  onWordDragEnd?: () => void;
+  manualGroupsEnabled?: boolean;
+  manualGroupsBusy?: boolean;
 }
 
 interface WordListProps extends WordListActions {
@@ -19,6 +24,45 @@ interface WordListProps extends WordListActions {
   selectedIds: string[];
   onToggle: (id: string) => void;
   onToggleAll: () => void;
+}
+
+function ManualGroupChooser({
+  word,
+  enabled,
+  busy,
+  onChange,
+}: {
+  word: WordEntry;
+  enabled?: boolean;
+  busy?: boolean;
+  onChange?: (id: string, group: WordGroup) => void;
+}) {
+  const { t } = useTranslation();
+  if (!enabled || !onChange) return null;
+  return (
+    <select
+      aria-label={`${word.word}: ${t("library.statusColumn")}`}
+      title="Manuel kelime grubunu değiştir (oyun puanı etkilenmez)"
+      className="mt-1 block max-w-[180px] rounded border border-border bg-background px-2 py-1 text-xs text-foreground"
+      value={word.manualGroup ?? ""}
+      disabled={busy}
+      onChange={(event) => {
+        if (event.target.value) onChange(word.id, event.target.value as WordGroup);
+      }}
+      onClick={(event) => event.stopPropagation()}
+    >
+      <option value="" disabled>{t("library.scoreColumn")}: {t(`wordStatus.${getVisibleWordGroup(word)}`)}</option>
+      {(["hard", "review", "learned"] as const).map((group) => (
+        <option key={group} value={group}>{t(`wordStatus.${group}`)}</option>
+      ))}
+    </select>
+  );
+}
+
+function beginWordDrag(event: DragEvent<HTMLElement>, word: WordEntry, onStart?: (id: string) => void) {
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", word.id);
+  onStart?.(word.id);
 }
 
 function WordActions({ word, onEdit, onDelete }: WordListActions & { word: WordEntry }) {
@@ -56,6 +100,11 @@ function WordTableRow({
   onToggle,
   onEdit,
   onDelete,
+  onSetManualGroup,
+  onWordDragStart,
+  onWordDragEnd,
+  manualGroupsEnabled,
+  manualGroupsBusy,
 }: WordListActions & {
   word: WordEntry;
   selected: boolean;
@@ -64,6 +113,9 @@ function WordTableRow({
   const { t } = useTranslation();
   return (
     <tr
+      draggable={!!manualGroupsEnabled && !manualGroupsBusy}
+      onDragStart={(event) => beginWordDrag(event, word, onWordDragStart)}
+      onDragEnd={onWordDragEnd}
       className={`word-table-row border-t border-slate-100 transition-[border-color] hover:bg-atlas-blue/50 ${selected ? "is-selected" : ""}`}
       data-selected={selected}
     >
@@ -107,7 +159,8 @@ function WordTableRow({
         </span>
       </td>
       <td className="px-2.5 py-3">
-        <WordStatus score={word.score} />
+        <WordStatus score={word.score} manualGroup={word.manualGroup} />
+        <ManualGroupChooser word={word} enabled={manualGroupsEnabled} busy={manualGroupsBusy} onChange={onSetManualGroup} />
       </td>
       <td className="px-2.5 py-3">
         <span className="whitespace-nowrap text-sm font-bold text-slate-700">
@@ -128,6 +181,11 @@ function WordCard({
   onToggle,
   onEdit,
   onDelete,
+  onSetManualGroup,
+  onWordDragStart,
+  onWordDragEnd,
+  manualGroupsEnabled,
+  manualGroupsBusy,
 }: WordListActions & {
   word: WordEntry;
   selected: boolean;
@@ -136,6 +194,9 @@ function WordCard({
   const { t } = useTranslation();
   return (
     <article
+      draggable={!!manualGroupsEnabled && !manualGroupsBusy}
+      onDragStart={(event) => beginWordDrag(event, word, onWordDragStart)}
+      onDragEnd={onWordDragEnd}
       className={`library-word-card min-w-0 rounded-lg border p-4 shadow-sm transition-[border-color,box-shadow] ${selected ? "is-selected border-atlas-orange" : "border-slate-200 bg-white hover:border-atlas-orange/70"}`}
       data-selected={selected}
     >
@@ -161,7 +222,10 @@ function WordCard({
       </p>
       {word.usageNote && <p className="ml-6 mt-1 text-sm text-slate-400">{word.usageNote}</p>}
       <div className="ml-6 mt-2 flex items-center gap-3">
-        <WordStatus score={word.score} />
+        <div>
+          <WordStatus score={word.score} manualGroup={word.manualGroup} />
+          <ManualGroupChooser word={word} enabled={manualGroupsEnabled} busy={manualGroupsBusy} onChange={onSetManualGroup} />
+        </div>
         <span className="ml-auto text-sm font-bold text-slate-700">
           {word.score}
           <small className="text-sm font-medium text-slate-400">/100</small>
@@ -179,6 +243,11 @@ export function WordList({
   onToggleAll,
   onEdit,
   onDelete,
+  onSetManualGroup,
+  onWordDragStart,
+  onWordDragEnd,
+  manualGroupsEnabled,
+  manualGroupsBusy,
 }: WordListProps) {
   const { t } = useTranslation();
   const [view, setView] = useState("list");
@@ -229,6 +298,11 @@ export function WordList({
                 onToggle={() => onToggle(word.id)}
                 onEdit={onEdit}
                 onDelete={onDelete}
+                onSetManualGroup={onSetManualGroup}
+                onWordDragStart={onWordDragStart}
+                onWordDragEnd={onWordDragEnd}
+                manualGroupsEnabled={manualGroupsEnabled}
+                manualGroupsBusy={manualGroupsBusy}
               />
             ))}
           </tbody>
@@ -249,6 +323,11 @@ export function WordList({
             onToggle={() => onToggle(word.id)}
             onEdit={onEdit}
             onDelete={onDelete}
+            onSetManualGroup={onSetManualGroup}
+            onWordDragStart={onWordDragStart}
+            onWordDragEnd={onWordDragEnd}
+            manualGroupsEnabled={manualGroupsEnabled}
+            manualGroupsBusy={manualGroupsBusy}
           />
         ))}
       </div>

@@ -1,4 +1,4 @@
-import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
+import { getVisibleWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { isGameReady } from "@/features/learning-game/model/game-engine";
 
 export const DAILY_PLAN_DAYS = 60;
@@ -95,7 +95,7 @@ export function buildDailyPlan(
     let review = 0;
     let learned = 0;
     for (const word of dayWords) {
-      const group = getWordGroup(word.score);
+      const group = getVisibleWordGroup(word);
       if (group === "hard") hard += 1;
       else if (group === "review") review += 1;
       else learned += 1;

@@ -5,6 +5,7 @@ import {
   aiWordRequestSchema,
   dailyPlanSaveSchema,
   gameSessionSchema,
+  wordGroupSchema,
   wordInputSchema,
 } from "@yds-atlas/shared";
 import { z } from "zod";
@@ -116,6 +117,21 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           .parse(await readJson(request));
         const update = await ctx.db.rpc("apply_word_scores", { p_scores: scores });
         databaseError(update.error);
+        result = { updated: true };
+      } else if (path === "/api/words/groups" && request.method === "PUT") {
+        // A manual library label is NOT a learning score or completed game.
+        const groups = z.array(z.object({ id: uuid, group: wordGroupSchema }).strict())
+          .min(1).max(500)
+          .refine((items) => new Set(items.map((item) => item.id)).size === items.length)
+          .parse(await readJson(request));
+        const response = await ctx.db.rpc("set_word_groups_v7", {
+          p_groups: groups.map(({ id, group }) => ({ id, group_name: group })),
+        });
+        if (response.error?.code === "42501")
+          throw new HttpError(403, "Bu kelimeleri değiştirme iznin yok.", "FORBIDDEN");
+        databaseError(response.error);
+        if (!Number.isSafeInteger(response.data) || response.data !== groups.length)
+          throw new HttpError(503, "Kelime grupları doğrulanamadı.", "WORD_GROUP_RESULT_INVALID");
         result = { updated: true };
       } else if (/^\/api\/words\/[^/]+$/.test(path)) {
         const id = uuid.parse(path.split("/").at(-1));

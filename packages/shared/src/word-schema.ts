@@ -35,6 +35,8 @@ export const wordEntrySchema = wordInputSchema.extend({
   id: z.string().min(1),
   createdAt: z.string().datetime(),
   updatedAt: z.string().datetime(),
+  // Manual organization only; never interpreted as a verified game result.
+  manualGroup: wordGroupSchema.nullable().optional(),
 });
 export type WordEntry = z.infer<typeof wordEntrySchema>;
 export type WordInput = z.input<typeof wordInputSchema>;
@@ -48,4 +50,11 @@ export function getWordGroup(score: number): WordGroup {
   if (score < 40) return "hard";
   if (score < 80) return "review";
   return "learned";
+}
+
+/** Manual library organization is distinct from the legacy score.
+ * NULL/absent retains the old score-derived grouping for existing words.
+ */
+export function getVisibleWordGroup(word: Pick<WordEntry, "score" | "manualGroup">): WordGroup {
+  return word.manualGroup ?? getWordGroup(word.score);
 }

@@ -1,4 +1,4 @@
-import type { WordEntry } from "@yds-atlas/shared";
+import { getVisibleWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { getStarterWord, starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { escapeRegExp } from "@/shared/lib/regexp";
@@ -28,7 +28,8 @@ export function usableExamples(word: WordEntry) {
 }
 
 export function isGameReady(word: WordEntry) {
-  return word.score < 80 && word.meanings.length > 0 && usableExamples(word).length >= 5;
+  return getVisibleWordGroup(word) !== "learned" &&
+    word.meanings.length > 0 && usableExamples(word).length >= 5;
 }
 
 export function isFinal(session: GameSession) {

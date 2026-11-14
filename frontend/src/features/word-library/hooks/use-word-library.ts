@@ -1,4 +1,4 @@
-﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
+﻿import type { WordEntry, WordGroup, WordInput } from "@yds-atlas/shared";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { localWordRepository } from "../api/local-word-repository";
 import type { WordRepository } from "../api/word-repository";
@@ -61,6 +61,10 @@ export function useWordLibrary(repository: WordRepository = localWordRepository)
     await repository.applyScores(updates);
     await sync();
   }
+  async function setGroups(updates: { id: string; group: WordGroup }[]) {
+    await repository.setGroups(updates);
+    await sync();
+  }
   return {
     words,
     loading,
@@ -70,6 +74,7 @@ export function useWordLibrary(repository: WordRepository = localWordRepository)
     save,
     addMany,
     applyScores,
+    setGroups,
     remove: (id: string) => removeMany([id]),
     removeMany,
   };

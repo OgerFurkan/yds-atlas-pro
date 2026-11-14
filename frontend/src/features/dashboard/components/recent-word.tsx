@@ -15,7 +15,7 @@ export function RecentWord({ word }: { word: WordEntry }) {
           {word.meanings[0] || t("recentWord.pending")}
         </span>
       </div>
-      <WordStatus score={word.score} />
+      <WordStatus score={word.score} manualGroup={word.manualGroup} />
     </div>
   );
 }

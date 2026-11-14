@@ -1,4 +1,4 @@
-import { type CefrLevel, getWordGroup, type WordEntry, type WordGroup } from "@yds-atlas/shared";
+import { type CefrLevel, getVisibleWordGroup, type WordEntry, type WordGroup } from "@yds-atlas/shared";
 
 export type GroupFilter = WordGroup | "all";
 export type SortMode = "recent" | "alphabetical" | "score";
@@ -14,7 +14,7 @@ export type WordCounts = Record<GroupFilter, number>;
 
 export function wordCounts(words: WordEntry[]): WordCounts {
   const counts: WordCounts = { all: words.length, hard: 0, review: 0, learned: 0 };
-  for (const word of words) counts[getWordGroup(word.score)] += 1;
+  for (const word of words) counts[getVisibleWordGroup(word)] += 1;
   return counts;
 }
 
@@ -26,7 +26,7 @@ export function filterWords(words: WordEntry[], filters: WordFilters) {
   const query = filters.search.trim().toLocaleLowerCase("en");
   return words
     .filter((word) => {
-      const matchesGroup = filters.group === "all" || getWordGroup(word.score) === filters.group;
+      const matchesGroup = filters.group === "all" || getVisibleWordGroup(word) === filters.group;
       const matchesLevel = filters.level === "all" || word.cefr === filters.level;
       return matchesGroup && matchesLevel && searchableText(word).includes(query);
     })

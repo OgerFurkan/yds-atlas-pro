@@ -96,7 +96,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
     const result = await db.query<{ relrowsecurity: boolean }>(
       "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r'",
     );
-    expect(result.rows).toHaveLength(7);
+    expect(result.rows).toHaveLength(9);
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
     const functions = await db.query(
       "select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and prosecdef",

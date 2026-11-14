@@ -56,3 +56,13 @@ export function dailyPlanWriterClient(config: ServerConfig): SupabaseClient {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
+
+/** Service-only, opt-in completion writer. Never passes along the request JWT. */
+export function reviewWriterClient(config: ServerConfig): SupabaseClient {
+  if (!config.SUPABASE_URL || !config.SUPABASE_SECRET_KEY)
+    throw new HttpError(503, "Tekrar takvimi yazma servisi yapÄ±landÄ±rÄ±lmadÄ±.", "REVIEW_WRITER_NOT_CONFIGURED");
+  return createClient(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY, {
+    global: { fetch: timedFetch },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}

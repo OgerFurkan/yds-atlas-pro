@@ -19,17 +19,19 @@ import {
 } from "./features/ai/gemini";
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
+import { completeSessionWithReviewWriter } from "./features/learning/review-completion-service";
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
-import { authenticate, dailyPlanWriterClient, quotaClient, type RequestContext } from "./shared/supabase";
+import { authenticate, dailyPlanWriterClient, quotaClient, reviewWriterClient, type RequestContext } from "./shared/supabase";
 
 type Dependencies = {
   authenticate?: (request: Request) => Promise<RequestContext>;
   // Testing seam: production instantiates a private server-only writer.
   dailyPlanWriter?: () => RequestContext["db"];
+  reviewWriter?: () => RequestContext["db"];
   generate?: typeof generateWord;
   generateList?: typeof generateWordList;
   generateNamed?: typeof generateNamedWords;
@@ -151,7 +153,12 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         /^\/api\/learning\/sessions\/[^/]+\/complete$/.test(path) &&
         request.method === "POST"
       )
-        result = await completeSession(ctx, uuid.parse(path.split("/")[4]));
+        result = config.REVIEW_WRITE_V3_ENABLED
+          ? await completeSessionWithReviewWriter(
+              ctx, uuid.parse(path.split("/")[4]),
+              () => dependencies.reviewWriter?.() ?? reviewWriterClient(config),
+            )
+          : await completeSession(ctx, uuid.parse(path.split("/")[4]));
       else if (
         (path === "/api/ai/words/enrich" ||
           path === "/api/ai/words/suggest" ||

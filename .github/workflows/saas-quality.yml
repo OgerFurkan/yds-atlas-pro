@@ -22,6 +22,6 @@ jobs:
       - name: Repository audit
         run: node scripts/quality/repository-audit.mjs
       - name: Install browser
-        run: bunx playwright install --with-deps chromium
+        run: bun run --cwd=frontend playwright install --with-deps chromium
       - name: Browser tests
         run: bun run --cwd=frontend test:e2e

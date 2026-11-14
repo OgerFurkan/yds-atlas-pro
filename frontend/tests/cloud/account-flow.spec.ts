@@ -284,13 +284,13 @@ test("chat menu cancels pending requests and restores the previous conversation"
     await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
     await chat.getByRole("button", { name: "Yeni sohbet" }).click();
     await expect(
-      chat.getByRole("heading", { name: "Merhaba, nasıl yardımcı olabilirim?" }),
+      chat.getByRole("heading", { name: "Merhaba Ben Atlas, sana nasıl yardımcı olabilirim?" }),
     ).toBeVisible();
     releaseResponse();
     await expect(chat.getByText("Late reply")).toHaveCount(0);
     await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
     await chat.getByRole("button", { name: "Sohbet geçmişi" }).click();
-    await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+    await chat.getByRole("button", { name: "Indicate ne demek?", exact: true }).click();
     await expect(chat.getByText("Indicate ne demek?", { exact: true })).toBeVisible();
   } finally {
     releaseResponse();
@@ -497,4 +497,116 @@ test("cloud assessment resumes, persists before completion, and restores measure
   await expect(page.getByRole("button", { name: "Expand kelime ayrıntıları" })).toBeVisible();
   const completed = cloud.requests.filter((request) => request.path.endsWith("/complete"));
   expect(completed).toHaveLength(1);
+});
+// Phase 3B v1.2: signed-in browser contract tests. All Supabase/API calls
+// below are Playwright mocks. No live project or real user data is accessed.
+async function captureScopedDailyPlan(page: Page, userId: string) {
+  return page.evaluate((id) => {
+    const names = [
+      "yds-atlas-daily-word-groups-v1",
+      "yds-atlas-daily-word-exclusions-v1",
+      "yds-atlas-daily-plan-size-v1",
+      "yds-atlas-daily-plan-initialized-v1",
+    ];
+    return names.map((name) => localStorage.getItem(`${name}:${id}`));
+  }, userId);
+}
+
+async function openAuthenticatedSyncPreview(page: Page) {
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: /Günlük Plan/ }).click();
+  await page.getByRole("button", { name: "Senkronizasyon önizlemesi" }).click();
+  const dialog = page.getByRole("dialog", { name: "Bulut planı karşılaştırması" });
+  await expect(dialog).toBeVisible();
+  return dialog;
+}
+
+test("Phase 3B: authenticated comparison sends one GET and never saves either plan", async ({ page }) => {
+  const mock = await mockCloud(page);
+  const wordId = mock.libraries[alice][0].id;
+  const methods: string[] = [];
+  await page.route("**/api/account/daily-plan", async (route) => {
+    const request = route.request();
+    methods.push(request.method());
+    expect(request.method()).toBe("GET");
+    expect(request.headers().authorization).toMatch(/^Bearer /);
+    await route.fulfill({ json: {
+      revision: 4,
+      snapshot: { groupSize: 10, assignments: [{ day: 2, words: [wordId] }], excludedWordIds: [] },
+    } });
+  });
+  await page.goto("/");
+  await login(page);
+  await page.evaluate(({ id, word }) => {
+    localStorage.setItem(`yds-atlas-daily-word-groups-v1:${id}`,
+      JSON.stringify([{ day: 1, words: [word] }]));
+    localStorage.setItem(`yds-atlas-daily-word-exclusions-v1:${id}`, "[]");
+    localStorage.setItem(`yds-atlas-daily-plan-size-v1:${id}`, "20");
+    localStorage.setItem(`yds-atlas-daily-plan-initialized-v1:${id}`, "true");
+  }, { id: alice, word: wordId });
+
+  const dialog = await openAuthenticatedSyncPreview(page);
+  const localBefore = await captureScopedDailyPlan(page, alice);
+  expect(methods).toEqual([]); // Opening the modal must not start an API call.
+  await dialog.getByRole("button", { name: "Planları karşılaştır" }).click();
+  await expect(dialog.getByRole("heading", { name: "Planlar arasında farklar var" })).toBeVisible();
+  await expect(dialog.getByText("Farklı günlere atanan kelimeler (1)")).toBeVisible();
+  await expect(dialog.getByText("Bulut revizyonu")).toBeVisible();
+  await dialog.getByRole("radio", { name: "Buluttaki planı korumak isterim" }).check();
+  await expect(dialog.getByText("Bu seçim yalnızca bu penceredeki taslaktır.", { exact: false })).toBeVisible();
+  expect(methods).toEqual(["GET"]);
+  expect(await captureScopedDailyPlan(page, alice)).toEqual(localBefore);
+
+  await dialog.getByRole("button", { name: "Kapat" }).click();
+  await page.getByRole("button", { name: "Senkronizasyon önizlemesi" }).click();
+  const reopened = page.getByRole("dialog", { name: "Bulut planı karşılaştırması" });
+  await expect(reopened.getByRole("button", { name: "Planları karşılaştır" })).toBeVisible();
+  await expect(reopened.getByRole("radio", { name: "Buluttaki planı korumak isterim" })).toHaveCount(0);
+  expect(methods).toEqual(["GET"]);
+});
+
+test("Phase 3B: revision conflict is shown as an error and retry remains GET-only", async ({ page }) => {
+  await mockCloud(page);
+  const methods: string[] = [];
+  await page.route("**/api/account/daily-plan", async (route) => {
+    methods.push(route.request().method());
+    await route.fulfill({ status: 409, json: {
+      code: "DAILY_PLAN_CONFLICT",
+      error: "Günlük plan başka bir cihazda güncellendi.",
+    } });
+  });
+  await page.goto("/");
+  await login(page);
+  const dialog = await openAuthenticatedSyncPreview(page);
+  expect(methods).toHaveLength(0);
+  const before = await captureScopedDailyPlan(page, alice);
+  await dialog.getByRole("button", { name: "Planları karşılaştır" }).click();
+  await expect(dialog.getByRole("alert").getByText("Günlük plan başka bir cihazda güncellendi.")).toBeVisible();
+  await dialog.getByRole("button", { name: "Yeniden karşılaştır" }).click();
+  await expect.poll(() => methods.length).toBe(2);
+  expect(methods).toEqual(["GET", "GET"]);
+  expect(await captureScopedDailyPlan(page, alice)).toEqual(before);
+});
+
+test("Phase 3B: unknown cloud word blocks choice without modifying local data", async ({ page }) => {
+  await mockCloud(page);
+  const foreign = "99999999-9999-4999-8999-999999999999";
+  const methods: string[] = [];
+  await page.route("**/api/account/daily-plan", async (route) => {
+    methods.push(route.request().method());
+    await route.fulfill({ json: {
+      revision: 1,
+      snapshot: { groupSize: 20, assignments: [{ day: 1, words: [foreign] }], excludedWordIds: [] },
+    } });
+  });
+  await page.goto("/");
+  await login(page);
+  const dialog = await openAuthenticatedSyncPreview(page);
+  const before = await captureScopedDailyPlan(page, alice);
+  await dialog.getByRole("button", { name: "Planları karşılaştır" }).click();
+  await expect(dialog.getByRole("heading", { name: "Karşılaştırma engellendi" })).toBeVisible();
+  await expect(dialog.getByText("Bulut planında kütüphanede bulunmayan 1 kelime kimliği var.")).toBeVisible();
+  await expect(dialog.getByRole("radio")).toHaveCount(0);
+  expect(methods).toEqual(["GET"]);
+  expect(await captureScopedDailyPlan(page, alice)).toEqual(before);
 });

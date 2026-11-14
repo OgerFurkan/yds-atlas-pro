@@ -24,6 +24,8 @@ export async function readDailyPlan(ctx: RequestContext): Promise<DailyPlanCloud
 export async function saveDailyPlan(
   ctx: RequestContext,
   input: DailyPlanSaveInput,
+  // Mandatory: never fall back to JWT-scoped direct table writes.
+  writer: RequestContext["db"],
 ): Promise<DailyPlanCloudState> {
   const ids = [...new Set([
     ...input.snapshot.assignments.flatMap((group) => group.words),
@@ -47,19 +49,21 @@ export async function saveDailyPlan(
     updated_at: new Date().toISOString(),
   };
   if (input.expectedRevision === 0) {
-    const result = await ctx.db.from("daily_plan_states")
+    const result = await writer.from("daily_plan_states")
       .insert({ ...values, user_id: ctx.userId }).select(FIELDS).single();
     if (result.error?.code === "23505") throw conflict();
     databaseError(result.error);
     return { revision: result.data!.revision as number, snapshot: result.data!.payload as DailyPlanCloudState["snapshot"] };
   }
 
-  const result = await ctx.db.from("daily_plan_states")
+  const result = await writer.from("daily_plan_states")
     .update(values)
     .eq("user_id", ctx.userId)
     .eq("revision", input.expectedRevision)
     .select(FIELDS)
     .maybeSingle();
+  if (result.error?.code === "23503")
+    throw new HttpError(409, "Plana ait kelimeler güncel değil. Kütüphaneyi yenile.", "DAILY_PLAN_STALE_WORDS");
   databaseError(result.error);
   if (!result.data) throw conflict();
   return { revision: result.data.revision as number, snapshot: result.data.payload as DailyPlanCloudState["snapshot"] };

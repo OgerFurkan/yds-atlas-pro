@@ -23,10 +23,12 @@ import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-ser
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
-import { authenticate, quotaClient, type RequestContext } from "./shared/supabase";
+import { authenticate, dailyPlanWriterClient, quotaClient, type RequestContext } from "./shared/supabase";
 
 type Dependencies = {
   authenticate?: (request: Request) => Promise<RequestContext>;
+  // Testing seam: production instantiates a private server-only writer.
+  dailyPlanWriter?: () => RequestContext["db"];
   generate?: typeof generateWord;
   generateList?: typeof generateWordList;
   generateNamed?: typeof generateNamedWords;
@@ -118,8 +120,11 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         result = await accountState(ctx);
       else if (path === "/api/account/daily-plan" && request.method === "GET")
         result = await readDailyPlan(ctx);
-      else if (path === "/api/account/daily-plan" && request.method === "PUT")
-        result = await saveDailyPlan(ctx, dailyPlanSaveSchema.parse(await readJson(request, 128_000)));
+      else if (path === "/api/account/daily-plan" && request.method === "PUT") {
+        const input = dailyPlanSaveSchema.parse(await readJson(request, 128_000));
+        const writer = dependencies.dailyPlanWriter?.() ?? dailyPlanWriterClient(config);
+        result = await saveDailyPlan(ctx, input, writer);
+      }
       else if (path === "/api/account/goal" && request.method === "PUT") {
         const { goal } = z
           .object({ goal: z.number().int().min(10).max(100).multipleOf(10) })

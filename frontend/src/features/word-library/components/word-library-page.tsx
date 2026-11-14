@@ -48,6 +48,7 @@ interface WordLibraryPageProps {
   ) => Promise<{ added: number; duplicates: number }>;
   onRemove: (id: string) => Promise<void>;
   onRemoveMany: (ids: string[]) => Promise<void>;
+  cloudPreflightUserId?: string | null;
   onStudyGroup: (group: DailyGroup) => void;
   onNotify: Notify;
   onInitialCreateHandled?: () => void;
@@ -64,6 +65,7 @@ export function WordLibraryPage({
   onAddMany,
   onRemove,
   onRemoveMany,
+  cloudPreflightUserId,
   onStudyGroup,
   onNotify,
   onInitialCreateHandled,
@@ -338,6 +340,7 @@ export function WordLibraryPage({
           plan={daily.plan}
           groupSize={daily.groupSize}
           words={words}
+          cloudPreflightUserId={cloudPreflightUserId}
           error={daily.error}
           onGroupSizeChange={daily.setGroupSize}
           onStudyGroup={onStudyGroup}

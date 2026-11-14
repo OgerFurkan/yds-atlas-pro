@@ -11,4 +11,5 @@ export const storageKeys = {
   dailyPlanInitialized: "yds-atlas-daily-plan-initialized-v1",
   dailyWordExclusions: "yds-atlas-daily-word-exclusions-v1",
   dailyPlanGroupSize: "yds-atlas-daily-plan-size-v1",
+  guestReviewSchedules: "yds-atlas-review-schedules-v1",
 } as const;

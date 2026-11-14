@@ -32,6 +32,7 @@ const schema = z
     SUPABASE_PUBLISHABLE_KEY: optional,
     SUPABASE_SECRET_KEY: optional,
     REVIEW_WRITE_V3_ENABLED: z.enum(["true","false"]).default("false").transform((value) => value === "true"),
+    SESSION_SAVE_V5_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     GEMINI_API_KEY: optional,
     GEMINI_API_KEYS: optional,
     GEMINI_MODEL_WORD: modelName.default("gemini-3.5-flash-lite"),

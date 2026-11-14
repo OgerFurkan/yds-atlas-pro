@@ -66,3 +66,13 @@ export function reviewWriterClient(config: ServerConfig): SupabaseClient {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
+
+/** Server-only session snapshot writer; never forwards a user JWT. */
+export function sessionSaveWriterClient(config: ServerConfig): SupabaseClient {
+  if (!config.SUPABASE_URL || !config.SUPABASE_SECRET_KEY)
+    throw new HttpError(503, "Oturum kaydetme servisi yapılandırılmadı.", "SESSION_SAVE_WRITER_NOT_CONFIGURED");
+  return createClient(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY, {
+    global: { fetch: timedFetch },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}

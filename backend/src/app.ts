@@ -20,18 +20,20 @@ import {
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { completeSessionWithReviewWriter } from "./features/learning/review-completion-service";
+import { saveSessionWithPrivilegedWriter } from "./features/learning/session-save-writer-service";
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
-import { authenticate, dailyPlanWriterClient, quotaClient, reviewWriterClient, type RequestContext } from "./shared/supabase";
+import { authenticate, dailyPlanWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
 
 type Dependencies = {
   authenticate?: (request: Request) => Promise<RequestContext>;
   // Testing seam: production instantiates a private server-only writer.
   dailyPlanWriter?: () => RequestContext["db"];
   reviewWriter?: () => RequestContext["db"];
+  sessionSaveWriter?: () => RequestContext["db"];
   generate?: typeof generateWord;
   generateList?: typeof generateWordList;
   generateNamed?: typeof generateNamedWords;
@@ -148,7 +150,12 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         )
           throw new HttpError(400, "Görev bilgileri geçersiz.", "INVALID_SESSION");
         snapshot.words.forEach((word) => uuid.parse(word.id));
-        result = await saveSession(ctx, snapshot, revision);
+        result = config.SESSION_SAVE_V5_ENABLED
+          ? await saveSessionWithPrivilegedWriter(
+              ctx, snapshot, revision,
+              () => dependencies.sessionSaveWriter?.() ?? sessionSaveWriterClient(config),
+            )
+          : await saveSession(ctx, snapshot, revision);
       } else if (
         /^\/api\/learning\/sessions\/[^/]+\/complete$/.test(path) &&
         request.method === "POST"

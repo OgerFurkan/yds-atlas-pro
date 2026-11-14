@@ -1,7 +1,10 @@
 import { getVisibleWordGroup, type WordEntry } from "@yds-atlas/shared";
-import { CalendarClock, CircleAlert, Clock3, Play, Sparkles } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CalendarClock, CircleAlert, Clock3, Play, RefreshCw, Sparkles } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isGameReady } from "@/features/learning-game/model/game-engine";
+import { loadCloudReviewSchedules } from "@/features/review/api/cloud-review-schedules-api";
+import { listGuestReviewSchedules } from "@/features/review/api/guest-review-schedule-repository";
+import type { ReviewSchedule } from "@/features/review/model/spaced-repetition";
 import { Button } from "@/shared/ui/button";
 import type { DailyGroup, DailyPlan } from "../model/daily-groups";
 import { buildSmartDailyPlan, type SmartPlanTask } from "../model/smart-daily-plan";
@@ -16,18 +19,20 @@ const TASK_TITLES = {
 interface SmartPlanPreviewProps {
   plan: DailyPlan;
   words: readonly WordEntry[];
+  userId?: string | null;
   onStudyGroup: (group: DailyGroup) => void;
   disabled?: boolean;
 }
 
 /**
- * Phase 4A: explicit preview and manual launch. There is no schedule repository
- * yet, so DO NOT pretend that an empty schedule list means zero due reviews.
- * Only difficult/new tasks can be planned with the currently available data.
+ * Read-only preview. Schedules are fetched only after the user clicks Plan olustur.
+ * Authenticated accounts use the JWT-protected cloud endpoint. Guests use only
+ * their scoped, validated local review ledger. Neither branch writes schedules.
  */
 export function SmartPlanPreview({
   plan,
   words,
+  userId = null,
   onStudyGroup,
   disabled = false,
 }: SmartPlanPreviewProps) {
@@ -39,29 +44,73 @@ export function SmartPlanPreview({
     ? manualDay
     : defaultDay;
   const [minutes, setMinutes] = useState<number>(20);
-  const [generatedAt, setGeneratedAt] = useState<number | null>(null);
+  const [loaded, setLoaded] = useState<{
+    userId: string | null;
+    schedules: ReviewSchedule[];
+    generatedAt: number;
+  } | null>(null);
+  const [pending, setPending] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [launchError, setLaunchError] = useState("");
+  const requestId = useRef(0);
+  useEffect(() => () => { requestId.current += 1; }, []);
+
+  function invalidate() {
+    // Never let a late response resurrect a plan for an earlier day or duration.
+    requestId.current += 1;
+    setLoaded(null);
+    setPending(false);
+    setLoadError("");
+    setLaunchError("");
+  }
+
+  async function generatePlan() {
+    if (pending || disabled || !words.length) return;
+    const request = ++requestId.current;
+    setPending(true);
+    setLoaded(null);
+    setLoadError("");
+    setLaunchError("");
+    try {
+      const schedules = userId
+        ? await loadCloudReviewSchedules(userId)
+        : listGuestReviewSchedules(window.localStorage, new Set(words.map((word) => word.id)));
+      if (request !== requestId.current) return;
+      // A malformed/duplicate cloud response must not be presented as an empty queue.
+      const ids = new Set<string>();
+      for (const schedule of schedules) {
+        if (ids.has(schedule.wordId)) throw new Error("Tekrar takviminde yinelenen kelime var.");
+        ids.add(schedule.wordId);
+      }
+      setLoaded({ userId, schedules, generatedAt: Date.now() });
+    } catch (reason) {
+      if (request === requestId.current) {
+        setLoadError(reason instanceof Error ? reason.message : "Tekrar takvimi okunamadı.");
+      }
+    } finally {
+      if (request === requestId.current) setPending(false);
+    }
+  }
   const byId = useMemo(() => new Map(words.map((word) => [word.id, word])), [words]);
 
-  // Read only: built from already-calculated daily group views. Never calls
-  // DailyWordGroupsRepository.syncWords, localStorage writes or a cloud API.
+  // Pure calculation. Network and storage reads happen only in generatePlan().
   const proposal = useMemo(() => {
-    if (generatedAt === null || disabled || availableDays.length === 0) return null;
+    if (!loaded || loaded.userId !== userId || disabled || !words.length) return null;
     return buildSmartDailyPlan({
       words,
-      schedules: [], // Not wired: timed due reviews must be added in a later phase.
+      schedules: loaded.schedules,
       assignments: availableDays.map((group) => ({
         day: group.day,
         words: group.words.map((word) => word.id),
       })),
       activeDay,
       minutesAvailable: minutes,
-      now: new Date(generatedAt),
+      now: new Date(loaded.generatedAt),
     });
-  }, [activeDay, availableDays, disabled, generatedAt, minutes, words]);
+  }, [activeDay, availableDays, disabled, loaded, minutes, userId, words]);
 
   function launch(task: SmartPlanTask) {
-    if (task.kind === "due" || disabled) return;
+    if (disabled || pending || !loaded || loaded.userId !== userId) return;
     const selected = task.wordIds.map((id) => byId.get(id));
     if (!selected.every((word): word is WordEntry => !!word && isGameReady(word))) {
       setLaunchError("Kelime bilgileri değişmiş. Planı yeniden oluşturup tekrar dene.");
@@ -84,8 +133,8 @@ export function SmartPlanPreview({
       playable: readyWords.length,
       hard: readyWords.filter((word) => getVisibleWordGroup(word) === "hard").length,
       review: readyWords.filter((word) => getVisibleWordGroup(word) === "review").length,
-      learned: 0,
-      progress: 0,
+      learned: readyWords.filter((word) => getVisibleWordGroup(word) === "learned").length,
+      progress: readyWords.filter((word) => getVisibleWordGroup(word) === "learned").length / readyWords.length,
     });
   }
 
@@ -117,8 +166,8 @@ export function SmartPlanPreview({
           <select
             className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-background px-3 text-foreground"
             value={activeDay}
-            onChange={(event) => { setManualDay(Number(event.target.value)); setGeneratedAt(null); }}
-            disabled={disabled || availableDays.length === 0}
+            onChange={(event) => { setManualDay(Number(event.target.value)); invalidate(); }}
+            disabled={disabled || availableDays.length === 0 || pending}
           >
             {availableDays.length === 0 ? <option value={1}>Önce kelime ekle</option> : null}
             {availableDays.map((group) => (
@@ -133,8 +182,8 @@ export function SmartPlanPreview({
           <select
             className="mt-1 block min-h-10 w-full rounded-lg border border-border bg-background px-3 text-foreground"
             value={minutes}
-            onChange={(event) => { setMinutes(Number(event.target.value)); setGeneratedAt(null); }}
-            disabled={disabled}
+            onChange={(event) => { setMinutes(Number(event.target.value)); invalidate(); }}
+            disabled={disabled || pending}
           >
             {MINUTE_OPTIONS.map((value) => <option key={value} value={value}>{value} dakika</option>)}
           </select>
@@ -142,21 +191,31 @@ export function SmartPlanPreview({
         <Button
           type="button"
           className="w-full sm:w-auto"
-          disabled={disabled || availableDays.length === 0}
-          onClick={() => { setLaunchError(""); setGeneratedAt(Date.now()); }}
+          disabled={disabled || pending || words.length === 0}
+          onClick={() => void generatePlan()}
         >
-          <Sparkles aria-hidden="true" size={16} /> Plan oluştur
+          {pending ? <RefreshCw aria-hidden="true" size={16} className="animate-spin" />
+            : <Sparkles aria-hidden="true" size={16} />}
+          {pending ? "Tekrarlar okunuyor…" : "Plan oluştur"}
         </Button>
       </div>
 
-      <div className="mt-3 flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-foreground">
-        <CircleAlert aria-hidden="true" size={16} className="mt-0.5 shrink-0 text-amber-600" />
-        <p>
-          Tekrar takvimi uygulamaya henüz bağlanmadı. Bu sürüm yalnızca günlere atanmış
-          zorlanılan ve yeni kelimeler için öneri oluşturur; zamanı gelen tekrarların
-          tamamını gösterdiğini iddia etmez. Öneri oluşturmak kayıtlı grupları değiştirmez.
+      <div className="mt-3 flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-foreground">
+        <CalendarClock aria-hidden="true" size={16} className="mt-0.5 shrink-0 text-atlas-blue" />
+        <p role="status">
+          {pending
+            ? "Tekrar takvimi okunuyor; öneri tamamlanana kadar çalışma başlatılamaz."
+            : loaded?.userId === userId
+              ? `${loaded.schedules.length} tekrar kaydı ${userId ? "hesabından" : "misafir kayıtlarından"} okundu. Zamanı gelenler önceliklendirildi.`
+              : `Plan oluştur dediğinde ${userId ? "hesabındaki" : "bu cihazdaki misafir"} tekrar takvimi okunur. Öneri hiçbir veriyi değiştirmez.`}
         </p>
       </div>
+      {loadError && (
+        <p role="alert" className="mt-3 flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          <CircleAlert size={16} aria-hidden="true" className="mt-0.5 shrink-0" />
+          Tekrar takvimi yüklenemedi: {loadError} Lütfen yeniden dene; eksik bir takvimle plan oluşturulmadı.
+        </p>
+      )}
 
       {disabled && (
         <p role="alert" className="mt-3 text-sm text-destructive">
@@ -190,7 +249,7 @@ export function SmartPlanPreview({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={task.kind === "due"}
+                  disabled={disabled || pending}
                   onClick={() => launch(task)}
                   aria-label={`${TASK_TITLES[task.kind]} · ${task.wordIds.length} kelimeyi çalış`}
                 >

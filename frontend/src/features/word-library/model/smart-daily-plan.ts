@@ -92,9 +92,10 @@ export function buildSmartDailyPlan(input: SmartPlanInput): SmartDailyPlan {
     const word = byId.get(item.wordId);
     if (!word || excluded.has(item.wordId) || seenDue.has(item.wordId)) continue;
     seenDue.add(item.wordId);
-    // A due review of a learned word is still due, even if the game engine
-    // currently considers that word outside its score<80 game-ready pool.
-    if (word.meanings.some((meaning) => meaning.trim())) due.push(item.wordId);
+    // A due review of a learned word remains eligible, but the existing game
+    // needs five clozable examples as well as a meaning. Never offer a task
+    // that the game would reject as unplayable.
+    if (isGameReady(word)) due.push(item.wordId);
     else needsReviewContent.push(item.wordId);
   }
 

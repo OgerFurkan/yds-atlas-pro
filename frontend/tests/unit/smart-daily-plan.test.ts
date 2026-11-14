@@ -161,3 +161,26 @@ test("invalid time, day and date fail closed", () => {
   expect(() => plan({ activeDay: 61 })).toThrow();
   expect(() => plan({ now: new Date("bad") })).toThrow();
 });
+
+
+test("scheduled words missing playable examples are flagged, never launched", () => {
+  const incomplete = { ...word("PartiallyReady", 90), examples: [] };
+  const value = plan({
+    words: [incomplete],
+    schedules: [newReviewSchedule("PartiallyReady", NOW)],
+    assignments: [{ day: 1, words: ["PartiallyReady"] }],
+  });
+  expect(value.tasks).toHaveLength(0);
+  expect(value.needsReviewContent).toEqual(["PartiallyReady"]);
+});
+
+test("scheduled due reviews override the new-word bucket without duplicating a word", () => {
+  const fresh = word("Today", 0);
+  const value = plan({
+    words: [fresh],
+    schedules: [newReviewSchedule("Today", NOW)],
+    assignments: [{ day: 1, words: ["Today"] }],
+  });
+  expect(value.selected).toEqual({ due: 1, difficult: 0, new: 0 });
+  expect(value.tasks.map((task) => task.kind)).toEqual(["due"]);
+});

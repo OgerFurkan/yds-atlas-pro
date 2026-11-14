@@ -191,7 +191,14 @@ export function DailyPlanView({
         onStartTour={() => setTourStep(0)}
       />
 
-      <SmartPlanPreview plan={plan} words={words} onStudyGroup={onStudyGroup} disabled={Boolean(error)} />
+      <SmartPlanPreview
+        key={cloudPreflightUserId ?? "guest"}
+        plan={plan}
+        words={words}
+        userId={cloudPreflightUserId ?? null}
+        onStudyGroup={onStudyGroup}
+        disabled={Boolean(error)}
+      />
       <DailyPlanSyncPreview userId={cloudPreflightUserId ?? null} words={words} />
 
       {error && (

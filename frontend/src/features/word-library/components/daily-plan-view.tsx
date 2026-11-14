@@ -27,6 +27,7 @@ import {
 } from "@/features/word-library/model/daily-groups";
 import { DailyGroupCard } from "./daily-group-card";
 import { DailyPlanSyncPreview } from "./daily-plan-sync-preview";
+import { SmartPlanPreview } from "./smart-plan-preview";
 
 export function DailyPlanView({
   plan,
@@ -223,6 +224,7 @@ export function DailyPlanView({
         </div>
       </section>
 
+      <SmartPlanPreview plan={plan} words={words} onStudyGroup={onStudyGroup} disabled={Boolean(error)} />
       <DailyPlanSyncPreview userId={cloudPreflightUserId ?? null} words={words} />
 
       {error && <p role="alert" className="rounded-lg border border-red-300 bg-red-50 p-3 text-sm text-red-800">{error}</p>}

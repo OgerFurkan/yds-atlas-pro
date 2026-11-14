@@ -46,3 +46,13 @@ export function quotaClient(config: ServerConfig) {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
 }
+/** Never send this client or its secret to the browser. Only use after authenticate(). */
+export function dailyPlanWriterClient(config: ServerConfig): SupabaseClient {
+  if (!config.SUPABASE_URL || !config.SUPABASE_SECRET_KEY)
+    throw new HttpError(503, "Günlük plan yazma servisi yapılandırılmadı.", "DAILY_PLAN_WRITER_NOT_CONFIGURED");
+  return createClient(config.SUPABASE_URL, config.SUPABASE_SECRET_KEY, {
+    // No user Authorization header: only the verified ctx.userId may be used as owner.
+    global: { fetch: timedFetch },
+    auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
+  });
+}

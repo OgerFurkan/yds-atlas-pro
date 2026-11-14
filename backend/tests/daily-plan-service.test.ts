@@ -65,8 +65,16 @@ function fakeContext(initial: FakeState, ownedWords = [ownWord]) {
       };
     },
   };
-  const ctx = { userId: owner, db: db as unknown as RequestContext["db"] };
-  return { ctx, state: () => state, inserted: () => insertedWith, updated: () => updatedWith };
+  // A JWT-scoped client may SELECT but cannot INSERT/UPDATE the plan table.
+  const userDb = {
+    from(table: string) {
+      const source = db.from(table);
+      return table === "daily_plan_states" ? { select: source.select } : source;
+    },
+  };
+  const ctx = { userId: owner, db: userDb as unknown as RequestContext["db"] };
+  const writer = db as unknown as RequestContext["db"];
+  return { ctx, writer, state: () => state, inserted: () => insertedWith, updated: () => updatedWith };
 }
 
 describe("account-bound daily plan cloud sync", () => {
@@ -78,7 +86,7 @@ describe("account-bound daily plan cloud sync", () => {
 
   test("first save claims the authenticated owner, never a client-supplied ID", async () => {
     const mock = fakeContext(null);
-    const result = await saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 0 });
+    const result = await saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 0 }, mock.writer);
     expect(result.revision).toBe(1);
     expect(mock.inserted().user_id).toBe(owner);
     expect(mock.state()?.payload).toEqual(snapshot);
@@ -86,7 +94,7 @@ describe("account-bound daily plan cloud sync", () => {
 
   test("revision-matched update increments exactly once", async () => {
     const mock = fakeContext({ revision: 3, payload: snapshot });
-    const result = await saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 3 });
+    const result = await saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 3 }, mock.writer);
     expect(result.revision).toBe(4);
     expect(mock.updated().revision).toBe(4);
   });
@@ -94,7 +102,7 @@ describe("account-bound daily plan cloud sync", () => {
   test("outdated writers receive 409 without overwriting cloud data", async () => {
     const mock = fakeContext({ revision: 3, payload: snapshot });
     try {
-      await saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 2 });
+      await saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 2 }, mock.writer);
       throw new Error("Expected a revision conflict");
     } catch (error) {
       expect(error).toBeInstanceOf(HttpError);
@@ -106,14 +114,14 @@ describe("account-bound daily plan cloud sync", () => {
 
   test("first-save race returns 409 rather than replacing an existing plan", async () => {
     const mock = fakeContext({ revision: 1, payload: snapshot });
-    await expect(saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 0 })).rejects.toMatchObject({ status: 409, code: "DAILY_PLAN_CONFLICT" });
+    await expect(saveDailyPlan(mock.ctx, { snapshot, expectedRevision: 0 }, mock.writer)).rejects.toMatchObject({ status: 409, code: "DAILY_PLAN_CONFLICT" });
     expect(mock.state()?.revision).toBe(1);
   });
 
   test("a foreign or deleted word ID cannot be saved into the plan", async () => {
     const mock = fakeContext(null);
     const forged = { groupSize: 20 as const, assignments: [{ day: 2, words: [foreignWord] }], excludedWordIds: [] };
-    await expect(saveDailyPlan(mock.ctx, { snapshot: forged, expectedRevision: 0 })).rejects.toMatchObject({ status: 409, code: "DAILY_PLAN_STALE_WORDS" });
+    await expect(saveDailyPlan(mock.ctx, { snapshot: forged, expectedRevision: 0 }, mock.writer)).rejects.toMatchObject({ status: 409, code: "DAILY_PLAN_STALE_WORDS" });
     expect(mock.state()).toBeNull();
   });
 });

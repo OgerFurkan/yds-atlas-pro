@@ -20,6 +20,7 @@ import {
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
+import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
@@ -120,6 +121,8 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         result = await accountState(ctx);
       else if (path === "/api/account/daily-plan" && request.method === "GET")
         result = await readDailyPlan(ctx);
+      else if (path === "/api/account/review-schedules" && request.method === "GET")
+        result = await readReviewSchedules(ctx);
       else if (path === "/api/account/daily-plan" && request.method === "PUT") {
         const input = dailyPlanSaveSchema.parse(await readJson(request, 128_000));
         const writer = dependencies.dailyPlanWriter?.() ?? dailyPlanWriterClient(config);

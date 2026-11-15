@@ -25,3 +25,7 @@ jobs:
         run: bun run --cwd=frontend playwright install --with-deps chromium
       - name: Browser tests
         run: bun run --cwd=frontend test:e2e
+      - name: Cloud account contract tests (mocked)
+        run: bun run --cwd=frontend test:cloud
+      - name: Verify staging applied SQL ledger (offline)
+        run: node scripts/quality/verify-staging-migration-ledger.cjs

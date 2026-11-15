@@ -30,6 +30,8 @@ export interface CoachInput {
   minutesAvailable: number;
   now: Date;
   assessments?: readonly LearningObservation[];
+  /** Calendar-day evidence must use the same timezone as the visible calendar. */
+  timeZone?: string;
 }
 const COST: Record<CoachTaskKind, number> = { due: 2, recover: 3, strengthen: 3, new: 4 };
 const TITLE: Record<CoachTaskKind, string> = {
@@ -53,12 +55,12 @@ const orderByAge = (a: WordEntry, b: WordEntry) =>
  * Distinguishes a zero scored in a failed completed game from an unassessed zero.
  * Personal labels (manualGroup) never count as evidence.
  */
-export function buildCoachAgenda({words, schedules, minutesAvailable, now, assessments = []}: CoachInput): CoachAgenda {
+export function buildCoachAgenda({words, schedules, minutesAvailable, now, assessments = [], timeZone = "UTC"}: CoachInput): CoachAgenda {
   if (!Number.isFinite(now.getTime()) || !Number.isSafeInteger(minutesAvailable) ||
       minutesAvailable < 5 || minutesAvailable > 240) throw new Error("Geçersiz plan süresi veya tarih.");
   const library = new Map(words.filter((word) => word.id.trim()).map((word) => [word.id, word]));
   if (library.size !== words.length) throw new Error("Tekrarlanan veya kimliği olmayan kütüphane kelimesi var.");
-  const evidence = learningEvidenceByWord(assessments, now);
+  const evidence = learningEvidenceByWord(assessments, now, timeZone);
   const scheduled = new Set(schedules.map((row) => row.wordId));
   const due: string[] = [];
   const seenDue = new Set<string>();
@@ -118,7 +120,7 @@ export function buildCoachAgenda({words, schedules, minutesAvailable, now, asses
     observedWordCount: [...library.keys()].filter((id) => evidence.has(id)).length,
     contextualDifficultyCount: [...library.keys()].filter((id) =>
       evidence.get(id)?.errorFocus === "context" || evidence.get(id)?.errorFocus === "both").length,
-    dataBasis: "Gerçek oyun sonuçları (mevcutsa anlam/bağlam hataları), tekrar tarihleri, " +
+    dataBasis: "Hesapta kayıtlı oyun sonuçları (mevcutsa anlam/bağlam hataları), tekrar tarihleri, " +
       "eski puanlardan sınırlı kanıt ve içerik uygunluğu. Bir oturum puanı kalıcı öğrenme değildir.",
   };
 }

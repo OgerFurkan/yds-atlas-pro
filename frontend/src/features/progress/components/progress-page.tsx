@@ -63,6 +63,10 @@ export function ProgressPage({
   onStartStudy: (wordIds: string[], title: string) => void;
   onOpenLibrary: () => void;
 }) {
+  // A single clock snapshot prevents inconsistent render-time dates and totals.
+  // Refreshing the underlying data also refreshes the time-sensitive agenda.
+  const [now, setNow] = useState(() => new Date());
+  const [timeZone] = useState(() => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC");
   const [month, setMonth] = useState(() => monthStart(new Date()));
   const [day, setDay] = useState(() => localDay(new Date()));
   const [entries, setEntries] = useState<CalendarEntry[]>([]);
@@ -83,7 +87,7 @@ export function ProgressPage({
   const [copied, setCopied] = useState<CalendarDraft | null>(null);
   const [minutes, setMinutes] = useState(30);
   const request = useRef(0);
-  const today = localDay(new Date());
+  const today = localDay(now);
   const days = useMemo(() => calendarDays(month), [month]);
   const first = localDay(days[0]);
   const last = localDay(days[days.length - 1]);
@@ -109,6 +113,7 @@ export function ProgressPage({
     else { setHistory(null); setHistoryError(String(accountResult.reason instanceof Error ? accountResult.reason.message : accountResult.reason)); }
     if (outcomeResult.status === "fulfilled") { setAssessments(outcomeResult.value); setOutcomeError(""); }
     else { setAssessments(null); setOutcomeError(String(outcomeResult.reason instanceof Error ? outcomeResult.reason.message : outcomeResult.reason)); }
+    setNow(new Date());
     setLoading(false);
   }, [first, last, userId, words]);
   useEffect(() => { void load(); return () => { request.current += 1; }; }, [load, revision]);
@@ -148,19 +153,19 @@ export function ProgressPage({
       return { agenda: null, error: "" };
     try {
       return { agenda: buildCoachAgenda({ words, schedules, minutesAvailable: minutes,
-        now: new Date(), assessments: assessments ?? [] }), error: "" };
+        now, timeZone, assessments: assessments ?? [] }), error: "" };
     } catch (error) {
       // Fail closed. A malformed history cannot take down the entire page.
       return { agenda: null, error: error instanceof Error ? error.message : "Koç verisi geçersiz." };
     }
-  }, [words, schedules, minutes, history, assessments, userId]);
+  }, [words, schedules, minutes, history, assessments, userId, now, timeZone]);
   const agenda = coachCalculation.agenda;
   // Evidence-based insights: a verified session is not a promise of mastery.
   const learningSignals = useMemo(() => {
     if (assessments === null) return null;
     const knownWords = new Set(words.map((word) => word.id));
     let observed: ReturnType<typeof learningEvidenceByWord>;
-    try { observed = learningEvidenceByWord(assessments, new Date()); }
+    try { observed = learningEvidenceByWord(assessments, now, timeZone); }
     catch { return null; }
     const active = [...observed].filter(([id]) => knownWords.has(id));
     return {
@@ -169,14 +174,14 @@ export function ProgressPage({
       recover: active.filter(([, item]) => item.state === "recover").length,
       repeated: active.filter(([, item]) => item.state === "repeated-success").length,
     };
-  }, [assessments, words]);
+  }, [assessments, words, now, timeZone]);
   const chosenEntries = eventsByDay.get(day) ?? [];
   const actualToday = actualByDay.get(today)?.size ?? 0;
   const activeDays = [...actualByDay.keys()].filter((d) => {
     const daysAgo = (Date.parse(`${today}T12:00:00Z`) - Date.parse(`${d}T12:00:00Z`)) / 86400000;
     return daysAgo >= 0 && daysAgo < 7;
   }).length;
-  const dueNow = (schedules ?? []).filter((s) => wordMap.has(s.wordId) && Date.parse(s.dueAt) <= Date.now()).length;
+  const dueNow = (schedules ?? []).filter((s) => wordMap.has(s.wordId) && Date.parse(s.dueAt) <= now.getTime()).length;
   const upcoming = entries.filter((e) => e.day >= today && e.status === "planned").length;
 
   function moveMonth(amount: number) {
@@ -186,6 +191,7 @@ export function ProgressPage({
     setNotice("");
   }
   function edit(entry?: CalendarEntry) {
+    setNotice("");
     setEditing(entry ?? null);
     setDraft(entry ? {
       day: entry.day, kind: entry.kind, title: entry.title, notes: entry.notes,
@@ -193,27 +199,30 @@ export function ProgressPage({
     } : { ...EMPTY_DRAFT, day });
     setFormOpen(true);
   }
-  async function mutate(task: () => Promise<unknown>, message: string) {
-    if (busy) return;
+  async function mutate(task: () => Promise<unknown>, message: string): Promise<boolean> {
+    if (busy) return false;
     setBusy(true);
     setNotice("");
     try {
       await task();
       setRevision((value) => value + 1);
       setNotice(message);
+      return true;
     } catch (error) {
       setNotice(error instanceof Error ? error.message : "Takvim işlemi başarısız.");
       setRevision((value) => value + 1); // Refresh on optimistic conflict; never silently overwrite.
+      return false;
     } finally { setBusy(false); }
   }
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (busy) return;
     const value = { ...draft };
-    setFormOpen(false);
-    await mutate(() => editing
+    // Do not discard the user's draft when a write fails or a revision conflicts.
+    const saved = await mutate(() => editing
       ? updateCalendar(userId, editing, value)
       : createCalendar(userId, value), editing ? "Çalışma güncellendi." : "Takvime eklendi.");
+    if (saved) setFormOpen(false);
   }
   async function moveEntry(entry: CalendarEntry, target: string) {
     if (entry.day === target) return;
@@ -259,7 +268,7 @@ export function ProgressPage({
       </div>
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          { label: "Bugün çalışılan kelime", value: actualToday, icon: <ShieldCheck size={17}/>, hint: "Kayıtlı oturum ve tamamlama" },
+          { label: "Bugün çalışılan kelime", value: userId ? actualToday : "—", icon: <ShieldCheck size={17}/>, hint: userId ? "Hesapta kayıtlı sonuçlar" : "Misafir için ayrıntılı geçmiş yok" },
           { label: "Zamanı gelen tekrar", value: schedules ? dueNow : "—", icon: <RotateCcw size={17}/>, hint: "Tüm kütüphanede" },
           { label: "Son 7 gün aktif", value: history ? activeDays : "—", icon: <TrendingUp size={17}/>, hint: "Kayıtlı öğrenme günleri" },
           { label: "Planlanan etkinlikler", value: upcoming, icon: <Target size={17}/>, hint: "Görünen takvim aralığında" },
@@ -271,13 +280,25 @@ export function ProgressPage({
           </div>
         ))}
       </div>
-      {learningSignals !== null && (
+      {!userId && (
+        <p role="status" className="rounded-xl border border-border bg-muted/40 p-3 text-sm text-muted-foreground">
+          Misafir koçu yalnız yerel kelime puanları ve tekrar takvimine göre sınırlı öneri verir.
+          Ayrıntılı oyun değerlendirme geçmişi bulunmadığından kalıcı öğrenme kanıtı hesaplanmaz.
+        </p>
+      )}
+      {userId && (
+        <p role="status" className="rounded-xl border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
+          Koç hesabında kayıtlı çalışma sonuçlarını kullanır. Sunucu doğrulamalı sonuç yazımı
+          aşaması tamamlanana kadar bu kayıtlar bağımsız olarak doğrulanmış öğrenme kanıtı sayılmaz.
+        </p>
+      )}
+      {userId && learningSignals !== null && (
         <section aria-label="Öğrenme kanıtının durumu" className="grid gap-3 rounded-2xl border border-border bg-card p-4 shadow-sm md:grid-cols-[minmax(0,1fr)_repeat(3,minmax(0,120px))] md:items-center">
           <div>
             <p className="text-sm font-semibold text-foreground">Nasıl öğrendiğini anlamaya başlıyoruz</p>
             <p className="mt-1 text-xs leading-5 text-muted-foreground">Yalnızca kaydedilmiş oyunlar değerlendirilir. “Başarılı oturum”, “kalıcı öğrendim” anlamına gelmez. Veriler arttıkça öneriler değişir.</p>
           </div>
-          <div className="rounded-xl bg-muted/60 p-3"><strong className="text-xl tabular-nums">{learningSignals.observed}</strong><p className="text-xs text-muted-foreground">oyun kanıtı olan kelime</p></div>
+          <div className="rounded-xl bg-muted/60 p-3"><strong className="text-xl tabular-nums">{learningSignals.observed}</strong><p className="text-xs text-muted-foreground">oyun değerlendirme kaydı bulunan kelime</p></div>
           <div className="rounded-xl bg-muted/60 p-3"><strong className="text-xl tabular-nums">{learningSignals.recover}</strong><p className="text-xs text-muted-foreground">yeniden güçlendirilecek</p></div>
           <div className="rounded-xl bg-muted/60 p-3"><strong className="text-xl tabular-nums">{learningSignals.context}</strong><p className="text-xs text-muted-foreground">bağlamda zorlanılan</p></div>
         </section>
@@ -326,7 +347,7 @@ export function ProgressPage({
                   <Button size="sm" onClick={() => onStartStudy(task.wordIds, task.title)}>Çalış <ArrowRight size={14}/></Button>
                 </div>
               )) : <p className="rounded-lg bg-muted p-4 text-sm">Bu süre için çalışmaya hazır öneri bulunamadı. <button className="underline" onClick={onOpenLibrary}>Kütüphaneyi aç.</button></p>}
-              <p className="text-xs text-muted-foreground">{agenda.dataBasis} Bu sürüm kural tabanlıdır; AI tarafından incelenmiş gibi gösterilmez. Öğrenme puanları yalnızca oyun sonucuyla değişir.</p>
+              <p className="text-xs text-muted-foreground">{userId ? agenda.dataBasis : "Misafir modunda ayrıntılı oyun sonucu bulunmaz; öneriler mevcut puanlar ve tekrar tarihlerinden oluşturulur. Bir oturum puanı kalıcı öğrenme değildir."} Bu sürüm kural tabanlıdır; AI tarafından incelenmiş gibi gösterilmez. Öğrenme puanları yalnızca oyun sonucuyla değişir.</p>
             </>
           ) : <p className="text-sm text-muted-foreground">Tekrar takvimi okununca koç önerileri burada görünecek.</p>}
         </div>
@@ -340,7 +361,7 @@ export function ProgressPage({
               <h2 className="mt-1 text-xl font-semibold capitalize">{monthTitle(month)}</h2>
             </div>
             <div className="flex items-center gap-1">
-              <Button variant="outline" size="sm" onClick={() => { setMonth(monthStart(new Date())); setDay(today); }}>Bugün</Button>
+              <Button variant="outline" size="sm" onClick={() => { const current = new Date(); setNow(current); setMonth(monthStart(current)); setDay(localDay(current)); }}>Bugün</Button>
               <Button variant="ghost" size="icon" aria-label="Önceki ay" onClick={() => moveMonth(-1)}><ChevronLeft size={18}/></Button>
               <Button variant="ghost" size="icon" aria-label="Sonraki ay" onClick={() => moveMonth(1)}><ChevronRight size={18}/></Button>
             </div>
@@ -358,7 +379,7 @@ export function ProgressPage({
                   const active = key === day;
                   return (
                     <div key={key} role="button" tabIndex={0}
-                      aria-label={`${humanDay(key)}; ${count} doğrulanmış kelime; ${dayEntries.length} plan; ${due} tekrar tarihi`}
+                      aria-label={`${humanDay(key)}; ${count} kayıtlı kelime; ${dayEntries.length} plan; ${due} tekrar tarihi`}
                       aria-pressed={active}
                       onClick={() => setDay(key)}
                       onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setDay(key); } }}
@@ -387,7 +408,7 @@ export function ProgressPage({
               </div>
             </div>
           </div>
-          <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground"><span className="text-emerald-600">✓ Doğrulanmış çalışma</span><span className="text-blue-600 dark:text-blue-300">↻ Takvimli tekrar</span><span>▰ Kullanıcı planı</span></div>
+          <div className="mt-4 flex flex-wrap gap-3 text-xs text-muted-foreground"><span className="text-emerald-600">✓ Kayıtlı çalışma</span><span className="text-blue-600 dark:text-blue-300">↻ Takvimli tekrar</span><span>▰ Kullanıcı planı</span></div>
         </section>
         <aside className="min-w-0 space-y-4 rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5" aria-label="Seçili gün detayları">
           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -398,7 +419,7 @@ export function ProgressPage({
             <div className="rounded-xl bg-muted p-3"><p className="text-muted-foreground">Gerçek çalışma</p><strong className="mt-1 block text-lg">{dayHistoryWords.length}{dayHistoryWords.length >= 25 ? "+" : ""} kelime</strong></div>
             <div className="rounded-xl bg-muted p-3"><p className="text-muted-foreground">Tekrar tarihi</p><strong className="mt-1 block text-lg">{dueByDay.get(day) ?? 0} kelime</strong></div>
           </div>
-          {dayHistoryWords.length > 0 && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3"><p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"><ShieldCheck size={13} className="mr-1 inline"/> Kaydedilmiş öğrenme</p><p className="mt-1 text-xs text-foreground">{dayHistoryWords.join(", ")}</p></div>}
+          {dayHistoryWords.length > 0 && <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3"><p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300"><ShieldCheck size={13} className="mr-1 inline"/> Kayıtlı çalışma</p><p className="mt-1 text-xs text-foreground">{dayHistoryWords.join(", ")}</p></div>}
           {dayDueWords.length > 0 && <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3"><p className="text-xs font-semibold text-blue-700 dark:text-blue-300"><RotateCcw size={13} className="mr-1 inline"/> Bu tarihe planlanmış tekrarlar</p><p className="mt-1 text-xs text-foreground">{dayDueWords.join(", ")}</p></div>}
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
             <strong className="text-sm">Planların · {chosenEntries.length}</strong>
@@ -437,9 +458,9 @@ export function ProgressPage({
       </div>
       <section className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-5" aria-label="Son çalışma geçmişi">
         <h2 className="flex items-center gap-2 text-lg font-semibold"><History size={19}/> Gerçek çalışma geçmişin</h2>
-        <p className="mt-1 text-xs text-muted-foreground">Sunucunun doğruladığı günlük kelime tamamlama kayıtları; kişisel takvim notlarından ayrıdır.</p>
+        <p className="mt-1 text-xs text-muted-foreground">Hesapta kayıtlı çalışma sonuçları; kişisel takvim notlarından ayrıdır. Sonuçların güvenilir sunucu yazıcısı geçişi tamamlanmamıştır.</p>
         {actualByDay.size ? <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">{[...actualByDay.entries()].sort(([a],[b]) => b.localeCompare(a)).slice(0, 12).map(([date, ids]) => (
-          <div key={date} className="rounded-xl border border-border p-3"><p className="text-xs text-muted-foreground">{humanDay(date)}</p><strong className="mt-1 block text-sm">{ids.size} kelime · {goals.has(date) ? "Günlük hedef tamam" : "Kayıtlı çalışma"}</strong><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{[...ids].map((id) => wordMap.get(id)?.word ?? "Silinmiş kelime").slice(0, 8).join(", ")}</p></div>
+          <div key={date} className="rounded-xl border border-border p-3"><p className="text-xs text-muted-foreground">{humanDay(date)}</p><strong className="mt-1 block text-sm">{ids.size} kelime · {goals.has(date) ? "Kayıtlı günlük hedef" : "Kayıtlı çalışma"}</strong><p className="mt-1 line-clamp-2 text-xs text-muted-foreground">{[...ids].map((id) => wordMap.get(id)?.word ?? "Silinmiş kelime").slice(0, 8).join(", ")}</p></div>
         ))}</div> : <p className="mt-3 rounded-xl bg-muted p-4 text-sm text-muted-foreground">Henüz doğrulanmış tamamlanan çalışma kaydı bulunamadı. Takvimdeki manuel görevler bu istatistiğe eklenmez.</p>}
       </section>
       {formOpen && (
@@ -466,6 +487,7 @@ export function ProgressPage({
             <label className="block text-sm font-medium">Not
               <textarea rows={3} maxLength={1500} value={draft.notes} onChange={(event) => setDraft({ ...draft, notes: event.target.value })} className="mt-1 w-full rounded-lg border border-border bg-background p-2.5 text-foreground" placeholder="Hangi konulara çalışacağım?"/>
             </label>
+            {notice && <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-foreground">{notice}</p>}
             <div className="flex justify-end gap-2"><Button type="button" variant="outline" onClick={() => setFormOpen(false)}>Vazgeç</Button><Button type="submit" disabled={busy}><Check size={15}/> Kaydet</Button></div>
           </form>
         </div>

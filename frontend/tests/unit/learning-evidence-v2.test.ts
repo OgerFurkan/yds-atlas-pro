@@ -77,3 +77,49 @@ test("old detailed failures never turn recent legacy-only high scores into verif
     evidence("A", `legacy-${day}`, day, 90, null, null));
   expect(summarizeLearningEvidence("A", [...olderFailures, ...recentLegacy], NOW).state).toBe("building");
 });
+
+// Regression: a UTC-midnight crossover must never create false spaced mastery.
+test("three successful attempts within four hours across UTC midnight stay building in Istanbul", () => {
+  const samples = [
+    "2026-11-14T21:30:00.000Z", // 15 Nov 00:30 local
+    "2026-11-14T23:40:00.000Z", // 15 Nov 02:40 local
+    "2026-11-15T01:15:00.000Z", // 15 Nov 04:15 local
+  ].map((completedAt, index) => ({
+    ...evidence("A", `tz-${index}`, 15, 90), completedAt,
+  }));
+  const result = summarizeLearningEvidence("A", samples, NOW, "Europe/Istanbul");
+  expect(result.observedDays).toBe(1);
+  expect(result.state).toBe("building");
+  // Even UTC calendar-day counting is insufficient without independent spacing.
+  expect(summarizeLearningEvidence("A", samples, NOW, "UTC").state).toBe("building");
+});
+
+test("separate Istanbul study days with >=24h independent recall may build repeated success", () => {
+  const result = summarizeLearningEvidence("A", [
+    evidence("A", "s1", 12, 90), evidence("A", "s2", 14, 90), evidence("A", "s3", 15, 90),
+  ], NOW, "Europe/Istanbul");
+  expect(result.observedDays).toBe(3);
+  expect(result.state).toBe("repeated-success");
+});
+
+test("crossing local midnight minutes apart does not count as independent recall", () => {
+  const rows = [
+    "2026-11-14T20:55:00.000Z", // 14 Nov 23:55 in Istanbul
+    "2026-11-14T21:05:00.000Z", // 15 Nov 00:05 in Istanbul
+    "2026-11-14T23:15:00.000Z", // 15 Nov 02:15 in Istanbul
+  ].map((completedAt, i) => ({...evidence("A", `midnight-${i}`, 15, 92), completedAt}));
+  const result = summarizeLearningEvidence("A", rows, NOW, "Europe/Istanbul");
+  expect(result.observedDays).toBe(2);
+  expect(result.state).toBe("building");
+});
+
+test("DST fall-back same local day and invalid timezone fail safely", () => {
+  const samples = [
+    "2026-11-01T04:30:00.000Z",
+    "2026-11-01T06:30:00.000Z",
+    "2026-11-01T07:30:00.000Z",
+  ].map((completedAt, i) => ({...evidence("A", `dst-${i}`, 15, 90), completedAt}));
+  expect(summarizeLearningEvidence("A", samples, NOW, "America/New_York").observedDays).toBe(1);
+  expect(summarizeLearningEvidence("A", samples, NOW, "America/New_York").state).toBe("building");
+  expect(() => summarizeLearningEvidence("A", samples, NOW, "Not/A_Real_Zone")).toThrow();
+});

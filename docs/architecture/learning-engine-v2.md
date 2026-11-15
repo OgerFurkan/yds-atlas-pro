@@ -12,7 +12,7 @@
 
 - **Readiness:** sufficient correct learning content to run a particular game; neither score nor mastery.
 - **Last-session score (legacy 0–100):** performance in the last completed game. Do not add/subtract it as though it were accumulated points. Preserve historical score schema; migrate explicitly later.
-- **Evidence state:** `not-assessed`, `recover`, `building`, or `repeated-success`. `repeated-success` is **not** a mastery guarantee or numeric recall probability and requires three detailed successful assessments over more than one calendar day.
+- **Evidence state:** `not-assessed`, `recover`, `building`, or `repeated-success`. `repeated-success` is **not** a mastery guarantee or numeric recall probability and requires at least three detailed successful assessments on at least two calendar days **and** at least 24 hours between the latest and oldest verified success in the uninterrupted success run. The evidence day is calculated in an explicit IANA time zone; client screens use the same browser time zone as their visible calendar, while other callers default to UTC. A future account-level preferred time zone should be persisted for cross-device consistency.
 - **Review schedule:** when a scheduled word is due. A future-due word is not brought into today's routine by a low score. If the schedule fails to load, suggestions fail closed, not `[]`.
 - **Manual library status:** organization only; never creates real success evidence.
 - **Calendar task status:** user-owned planning metadata; `done` does not credit learning or mutate word scores.
@@ -38,6 +38,8 @@
 
 - No DB mutation is required to add the evidence reader: existing `learning_results` and `learning_sessions` owner policies apply.
 - The existing additive calendar staging migration remains included; it has owner RLS and zero overlap with session scoring.
+- Guest recommendations are explicitly limited to local scores/schedules: there is no guest detailed-assessment ledger. Signed-in results remain **account-recorded**, not independent server-attested evidence, until a privileged completion writer is enabled and legacy client write grants are revoked after staging tests.
+- Calendar editor retains a draft when save fails, allowing correction/retry rather than destroying unsaved input.
 - v2 never rewrites legacy `score`, `assessment`, `senses`, manual groups, schedules or user data. Future score replacement needs explicit versioned backfill that is reversible.
 - Wipe/drop/force-push/production deploy are not part of this patch.
 

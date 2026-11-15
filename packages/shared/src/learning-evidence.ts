@@ -35,6 +35,32 @@ export interface LearningEvidenceSummary {
   dataQuality: "none" | "legacy-scores" | "detailed";
 }
 
+// An observed calendar day is interpreted in one explicitly supplied IANA timezone.
+// Never infer independently spaced retrieval from a UTC midnight boundary alone.
+const MIN_INDEPENDENT_RECALL_MS = 24 * 60 * 60 * 1000;
+const dayFormatters = new Map<string, Intl.DateTimeFormat>();
+function dayFormatter(timeZone: string): Intl.DateTimeFormat {
+  const cached = dayFormatters.get(timeZone);
+  if (cached) return cached;
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+    });
+  } catch {
+    throw new Error("Öğrenme kanıtı için geçersiz saat dilimi.");
+  }
+  // Bound the formatter cache even when supplied an unexpected number of zones.
+  if (dayFormatters.size >= 8) dayFormatters.clear();
+  dayFormatters.set(timeZone, formatter);
+  return formatter;
+}
+function dayKey(value: string, formatter: Intl.DateTimeFormat): string {
+  const parts = formatter.formatToParts(new Date(value));
+  const get = (name: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === name)?.value ?? "";
+  return `${get("year")}-${get("month")}-${get("day")}`;
+}
+
 const EMPTY: LearningEvidenceSummary = {
   state: "not-assessed", observedSessions: 0, observedDays: 0,
   lastScore: null, lastCompletedAt: null, recentFailures: 0,
@@ -71,9 +97,11 @@ export function summarizeLearningEvidence(
   wordId: string,
   input: readonly LearningObservation[],
   now = new Date(),
+  timeZone = "UTC",
 ): LearningEvidenceSummary {
   const limit = now.getTime();
   if (!Number.isFinite(limit)) throw new Error("Geçersiz değerlendirme tarihi.");
+  const formatter = dayFormatter(timeZone);
   const unique = new Map<string, LearningObservation>();
   for (const row of input) {
     if (!validObservation(row)) throw new Error("Öğrenme kanıtı geçersiz.");
@@ -93,13 +121,18 @@ export function summarizeLearningEvidence(
   const failed = recent.filter(failure).length;
   let successStreak = 0;
   for (const row of ordered) { if (!successful(row)) break; successStreak += 1; }
-  const days = new Set(ordered.map((row) => row.completedAt.slice(0, 10)));
+  const days = new Set(ordered.map((row) => dayKey(row.completedAt, formatter)));
   // Only verified detailed successes in the current uninterrupted success run
   // may establish independent successful recall days. Failures or legacy
   // high scores must never supply the missing proof.
   const verifiedStreak = ordered.slice(0, successStreak).filter((row) =>
     row.meaningCorrect === true && row.contextCorrect === true);
-  const verifiedSuccessDays = new Set(verifiedStreak.map((row) => row.completedAt.slice(0, 10)));
+  const verifiedSuccessDays = new Set(verifiedStreak.map((row) => dayKey(row.completedAt, formatter)));
+  // Crossing midnight (even in the correct timezone) does not make two
+  // back-to-back attempts independent spaced retrieval. Require >=24h as well.
+  const independentlySpaced = verifiedStreak.length > 1 &&
+    Date.parse(verifiedStreak[0].completedAt) -
+      Date.parse(verifiedStreak[verifiedStreak.length - 1].completedAt) >= MIN_INDEPENDENT_RECALL_MS;
   const detailed = ordered.filter((row) => row.meaningCorrect !== null && row.contextCorrect !== null);
   const meaningErrors = detailed.filter((row) => row.meaningCorrect === false).length;
   const contextErrors = detailed.filter((row) => row.contextCorrect === false).length;
@@ -111,7 +144,8 @@ export function summarizeLearningEvidence(
   // estimate a retention probability. It requires independent successes across days.
   const state: EvidenceState = failure(ordered[0]) || failed >= 2
     ? "recover"
-    : successStreak >= 3 && verifiedStreak.length >= 3 && verifiedSuccessDays.size >= 2
+    : successStreak >= 3 && verifiedStreak.length >= 3 &&
+      verifiedSuccessDays.size >= 2 && independentlySpaced
       ? "repeated-success" : "building";
   return {
     state, observedSessions: ordered.length, observedDays: days.size,
@@ -124,12 +158,12 @@ export function summarizeLearningEvidence(
 }
 
 export function learningEvidenceByWord(
-  input: readonly LearningObservation[], now = new Date(),
+  input: readonly LearningObservation[], now = new Date(), timeZone = "UTC",
 ): Map<string, LearningEvidenceSummary> {
   const groups = new Map<string, LearningObservation[]>();
   for (const observation of input) {
     const group = groups.get(observation.wordId) ?? [];
     group.push(observation); groups.set(observation.wordId, group);
   }
-  return new Map([...groups].map(([wordId, rows]) => [wordId, summarizeLearningEvidence(wordId, rows, now)]));
+  return new Map([...groups].map(([wordId, rows]) => [wordId, summarizeLearningEvidence(wordId, rows, now, timeZone)]));
 }

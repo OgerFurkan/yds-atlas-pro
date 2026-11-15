@@ -33,8 +33,10 @@ export interface DailyPlan {
 }
 
 export interface DailyGroupPreset {
-  day: number;
+  day?: number;
   wordIds: string[];
+  /** Optional global coach title; no invented daily group is needed. */
+  label?: string;
 }
 
 /** Persisted assignments contain word IDs, not duplicated word data. */

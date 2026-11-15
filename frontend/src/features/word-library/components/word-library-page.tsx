@@ -52,6 +52,7 @@ interface WordLibraryPageProps {
   manualGroupsEnabled?: boolean;
   cloudPreflightUserId?: string | null;
   onStudyGroup: (group: DailyGroup) => void;
+  onOpenProgress?: () => void;
   onNotify: Notify;
   onInitialCreateHandled?: () => void;
 }
@@ -71,6 +72,7 @@ export function WordLibraryPage({
   manualGroupsEnabled = false,
   cloudPreflightUserId,
   onStudyGroup,
+  onOpenProgress,
   onNotify,
   onInitialCreateHandled,
 }: WordLibraryPageProps) {
@@ -369,6 +371,7 @@ export function WordLibraryPage({
           error={daily.error}
           onGroupSizeChange={daily.setGroupSize}
           onStudyGroup={onStudyGroup}
+          onOpenProgress={onOpenProgress}
           onAddWord={openCreate}
           onBulkAdd={openGeneralBulk}
           onBulkAddForDay={bulkAddForDay}

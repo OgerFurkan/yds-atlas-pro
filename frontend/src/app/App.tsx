@@ -30,6 +30,11 @@ const WordLibraryPage = lazy(() =>
     default: module.WordLibraryPage,
   })),
 );
+const ProgressPage = lazy(() =>
+  import("@/features/progress/components/progress-page").then((module) => ({
+    default: module.ProgressPage,
+  })),
+);
 const LearningGamePage = lazy(() =>
   import("@/features/learning-game/components/learning-game-page").then((module) => ({
     default: module.LearningGamePage,
@@ -115,6 +120,14 @@ function AppWorkspace({
       day: group.day,
       wordIds: group.playableWords.map((word) => word.id),
     });
+    navigate("game");
+  }
+
+  function studyCoachWords(wordIds: string[], label: string) {
+    const available = new Set(library.words.map((word) => word.id));
+    const unique = [...new Set(wordIds)].filter((id) => available.has(id));
+    if (!unique.length) { notify.error("Çalışmaya hazır kelime kalmadı."); return; }
+    setGamePreset({ wordIds: unique, label });
     navigate("game");
   }
 
@@ -211,6 +224,15 @@ function AppWorkspace({
             onOpenLibrary={navigateLibrary}
             onStartLearning={() => navigate("game")}
           />
+        ) : screen === "progress" ? (
+          <Suspense fallback={<p className="py-20 text-center text-muted-foreground">İlerleme merkezi açılıyor…</p>}>
+            <ProgressPage
+              words={library.words}
+              userId={auth.user?.id ?? null}
+              onStartStudy={studyCoachWords}
+              onOpenLibrary={() => navigateLibrary()}
+            />
+          </Suspense>
         ) : screen === "game" ? (
           <Suspense
             fallback={
@@ -256,6 +278,7 @@ function AppWorkspace({
               manualGroupsEnabled={import.meta.env.VITE_MANUAL_WORD_GROUPS_ENABLED === "true"}
               cloudPreflightUserId={auth.user?.id ?? null}
               onStudyGroup={studyDailyGroup}
+              onOpenProgress={() => navigate("progress")}
               onNotify={notify}
               onInitialCreateHandled={() => setOpenCreateOnLibrary(false)}
             />

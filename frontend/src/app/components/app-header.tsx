@@ -16,7 +16,7 @@ import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { LearningMenu } from "./learning-menu";
 
-export type AppScreen = "home" | "library" | "game" | "login";
+export type AppScreen = "home" | "library" | "progress" | "game" | "login";
 interface AppHeaderProps {
   screen: AppScreen;
   onNavigate: (screen: AppScreen) => void;
@@ -122,8 +122,9 @@ export function AppHeader({
           </Button>
           <Button
             variant="ghost"
-            className="justify-start"
-            onClick={() => onNotify.info("İlerleme ekranı hazırlanıyor.")}
+            aria-current={screen === "progress" ? "page" : undefined}
+            className={`justify-start ${screen === "progress" ? "bg-blue-50 text-atlas-navy" : ""}`}
+            onClick={() => go("progress")}
           >
             <Compass size={18} />
             {t("nav.progress")}

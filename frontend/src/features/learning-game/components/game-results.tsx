@@ -1,4 +1,4 @@
-﻿import { getWordGroup } from "@yds-atlas/shared";
+import { getWordGroup } from "@yds-atlas/shared";
 import {
   ArrowRight,
   BookOpen,
@@ -91,6 +91,11 @@ export function GameResults({
           </p>
         )}
       </div>
+      {!session.tutorial && (
+        <p className="mx-auto max-w-3xl rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-900 dark:border-blue-500/30 dark:bg-blue-950/30 dark:text-blue-100">
+          Bu gruplar <strong>bu oyundaki son değerlendirme</strong> sonucudur. Bir kelimenin bugün yüksek puan alması, uzun vadede kalıcı öğrenildiği anlamına gelmez. Atlas Koç farklı günlerdeki tekrar sonuçlarını ayrıca izler.
+        </p>
+      )}
       {!session.tutorial && (
         <div className="grid items-start gap-4 md:grid-cols-3">
           {groups.map((group) => {

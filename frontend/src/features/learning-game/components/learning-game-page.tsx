@@ -62,6 +62,7 @@ export function LearningGamePage({
     return words.filter((word) => ids.has(word.id) && isGameReady(word));
   }, [preset, words]);
   const [startedDay] = useState(preset?.day ?? null);
+  const [startedLabel] = useState(preset?.label ?? null);
   const [session, setSession] = useState<GameSession | null>(() =>
     presetWords.length ? createSession(presetWords, 5) : null,
   );
@@ -270,7 +271,7 @@ export function LearningGamePage({
             <ArrowLeft size={17} /> Ana sayfa
           </Button>
           <span className="hidden text-sm font-semibold text-atlas-navy sm:inline">
-            {startedDay ? `Gün ${startedDay} · Günlük Plan` : "Günlük Görev"}
+            {startedLabel ?? (startedDay ? `Gün ${startedDay} · Günlük Plan` : "Günlük Görev")}
           </span>
           <Button
             variant="outline"

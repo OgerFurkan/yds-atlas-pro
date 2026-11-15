@@ -18,7 +18,6 @@ import { DailyPlanHero } from "./daily-plan-hero";
 import { DailyPlanAddExistingWord } from "./daily-plan-add-existing-word";
 import { DailyPlanWordCard } from "./daily-plan-word-card";
 import { DailyPlanSyncPreview } from "./daily-plan-sync-preview";
-import { SmartPlanPreview } from "./smart-plan-preview";
 
 export function DailyPlanView({
   plan,
@@ -28,6 +27,7 @@ export function DailyPlanView({
   error,
   onGroupSizeChange,
   onStudyGroup,
+  onOpenProgress,
   onAddWord,
   onBulkAdd,
   onBulkAddForDay,
@@ -45,6 +45,7 @@ export function DailyPlanView({
   error?: string;
   onGroupSizeChange: (size: number) => void;
   onStudyGroup: (group: DailyGroup) => void;
+  onOpenProgress?: () => void;
   onAddWord: () => void;
   onBulkAdd: () => void;
   onBulkAddForDay: (day: number) => void;
@@ -191,14 +192,13 @@ export function DailyPlanView({
         onStartTour={() => setTourStep(0)}
       />
 
-      <SmartPlanPreview
-        key={cloudPreflightUserId ?? "guest"}
-        plan={plan}
-        words={words}
-        userId={cloudPreflightUserId ?? null}
-        onStudyGroup={onStudyGroup}
-        disabled={Boolean(error)}
-      />
+      <section className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-atlas-blue/20 bg-card p-4 text-foreground">
+        <div>
+          <p className="text-sm font-semibold">Atlas Koç artık tüm kütüphaneni değerlendiriyor.</p>
+          <p className="mt-1 text-xs text-muted-foreground">Günlük kelime grupları burada kalır; genel çalışma önerileri, geçmiş ve takvim İlerleme Merkezi'nde.</p>
+        </div>
+        {onOpenProgress && <Button variant="outline" onClick={onOpenProgress}>İlerleme ve Akıllı Koç</Button>}
+      </section>
       <DailyPlanSyncPreview userId={cloudPreflightUserId ?? null} words={words} />
 
       {error && (

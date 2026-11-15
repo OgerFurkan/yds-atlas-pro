@@ -93,10 +93,22 @@ describe("Postgres ownership, atomicity and quotas", () => {
     });
   });
   test("all application tables have RLS, and no SECURITY DEFINER function is exposed", async () => {
-    const result = await db.query<{ relrowsecurity: boolean }>(
-      "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r'",
+    const result = await db.query<{ relname: string; relrowsecurity: boolean }>(
+      "select c.relname, c.relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relkind='r' order by c.relname",
     );
-    expect(result.rows).toHaveLength(9);
+    // Explicit inventory catches unexpected unprotected tables and schema drift.
+    expect(result.rows.map((row) => row.relname)).toEqual([
+      "ai_usage",
+      "completed_goal_days",
+      "daily_plan_states",
+      "daily_word_completions",
+      "learning_results",
+      "learning_sessions",
+      "profiles",
+      "study_calendar_entries",
+      "word_review_schedules",
+      "words",
+    ]);
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
     const functions = await db.query(
       "select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and prosecdef",

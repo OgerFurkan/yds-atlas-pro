@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-/** Phase 4A v2: guest preview stays local; study starts only on explicit click. */
-test("smart plan preview recommends ready words and starts only the selected task", async ({ page }) => {
+/** Learning Coach V2: the daily plan links to the evidence-first coach; guest work stays local. */
+test("daily plan opens the coach and starts only the explicitly selected task", async ({ page }) => {
   await page.addInitScript(() => {
     const create = (id: string, score: number) => ({
       id,
@@ -35,23 +35,40 @@ test("smart plan preview recommends ready words and starts only the selected tas
 
   await page.goto("/#library");
   await page.getByRole("tab", { name: /Günlük Plan/ }).click();
-  const panel = page.getByRole("region", { name: "Bugünün akıllı planı" });
-  await expect(panel).toBeVisible();
-  await expect(panel.getByText("Tekrar takvimi uygulamaya henüz bağlanmadı", { exact: false })).toBeVisible();
   await expect(page.getByRole("button", { name: "1. günü aç, 3 kelimeyi yönet" })).toBeVisible();
+  await expect(page.getByText("Atlas Koç artık tüm kütüphaneni değerlendiriyor.")).toBeVisible();
 
   const before = await page.evaluate(() => localStorage.getItem("yds-atlas-daily-word-groups-v1"));
-  await panel.getByRole("button", { name: "Plan oluştur" }).click();
-  await expect(panel.getByText("2 çalışma adımı")).toBeVisible();
-  await expect(panel.getByText("3 dk planlandı", { exact: false })).toHaveCount(0);
-  const after = await page.evaluate(() => localStorage.getItem("yds-atlas-daily-word-groups-v1"));
-  expect(after).toBe(before);
+  await page.getByRole("button", { name: "İlerleme ve Akıllı Koç" }).click();
+  await expect(page).toHaveURL(/#progress$/);
+  await expect(page.getByTestId("progress-calendar-page")).toBeVisible();
+
+  const coach = page.getByRole("region", { name: "Bugün neye çalışmalısın?" });
+  await expect(coach).toBeVisible();
+  const recover = coach.getByRole("heading", { name: "Yanlışları güvenle toparla" });
+  await expect(recover).toBeVisible();
+  await expect(coach.getByRole("heading", { name: "Kalıcılığı güçlendir" })).toBeVisible();
+  await expect(coach.getByRole("heading", { name: "Yeni kelime için ilk yoklama" })).toBeVisible();
+
+  // No game session may start simply by inspecting the coach.
+  const idleSession = await page.evaluate(() => localStorage.getItem("yds-atlas-learning-session-v2"));
+  expect(idleSession).toBeNull();
+
+  // Merely opening the coach is read-only: no cloud daily-plan call or group rewrite.
+  const afterOpening = await page.evaluate(() => localStorage.getItem("yds-atlas-daily-word-groups-v1"));
+  expect(afterOpening).toBe(before);
   expect(cloudCalls).toBe(0);
 
-  await panel.getByRole("button", { name: "Zorlanılan kelimeler · 1 kelimeyi çalış" }).click();
+  // Only the selected recovery bucket (hardword) may enter the game session.
+  await recover.locator("xpath=../..").getByRole("button", { name: "Çalış", exact: true }).click();
+  await expect(page).toHaveURL(/#game$/);
   await expect(page.getByRole("button", { name: "Kartı çevir ve anlamı göster" })).toBeVisible();
   await expect.poll(async () => page.evaluate(() => {
     const saved = localStorage.getItem("yds-atlas-learning-session-v2");
     return saved ? JSON.parse(saved).words.map((word: { id: string }) => word.id) : [];
   })).toEqual(["hardword"]);
+
+  const afterStudyStart = await page.evaluate(() => localStorage.getItem("yds-atlas-daily-word-groups-v1"));
+  expect(afterStudyStart).toBe(before);
+  expect(cloudCalls).toBe(0);
 });

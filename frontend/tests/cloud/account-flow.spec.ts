@@ -382,13 +382,13 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: /İngilizce kelime/ }).fill("Resilient");
   await dialog.getByRole("button", { name: "Öneri oluştur", exact: true }).click();
-  await expect(dialog.getByText(/GEMINI ÖNERİSİ/)).toBeVisible();
+  await expect(dialog.getByText(/GEMINI ÖNERİLERİ/)).toBeVisible();
   await page.screenshot({
     path: `test-results-cloud/ai-preview-${test.info().project.name}.png`,
     fullPage: true,
   });
   expect(cloud.libraries[alice]).toHaveLength(1);
-  await dialog.getByRole("button", { name: "İnceledim, öneriyi forma aktar" }).click();
+  await dialog.getByRole("button", { name: "1 türü inceleyip forma aktar" }).click();
   expect(cloud.libraries[alice]).toHaveLength(1);
   await dialog.getByRole("button", { name: "Kütüphaneye ekle", exact: true }).click();
   await expect(dialog).not.toBeVisible();

@@ -3,7 +3,14 @@ import { z } from "zod";
 export const cefrLevelSchema = z.enum(["A1", "A2", "B1", "B2", "C1", "C2", "Belirtilmedi"]);
 export const wordGroupSchema = z.enum(["hard", "review", "learned"]);
 export const wordPartOfSpeechSchema = z.enum([
-  "Noun", "Verb", "Adjective", "Adverb", "Preposition", "Conjunction", "Pronoun", "Phrase",
+  "Noun",
+  "Verb",
+  "Adjective",
+  "Adverb",
+  "Preposition",
+  "Conjunction",
+  "Pronoun",
+  "Phrase",
 ]);
 
 export const wordExampleSchema = z.object({
@@ -11,6 +18,8 @@ export const wordExampleSchema = z.object({
   translation: z.string().trim().default(""),
   translationFocus: z.array(z.string().trim().min(1)).optional(),
   source: z.string().trim().optional(),
+  // Optional stage intent: older saved examples remain valid and uncalibrated.
+  purpose: z.enum(["practice", "exam"]).optional(),
 });
 
 /** One headword, multiple independently described grammatical senses. */

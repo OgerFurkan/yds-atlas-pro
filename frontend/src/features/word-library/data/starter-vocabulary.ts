@@ -2,6 +2,7 @@ import { type CefrLevel, type WordInput, wordInputSchema } from "@yds-atlas/shar
 import { wordKey } from "../model/word-normalization";
 import { starterTranslationFocus } from "./starter-translation-focus";
 import { starterTranslations } from "./starter-translations";
+import { starterPracticeExamples } from "./starter-practice-examples";
 
 type VocabularySeed = [string, string, string, CefrLevel, string, string[], string[]];
 
@@ -317,12 +318,17 @@ export const starterVocabulary = seeds.map(
       partOfSpeech,
       cefr,
       usageNote,
-      examples: sentences.map((sentence, index) => ({
-        sentence,
-        translation: starterTranslations[word]?.[index] ?? "",
-        translationFocus: starterTranslationFocus[word]?.[index],
-        source: "Atlas editoryal başlangıç seti",
-      })),
+      examples: sentences.map((sentence, index) => {
+        const practice = index < 2 ? starterPracticeExamples[word]?.[index] : undefined;
+        return {
+          sentence: practice?.sentence ?? sentence,
+          translation: practice?.translation ?? starterTranslations[word]?.[index] ?? "",
+          translationFocus: practice?.translationFocus ?? starterTranslationFocus[word]?.[index],
+          source: "Atlas editoryal başlangıç seti",
+          // The label is intended use, not official YDS calibration.
+          purpose: index < 2 ? ("practice" as const) : ("exam" as const),
+        };
+      }),
       sourceUrl: `https://dictionary.cambridge.org/dictionary/english/${wordKey(word)}`,
     }),
     distractors,

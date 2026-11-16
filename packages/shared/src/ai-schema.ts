@@ -19,12 +19,17 @@ export const aiWordSchema = z
     usageNote: z.string().min(1).max(1500),
     partOfSpeech: wordPartOfSpeechSchema,
     cefr: cefrLevelSchema,
+    lexicon: z.object({entryId:z.uuid(),revision:z.number().int().min(1),contractVersion:z.literal(1)}).optional(),
+    sourceUrl: z.string().optional(),
+    pronunciationUk: z.string().optional(),
+    pronunciationUs: z.string().optional(),
     examples: z
       .array(
         z.object({
           sentence: z.string().min(1).max(1000),
           translation: z.string().min(1).max(1000),
           translationFocus: z.array(z.string().min(1).max(200)).min(1).max(4),
+          difficulty: z.enum(["easy", "medium", "yds"]).optional(),
         }),
       )
       .length(5),
@@ -43,9 +48,10 @@ export const dictionarySourceSchema = z
   .strict();
 export const aiWordResponseSchema = z.object({
   suggestion: aiWordSchema,
-  provider: z.literal("Gemini"),
+  provider: z.enum(["Gemini","Lexicon"]),
   model: z.string(),
   dictionarySource: dictionarySourceSchema.optional(),
+  lexicon: z.object({source:z.enum(["pool","generated"]),entryId:z.uuid(),revision:z.number().int().min(1)}).optional(),
 });
 export const aiWordListRequestSchema = z
   .object({
@@ -55,7 +61,7 @@ export const aiWordListRequestSchema = z
   .strict();
 export const aiWordListResponseSchema = z.object({
   suggestions: z.array(aiWordSchema).min(1).max(5),
-  provider: z.literal("Gemini"),
+  provider: z.enum(["Gemini","Lexicon"]),
   model: z.string(),
   dictionarySources: z.array(dictionarySourceSchema).max(5).optional(),
 });
@@ -92,7 +98,8 @@ export const aiChatRequestSchema = z
 export const aiChatResponseSchema = z
   .object({
     reply: z.string().min(1).max(5000),
-    provider: z.literal("Gemini"),
+    usage: z.object({inputTokens:z.number().int().nonnegative(),outputTokens:z.number().int().nonnegative()}).strict().optional(),
+    provider: z.enum(["Gemini","Lexicon"]),
     model: z.string(),
   })
   .strict();

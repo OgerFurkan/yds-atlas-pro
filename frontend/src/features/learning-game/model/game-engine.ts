@@ -1,4 +1,4 @@
-import type { WordEntry } from "@yds-atlas/shared";
+import { chooseTieredExample, type WordEntry } from "@yds-atlas/shared";
 import { getStarterWord, starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { escapeRegExp } from "@/shared/lib/regexp";
@@ -107,9 +107,14 @@ export function makeQuestion(session: GameSession) {
     examples.slice(1).map((_, index) => String(index + 1)),
     `${session.id}:${word.id}:examples`,
   );
-  const example = exampleOrder.length
+  // Complete 2-easy/1-medium/2-YDS records get staged testing. Legacy records
+  // retain the prior deterministic example order; never guess missing tiers.
+  const tiered = context
+    ? chooseTieredExample(examples, isFinal(session) ? "final" : "group", attempt + contextAttempts, `${session.id}:${word.id}`)
+    : undefined;
+  const example = tiered ?? (exampleOrder.length
     ? examples[Number(exampleOrder[(attempt + contextAttempts) % exampleOrder.length])]
-    : examples[0];
+    : examples[0]);
   const sentence = example?.sentence.replace(wordPattern(word), "$1________");
   const correct = context ? word.word : word.meanings[0];
   const knownMeanings = new Set(word.meanings.map(wordKey));

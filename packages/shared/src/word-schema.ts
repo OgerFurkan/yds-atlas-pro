@@ -6,11 +6,19 @@ export const wordPartOfSpeechSchema = z.enum([
   "Noun", "Verb", "Adjective", "Adverb", "Preposition", "Conjunction", "Pronoun", "Phrase",
 ]);
 
+export const wordExampleDifficultySchema = z.enum(["easy", "medium", "yds"]);
+export const lexiconRevisionSchema = z.object({
+  entryId: z.uuid(),
+  revision: z.number().int().min(1),
+  contractVersion: z.literal(1),
+}).strict();
+
 export const wordExampleSchema = z.object({
   sentence: z.string().trim().min(1),
   translation: z.string().trim().default(""),
   translationFocus: z.array(z.string().trim().min(1)).optional(),
   source: z.string().trim().optional(),
+  difficulty: wordExampleDifficultySchema.optional(),
 });
 
 /** One headword, multiple independently described grammatical senses. */
@@ -35,6 +43,7 @@ export const wordInputSchema = z.object({
   pronunciationUk: z.string().trim().default(""),
   pronunciationUs: z.string().trim().default(""),
   sourceUrl: z.string().trim().default(""),
+  lexicon: lexiconRevisionSchema.optional(),
 });
 
 export const wordCheckSchema = z.object({

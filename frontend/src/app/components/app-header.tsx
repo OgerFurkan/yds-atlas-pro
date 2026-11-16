@@ -7,6 +7,7 @@ import {
   LogIn,
   Menu,
   Settings2,
+  ShieldCheck,
   X,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -16,7 +17,7 @@ import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { LearningMenu } from "./learning-menu";
 
-export type AppScreen = "home" | "library" | "progress" | "game" | "login";
+export type AppScreen = "home" | "library" | "progress" | "game" | "login" | "admin";
 interface AppHeaderProps {
   screen: AppScreen;
   onNavigate: (screen: AppScreen) => void;
@@ -24,6 +25,7 @@ interface AppHeaderProps {
   onOpenAccount: () => void;
   onOpenSettings: () => void;
   signedIn?: boolean;
+  adminVisible?: boolean;
 }
 export function AppHeader({
   screen,
@@ -32,6 +34,7 @@ export function AppHeader({
   onOpenAccount,
   onOpenSettings,
   signedIn,
+  adminVisible = false,
 }: AppHeaderProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -138,6 +141,7 @@ export function AppHeader({
             <LibraryBig size={18} />
             {t("nav.library")}
           </Button>
+          {adminVisible && <Button variant="ghost" aria-current={screen === "admin" ? "page" : undefined} className="justify-start" onClick={() => go("admin")}><ShieldCheck size={18}/> Yönetim</Button>}
           <Button
             variant="ghost"
             className="justify-start sm:hidden"

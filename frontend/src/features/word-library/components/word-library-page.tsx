@@ -41,7 +41,7 @@ interface WordLibraryPageProps {
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
-  ) => Promise<void>;
+  ) => Promise<WordInput | void>;
   onAddMany: (
     words: WordInput[],
     onProgress?: (progress: WordFillProgress) => void,

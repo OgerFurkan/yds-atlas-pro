@@ -1,4 +1,4 @@
-import { type AiWordListResponse, type WordInput, wordInputSchema } from "@yds-atlas/shared";
+import { hasCompleteTierSet, type AiWordListResponse, type WordInput, wordInputSchema } from "@yds-atlas/shared";
 import { escapeRegExp } from "@/shared/lib/regexp";
 import { withAiRecovery, type AiRetryNotice } from "./ai-retry";
 import { aiSuggestionToWordInput } from "../api/ai-word-api";
@@ -37,7 +37,7 @@ export async function prepareWordInputs(
         word.cefr === "Belirtilmedi" ||
         !word.usageNote ||
         word.examples.filter((example) => example.translation && pattern.test(example.sentence))
-          .length < 5)
+          .length < 5 || !hasCompleteTierSet(word.examples))
     )
       missing.set(key, word.word);
   }
@@ -105,11 +105,27 @@ export async function prepareWordInputs(
 
   return safePrepared.map((input) => {
     const generated = results.get(wordKey(input.word));
-    if (!generated) return input;
-    const sentences = new Set(
-      input.examples.map((example) => example.sentence.trim().toLocaleLowerCase("en")),
-    );
-    return {
+if (!generated) return input;
+// Keep user-authored sentences. A fresh five-tier set is used for the
+// learning engine, while additional user sentences remain available.
+const norm = (sentence: string) => sentence.trim().toLocaleLowerCase("en");
+const userBySentence = new Map(input.examples.map(example => [norm(example.sentence), example]));
+const tierReady = hasCompleteTierSet(generated.examples);
+const examples = tierReady
+  ? [
+      // The five shared, validated examples must remain byte-identical to
+      // the server-owned lexicon revision. Personal edits are private extras.
+      ...generated.examples,
+      ...input.examples.map(example => ({ ...example, difficulty: undefined })),
+    ]
+  : [
+      // A legacy, unlevelled mock/provider response is retained for
+      // backward compatibility but cannot be marked tier-ready.
+      ...input.examples,
+      ...generated.examples.filter(example => !userBySentence.has(norm(example.sentence))),
+    ];
+return {
+
       ...input,
       sourceUrl: input.sourceUrl || generated.sourceUrl,
       meanings: input.meanings.length ? input.meanings : generated.meanings,
@@ -117,12 +133,8 @@ export async function prepareWordInputs(
       partOfSpeech: input.partOfSpeech || generated.partOfSpeech,
       cefr: input.cefr === "Belirtilmedi" ? generated.cefr : input.cefr,
       alternatives: [...new Set([...input.alternatives, ...generated.alternatives])],
-      examples: [
-        ...input.examples,
-        ...generated.examples.filter(
-          (example) => !sentences.has(example.sentence.trim().toLocaleLowerCase("en")),
-        ),
-      ],
+      examples,
+      lexicon: generated.lexicon,
     };
   });
 }

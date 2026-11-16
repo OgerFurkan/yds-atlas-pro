@@ -109,7 +109,7 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
       await route.fulfill({ json: { goal: body.goal } });
       return;
     }
-    if (path === "/api/ai/words/enrich") {
+    if (path === "/api/lexicon/resolve") {
       const suggestion = {
         word: "Resilient",
         alternatives: [],
@@ -121,16 +121,31 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
           sentence: "A resilient team can recover from setback " + index + ".",
           translation: "Dayanıklı bir ekip " + index + ". zorluğun ardından toparlanabilir.",
           translationFocus: ["Dayanıklı"],
+          difficulty: index < 2 ? "easy" : index === 2 ? "medium" : "yds",
         })),
       };
-      await route.fulfill({ json: { suggestion, provider: "Gemini", model: "contract-test" } });
+      // Mirror the real v4 resolve wire format: generated versus pool provenance.
+      await route.fulfill({ json: {
+        source: "generated",
+        entry: {
+          id: "dddddddd-dddd-4ddd-8ddd-dddddddddddd",
+          wordKey: "resilient",
+          partOfSpeech: "Adjective",
+          senseKey: "resilient-adjective-durable",
+          revision: 1,
+          status: "machine_validated",
+          content: suggestion,
+          provenance: { model: "contract-test" },
+        },
+      } });
       return;
     }
-    if (path === "/api/ai/words/complete" || path === "/api/ai/words/suggest") {
+    if (path === "/api/lexicon/complete" || path === "/api/lexicon/suggest") {
       const names = path.endsWith("/complete")
         ? body.words
         : ["Resilient", "Robust", "Notion", "Derive", "Assess"];
       const suggestions = names.map((name: string) => ({
+        lexicon: { entryId: crypto.randomUUID(), revision: 1, contractVersion: 1 },
         word: name,
         alternatives: [],
         meanings: ["Dayanıklı"],
@@ -141,9 +156,14 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
           sentence: `The ${name} example is number ${index}.`,
           translation: `${index}. örnek dayanıklı.`,
           translationFocus: ["dayanıklı"],
+          difficulty: index < 2 ? "easy" : index === 2 ? "medium" : "yds",
         })),
       }));
-      await route.fulfill({ json: { suggestions, provider: "Gemini", model: "contract-test" } });
+      await route.fulfill({ json: {
+        suggestions,
+        provider: path === "/api/lexicon/suggest" ? "Lexicon" : "Gemini",
+        model: path === "/api/lexicon/suggest" ? "atlas-human-reviewed-pool-v1" : "contract-test",
+      } });
       return;
     }
     if (path === "/api/learning/session") {
@@ -154,7 +174,8 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
       await route.fulfill({ json: { revision: accounts[id].session!.revision } });
       return;
     }
-    if (path.endsWith("/complete")) {
+    // Never confuse /api/lexicon/complete with completing a learning session.
+    if (path.startsWith("/api/learning/sessions/") && path.endsWith("/complete")) {
       const task = accounts[id].session!;
       task.snapshot.saved = true;
       libraries[id][0].score = 88;
@@ -382,7 +403,7 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: /İngilizce kelime/ }).fill("Resilient");
   await dialog.getByRole("button", { name: "Öneri oluştur", exact: true }).click();
-  await expect(dialog.getByText(/GEMINI ÖNERİLERİ/)).toBeVisible();
+  await expect(dialog.getByText(/HAVUZ VE AI ÖNERİLERİ/)).toBeVisible();
   await page.screenshot({
     path: `test-results-cloud/ai-preview-${test.info().project.name}.png`,
     fullPage: true,
@@ -398,7 +419,8 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
     (request) => request.path === "/api/words" && request.method === "POST",
   )!.body as { examples: { translationFocus: string[]; source: string }[]; score: number };
   expect(saved.examples[0].translationFocus).toEqual(["Dayanıklı"]);
-  expect(saved.examples[0].source).toContain("Gemini");
+  expect(saved.examples[0].source).toContain("Atlas Lexicon · r1");
+  expect(saved.examples.map((example) => example.difficulty)).toEqual(["easy", "easy", "medium", "yds", "yds"]);
   expect(saved.score).toBe(0);
 });
 
@@ -413,12 +435,14 @@ test("new account words are completed automatically before saving", async ({ pag
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
   await expect(dialog).not.toBeVisible();
-  expect(cloud.requests.some((request) => request.path === "/api/ai/words/complete")).toBe(true);
+  expect(cloud.requests.some((request) => request.path === "/api/lexicon/complete")).toBe(true);
+  expect(cloud.requests.some((request) => request.path === "/api/ai/words/complete")).toBe(false);
   const saved = cloud.requests.find(
     (request) => request.path === "/api/words" && request.method === "POST",
   )!.body as { examples: { source: string }[] };
   expect(saved.examples).toHaveLength(5);
-  expect(saved.examples[0].source).toContain("Gemini");
+  expect(saved.examples.map((example) => example.difficulty)).toEqual(["easy", "easy", "medium", "yds", "yds"]);
+  expect(saved.examples[0].source).toContain("Atlas Lexicon · r1");
 });
 
 test("AI task list is previewed without saving", async ({ page }) => {
@@ -431,7 +455,8 @@ test("AI task list is previewed without saving", async ({ page }) => {
   await page.getByText("Resilient · Dayanıklı").click();
   await expect(page.getByText("The Resilient example is number 0.")).toBeVisible();
   expect(cloud.libraries[alice]).toHaveLength(1);
-  expect(cloud.requests.some((request) => request.path === "/api/ai/words/suggest")).toBe(true);
+  expect(cloud.requests.some((request) => request.path === "/api/lexicon/suggest")).toBe(true);
+  expect(cloud.requests.some((request) => request.path === "/api/words" && request.method === "POST")).toBe(false);
 });
 
 test("cloud assessment resumes, persists before completion, and restores measured scores", async ({

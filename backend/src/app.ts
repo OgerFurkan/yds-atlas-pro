@@ -3,6 +3,7 @@ import {
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
   aiWordRequestSchema,
+  lexiconResolveRequestSchema,
   dailyPlanSaveSchema,
   gameSessionSchema,
   wordGroupSchema,
@@ -26,6 +27,11 @@ import { setDailyGoalWithPrivilegedWriter } from "./features/learning/goal-write
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
+import { recommendLexiconWords } from "./features/lexicon/lexicon-recommendations";
+import { replyUsingLexiconOrAi } from "./features/lexicon/lexicon-chat";
+import { assertAtlasAdmin, adminOverview } from "./features/admin/admin-service";
+import { resolveTieredLexiconRequest, completeTieredLexiconWords, listTieredLexiconCandidates } from "./features/lexicon/lexicon-http";
+import { verifyUserWordLexiconBinding } from "./features/lexicon/lexicon-binding";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, dailyPlanWriterClient, goalWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
@@ -94,11 +100,37 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       if (!path.startsWith("/api/")) throw new HttpError(404, "İstek bulunamadı.", "NOT_FOUND");
       const ctx = await (dependencies.authenticate?.(request) ?? authenticate(request, config));
       let result: unknown;
-      if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
-      else if (path === "/api/words" && request.method === "POST")
-        result = await saveWord(ctx, wordInputSchema.parse(await readJson(request)));
-      else if (path === "/api/words/import" && request.method === "POST")
-        result = await importWords(ctx, bulk.parse(await readJson(request)));
+      if (path === "/api/lexicon/candidates" && request.method === "GET") {
+        result=await listTieredLexiconCandidates(config,new URL(request.url).searchParams.get("word")??"");
+      } else if (path === "/api/lexicon/resolve" && request.method === "POST")
+        result = await resolveTieredLexiconRequest(ctx,config,
+          lexiconResolveRequestSchema.parse(await readJson(request,4096)),request.signal);
+      else if(path === "/api/lexicon/complete" && request.method === "POST") {
+        const words = aiNamedWordsRequestSchema.parse(await readJson(request,4096)).words;
+        result = await completeTieredLexiconWords(ctx,config,words,request.signal);
+      } else if(path === "/api/lexicon/suggest" && request.method === "POST") {
+        const input=aiWordListRequestSchema.parse(await readJson(request,4096));
+        result=await recommendLexiconWords(ctx,config,input.count,input.exclude);
+      } else if(path === "/api/ai/chat" && request.method === "POST") {
+        result=await replyUsingLexiconOrAi(ctx,config,
+          aiChatRequestSchema.parse(await readJson(request,32768)),request.signal,
+          dependencies.generateChat ?? generateChatReply, dependencies.consumeQuota);
+      } else if(path === "/api/admin/me" && request.method === "GET") {
+        assertAtlasAdmin(ctx,config);
+        result={admin:true};
+      } else if(path === "/api/admin/overview" && request.method === "GET") {
+        result=await adminOverview(ctx,config);
+      } else if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
+      else if (path === "/api/words" && request.method === "POST") {
+        const input=wordInputSchema.parse(await readJson(request));
+        await verifyUserWordLexiconBinding(config,input);
+        result=await saveWord(ctx,input);
+      }
+      else if (path === "/api/words/import" && request.method === "POST") {
+        const inputs=bulk.parse(await readJson(request));
+        for(const input of inputs)if(input.lexicon)await verifyUserWordLexiconBinding(config,input);
+        result = await importWords(ctx,inputs);
+      }
       else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
           ctx,
@@ -135,8 +167,11 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         result = { updated: true };
       } else if (/^\/api\/words\/[^/]+$/.test(path)) {
         const id = uuid.parse(path.split("/").at(-1));
-        if (request.method === "PUT")
-          result = await saveWord(ctx, wordInputSchema.parse(await readJson(request)), id);
+        if (request.method === "PUT") {
+          const input=wordInputSchema.parse(await readJson(request));
+          await verifyUserWordLexiconBinding(config,input);
+          result=await saveWord(ctx,input,id);
+        }
         else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");
       } else if (path === "/api/account" && request.method === "GET")

@@ -31,6 +31,7 @@ const schema = z
     SUPABASE_URL: optional.pipe(z.url().optional()),
     SUPABASE_PUBLISHABLE_KEY: optional,
     SUPABASE_SECRET_KEY: optional,
+    ATLAS_ADMIN_USER_ID: optional.pipe(z.uuid().optional()),
     REVIEW_WRITE_V3_ENABLED: z.enum(["true","false"]).default("false").transform((value) => value === "true"),
     SESSION_SAVE_V5_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     GOAL_WRITE_V6_ENABLED: z.enum(["true","false"]).default("false").transform((value) => value === "true"),

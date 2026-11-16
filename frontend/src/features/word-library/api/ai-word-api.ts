@@ -3,8 +3,10 @@
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
   aiWordListResponseSchema,
-  aiWordRequestSchema,
   aiWordResponseSchema,
+  lexiconResponseSchema,
+  lexiconCandidatesResponseSchema,
+  lexiconResolveRequestSchema,
   type DictionarySource,
   type WordPartOfSpeech,
   wordInputSchema,
@@ -12,16 +14,20 @@
 import { apiRequest } from "@/shared/api/api-client";
 import { recordAiIssue } from "@/shared/lib/ai-issues";
 
-export async function enrichWithGemini(word: string, signal?: AbortSignal, partOfSpeech?: WordPartOfSpeech) {
-  const request = aiWordRequestSchema.parse({ word, partOfSpeech });
+export async function enrichWithGemini(word: string, signal?: AbortSignal, partOfSpeech?: WordPartOfSpeech, meaning?: string) {
+  const request = lexiconResolveRequestSchema.parse({ word, partOfSpeech, meaning });
   try {
-    return aiWordResponseSchema.parse(
-      await apiRequest("/api/ai/words/enrich", {
-        method: "POST",
-        body: JSON.stringify(request),
-        signal,
-      }),
-    );
+    const resolved=lexiconResponseSchema.parse(await apiRequest("/api/lexicon/resolve", {
+      method:"POST",body:JSON.stringify(request),signal,
+    }));
+    const ref={entryId:resolved.entry.id,revision:resolved.entry.revision,contractVersion:1 as const};
+    return aiWordResponseSchema.parse({
+      suggestion:{...resolved.entry.content,lexicon:ref},
+      provider:resolved.source==="pool" ? "Lexicon" : "Gemini",
+      model:resolved.source==="pool" ? "atlas-lexicon-v1" :
+        (typeof resolved.entry.provenance.model==="string" ? resolved.entry.provenance.model : "atlas-generated-word"),
+      lexicon:{source:resolved.source,entryId:ref.entryId,revision:ref.revision},
+    });
   } catch (error) {
     if (signal?.aborted) throw error;
     recordAiIssue(error);
@@ -32,7 +38,7 @@ export async function completeWordsWithGemini(words: string[]) {
   const request = aiNamedWordsRequestSchema.parse({ words });
   try {
     return aiWordListResponseSchema.parse(
-      await apiRequest("/api/ai/words/complete", {
+      await apiRequest("/api/lexicon/complete", {
         method: "POST",
         body: JSON.stringify(request),
       }),
@@ -50,7 +56,7 @@ export async function suggestWordsWithGemini(
   const request = aiWordListRequestSchema.parse({ count, exclude });
   try {
     return aiWordListResponseSchema.parse(
-      await apiRequest("/api/ai/words/suggest", {
+      await apiRequest("/api/lexicon/suggest", {
         method: "POST",
         body: JSON.stringify(request),
         signal,
@@ -62,6 +68,10 @@ export async function suggestWordsWithGemini(
     throw error;
   }
 }
+export async function fetchLexiconCandidates(word: string) {
+  return lexiconCandidatesResponseSchema.parse(await apiRequest(
+    `/api/lexicon/candidates?word=${encodeURIComponent(word)}`));
+}
 export function aiSuggestionToWordInput(
   suggestion: AiWordResponse["suggestion"],
   model: string,
@@ -72,12 +82,12 @@ export function aiSuggestionToWordInput(
   );
   return wordInputSchema.parse({
     ...suggestion,
-    sourceUrl: dictionarySource?.sourceUrl,
+    sourceUrl: dictionarySource?.sourceUrl ?? suggestion.sourceUrl,
     examples: suggestion.examples.map((example) => ({
       ...example,
       source: dictionarySentences.has(example.sentence.trim())
         ? `DictionaryAPI.dev / Wiktionary (${dictionarySource!.licenseName}): ${dictionarySource!.sourceUrl}`
-        : "Gemini · " + model,
+        : suggestion.lexicon ? "Atlas Lexicon · r" + suggestion.lexicon.revision : "Gemini · " + model,
     })),
   });
 }

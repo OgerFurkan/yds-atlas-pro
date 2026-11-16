@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./app/styles/onboarding.css";
+@import "./app/styles/premium-v4.css";
 @import "@fontsource/dm-sans/400.css";
 @import "@fontsource/dm-sans/500.css";
 @import "@fontsource/dm-sans/600.css";

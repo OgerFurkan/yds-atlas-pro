@@ -2,7 +2,7 @@ import { wordPartOfSpeechSchema, type AiWordResponse, type WordInput, type WordP
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/button";
-import { enrichWithGemini } from "../api/ai-word-api";
+import { enrichWithGemini, fetchLexiconCandidates } from "../api/ai-word-api";
 import { combineWordSenses } from "../model/combine-word-senses";
 
 const turkishType: Record<WordPartOfSpeech, string> = {
@@ -15,6 +15,8 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
   const [drafts, setDrafts] = useState<AiWordResponse[]>([]);
   const [included, setIncluded] = useState<WordPartOfSpeech[]>([]);
   const [primary, setPrimary] = useState<WordPartOfSpeech | "">("");
+  const [candidateOptions,setCandidateOptions]=useState<Array<{partOfSpeech:WordPartOfSpeech;meaning:string;revision:number}>>([]);
+  const [chosenSense,setChosenSense]=useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [partialErrors, setPartialErrors] = useState<string[]>([]);
@@ -52,7 +54,8 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
       for (const type of targets) {
         if (pending.signal.aborted) return;
         try {
-          const result = await enrichWithGemini(word, pending.signal, type);
+          const selected=candidateOptions.find(c=>`${c.partOfSpeech}:${c.meaning}`===chosenSense);
+          const result=await enrichWithGemini(word,pending.signal,type,selected && selected.partOfSpeech===type?selected.meaning:undefined);
           if (type && result.suggestion.partOfSpeech !== type) {
             failures.push(`${turkishType[type]}: AI farklı kelime türü döndürdü.`);
           } else {
@@ -60,6 +63,10 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
           }
         } catch (reason) {
           if (pending.signal.aborted) return;
+          try {
+            const matches=await fetchLexiconCandidates(word);
+            if(matches.candidates.length>1)setCandidateOptions(matches.candidates);
+          } catch { /* Keep original provider error. */ }
           failures.push(`${type ? turkishType[type] + ": " : ""}${reason instanceof Error ? reason.message : "Öneri alınamadı."}`);
         }
       }
@@ -79,7 +86,7 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-atlas-navy">
-            <Sparkles size={16} /> Gemini ile kelimeyi tamamla
+            <Sparkles size={16} /> Ortak havuz ile kelimeyi tamamla
           </p>
           <p className="mt-1 text-xs leading-5 text-slate-500">
             İstediğin kelime türlerini seç. Her tür için ayrı anlam ve çevrilmiş beş örnek oluşturulur.
@@ -103,7 +110,24 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
           </label>
         ))}
       </fieldset>
-      {requestedTypes.length > 1 && <p className="text-xs text-slate-500">Her tür ayrı bir AI isteği kullanır. Yalnızca doğrulanabilen öneriler kayda alınır.</p>}
+      {candidateOptions.length>1 && (
+        <label className="block space-y-1 text-xs font-semibold text-slate-800 dark:text-slate-100">
+          Ortak havuzda birden fazla anlam bulundu. Kullanmak istediğin anlamı seç:
+          <select className="w-full min-h-11 rounded-lg border border-slate-300 bg-white p-2 text-sm text-slate-900 dark:border-slate-600 dark:bg-slate-900 dark:text-white"
+            value={chosenSense}
+            onChange={event=>{
+              const value=event.target.value;setChosenSense(value);
+              const candidate=candidateOptions.find(item=>`${item.partOfSpeech}:${item.meaning}`===value);
+              if(candidate)setRequestedTypes([candidate.partOfSpeech]);
+            }} aria-label="Kelime anlamı seçimi">
+            <option value="">Bir kelime türü ve anlam seç</option>
+            {candidateOptions.map(item=><option key={`${item.partOfSpeech}:${item.meaning}`} value={`${item.partOfSpeech}:${item.meaning}`}>
+              {turkishType[item.partOfSpeech]} · {item.meaning}
+            </option>)}
+          </select>
+        </label>
+      )}
+      {requestedTypes.length > 1 && <p className="text-xs text-slate-500">Havuzda bulunmayan her kelime türü için ayrı AI isteği gerekebilir. Yalnızca doğrulanabilen öneriler kayda alınır.</p>}
       {error && <p role="alert" className="text-xs leading-5 text-red-700">{error}</p>}
       {partialErrors.length > 0 && (
         <div role="status" className="space-y-1 text-xs text-amber-800">
@@ -112,28 +136,36 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
       )}
       {drafts.length > 0 && (
         <div className="space-y-3 border-t border-blue-100 pt-3">
-          <p className="text-xs font-semibold text-atlas-blue">GEMINI ÖNERİLERİ · Kaydetmeden önce doğruluğunu kontrol et.</p>
+          <p className="text-xs font-semibold text-atlas-blue">HAVUZ VE AI ÖNERİLERİ · Otomatik denetlenen içerikleri kaydetmeden önce incele.</p>
           {drafts.map((draft) => {
             const suggestion = draft.suggestion;
             return (
-              <div key={suggestion.partOfSpeech} className="space-y-2 rounded-lg border border-blue-100 bg-white p-3">
+              <div key={suggestion.partOfSpeech} className="space-y-2 rounded-xl border border-blue-100 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
                 <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-atlas-navy">
                   <input type="checkbox" className="accent-atlas-orange" checked={included.includes(suggestion.partOfSpeech)}
                     onChange={(event) => setIncluded((current) => event.target.checked
                       ? [...current, suggestion.partOfSpeech]
                       : current.filter((type) => type !== suggestion.partOfSpeech))}
                     aria-label={`${turkishType[suggestion.partOfSpeech]} önerisini kaydet`} />
-                  {suggestion.word} · {turkishType[suggestion.partOfSpeech]}
+                  {suggestion.word} · {turkishType[suggestion.partOfSpeech]} · {draft.provider === "Lexicon" ? "Havuz" : "AI üretimi"}
                 </label>
                 <p className="text-xs text-slate-700">{suggestion.meanings.join(" · ")}</p>
-                <p className="text-xs leading-5 text-slate-500">{suggestion.usageNote}</p>
+                <p className="text-xs leading-5 text-slate-500 dark:text-slate-300">{suggestion.usageNote}</p>
+                {draft.lexicon && (
+                  <p className="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" role="status">
+                    {draft.lexicon.source==="pool"?"Ortak havuzdan getirildi":"AI ile üretildi ve ortak havuza kaydedildi"}
+                  </p>
+                )}
                 <details className="text-xs text-slate-600">
                   <summary className="cursor-pointer font-semibold">5 örneği ve çevirisini incele</summary>
-                  <ol className="mt-2 list-inside list-decimal space-y-2">
+                  <ol className="mt-3 grid gap-2" aria-label="Kelime çalışma örnekleri">
                     {suggestion.examples.map((example) => (
-                      <li key={example.sentence}>
-                        {example.sentence}
-                        <p className="mt-0.5 text-slate-500">{example.translation}</p>
+                      <li key={example.sentence} className="rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-700 dark:bg-slate-800">
+                        <span className="mb-2 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-900 dark:bg-blue-900 dark:text-blue-100">
+                          {example.difficulty==="easy"?"Kolay":example.difficulty==="medium"?"Orta":example.difficulty==="yds"?"YDS":"İnceleme gerekli"}
+                        </span>
+                        <p className="break-words font-medium leading-6 text-slate-900 dark:text-slate-100">{example.sentence}</p>
+                        <p className="mt-1 break-words leading-5 text-slate-600 dark:text-slate-300">{example.translation}</p>
                       </li>
                     ))}
                   </ol>
@@ -154,7 +186,10 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
           <Button size="sm" className="w-full" type="button" disabled={included.length === 0}
             onClick={() => {
               try {
-                onApply(combineWordSenses(drafts, included, primary || undefined));
+                const combined=combineWordSenses(drafts,included,primary||undefined);
+                const selectedPrimary=drafts.find(d=>d.suggestion.partOfSpeech===(primary||included[0]));
+                if(selectedPrimary?.suggestion.lexicon)combined.lexicon=selectedPrimary.suggestion.lexicon;
+                onApply(combined);
                 setDrafts([]);
                 setIncluded([]);
               } catch (reason) {

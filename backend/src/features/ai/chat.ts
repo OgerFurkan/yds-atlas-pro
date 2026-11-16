@@ -44,6 +44,7 @@ export async function generateChatReply(
 
   try {
     const payload = (await response.json()) as {
+      usageMetadata?: {promptTokenCount?:number;candidatesTokenCount?:number};
       candidates?: {
         finishReason?: string;
         content?: { parts?: { text?: string; thought?: boolean }[] };
@@ -58,8 +59,13 @@ export async function generateChatReply(
         .join("")
         .trim() ?? "";
     if (!reply || reply.length > 5000) throw new Error("invalid reply");
+    const inputTokens=payload.usageMetadata?.promptTokenCount;
+    const outputTokens=payload.usageMetadata?.candidatesTokenCount;
+    const usage=Number.isSafeInteger(inputTokens)&&Number.isSafeInteger(outputTokens)&&
+      inputTokens!>=0&&outputTokens!>=0 ? {inputTokens:inputTokens!,outputTokens:outputTokens!}:undefined;
     return aiChatResponseSchema.parse({
       reply,
+      usage,
       provider: "Gemini",
       model: config.GEMINI_MODEL_CHAT,
     });

@@ -1,6 +1,6 @@
 ﻿import { zodResolver } from "@hookform/resolvers/zod";
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
-import { wordInputSchema } from "@yds-atlas/shared";
+import { hasPlayableTierSet, wordInputSchema } from "@yds-atlas/shared";
 import { ArrowRight, LoaderCircle, Sparkles } from "lucide-react";
 import { useRef, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
@@ -31,7 +31,7 @@ interface WordFormDialogProps {
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
-  ) => Promise<void>;
+  ) => Promise<WordInput | void>;
   onNotify: Notify;
 }
 
@@ -81,7 +81,8 @@ export function WordFormDialog({
           (item) => item.sentence === example.sentence && item.translation === example.translation,
         );
         return original
-          ? { ...example, translationFocus: original.translationFocus, source: original.source }
+          ? { ...example, translationFocus: original.translationFocus, source: original.source,
+              difficulty: original.difficulty }
           : example;
       });
       if (source.word.toLocaleLowerCase("en") === input.word.toLocaleLowerCase("en")) {
@@ -94,12 +95,19 @@ export function WordFormDialog({
         });
       }
       const prepared = wordInputSchema.parse(enrichWordInput(input));
-      await onSave(prepared, word?.id, setProgress);
+      // AppWorkspace already runs the ONLY AI/cache completion for signed-in new words.
+      // Prefer its actual result over the pre-save draft when reporting readiness.
+      const saved = await onSave(prepared, word?.id, setProgress);
       onOpenChange(false);
-      const readiness = getStudyReadiness(prepared);
-      if (readiness.ready) {
+      const completed = wordInputSchema.parse(saved ?? prepared);
+      const readiness = getStudyReadiness(completed);
+      if (readiness.ready && hasPlayableTierSet(completed.examples)) {
         onNotify.success(word ? "Kelime güncellendi, çalışmaya hazır." : "Kelime eklendi, çalışmaya hazır.");
       } else {
+        if (readiness.ready && !hasPlayableTierSet(completed.examples)) {
+          onNotify.info("Kelime kaydedildi; seviye ayrımlı örnekler henüz hazır değil. Giriş yaptığında tamamlayabilirsin.");
+          return;
+        }
         onNotify.info(readiness.missingMeanings
           ? "Kelime kütüphaneye kaydedildi. Çalışmaya almak için Türkçe anlam ekle."
           : `Kelime kaydedildi fakat çalışmaya henüz hazır değil (${readiness.usable}/5 uygun örnek). Gemini ile tamamlayabilirsin.`);

@@ -1,5 +1,5 @@
 import type { WordGroup, WordInput } from "@yds-atlas/shared";
-import { lazy, Suspense, useCallback, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -19,12 +19,14 @@ import { AccountDialog } from "@/features/auth/components/account-dialog";
 import { LoginPage } from "@/features/auth/components/login-page";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { DashboardPage } from "@/features/dashboard/components/dashboard-page";
+import { checkAdminAccess } from "@/features/admin/api/admin-api";
 import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api";
 import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
 
+const AdminDashboard = lazy(() => import("@/features/admin/components/admin-dashboard").then(x => ({default:x.AdminDashboard})));
 const WordLibraryPage = lazy(() =>
   import("@/features/word-library/components/word-library-page").then((module) => ({
     default: module.WordLibraryPage,
@@ -94,6 +96,17 @@ function AppWorkspace({
   const account = useAccountData(auth.user?.id, api, initial, notify);
   const library = account.library;
   const [accountOpen, setAccountOpen] = useState(false);
+  const [adminVisible,setAdminVisible] = useState(false);
+  const [adminChecked,setAdminChecked] = useState(false);
+  useEffect(()=>{
+    let mounted=true;
+    setAdminVisible(false);setAdminChecked(false);
+    if(!auth.user){setAdminChecked(true);return;}
+    void checkAdminAccess().then(allowed=>{
+      if(mounted){setAdminVisible(allowed);setAdminChecked(true);}
+    });
+    return ()=>{mounted=false;};
+  },[auth.user?.id]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { screen, navigate } = useHashScreen();
   const [initialGroup, setInitialGroup] = useState<WordGroup | "all">("all");
@@ -141,6 +154,7 @@ function AppWorkspace({
         ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
         : [input];
     await library.save(prepared, id);
+    return prepared;
   }
 
   async function addWords(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
@@ -179,6 +193,7 @@ function AppWorkspace({
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
         onOpenSettings={() => setSettingsOpen(true)}
         signedIn={!!auth.user}
+        adminVisible={adminVisible}
         screen={screen}
         onNavigate={(nextScreen) => {
           setOpenCreateOnLibrary(false);
@@ -205,7 +220,13 @@ function AppWorkspace({
             </button>
           </div>
         )}
-        {screen === "home" ? (
+        {screen === "admin" ? (
+          !adminChecked ? <p role="status" className="py-16 text-center">Yönetici yetkisi doğrulanıyor…</p>
+          : !adminVisible ? <p role="alert" className="py-16 text-center">Yönetim merkezine erişim yetkin yok.</p>
+          : <Suspense fallback={<p role="status" className="py-16 text-center">Yönetim merkezi yükleniyor…</p>}>
+              <AdminDashboard onBack={()=>navigate("home")}/>
+            </Suspense>
+        ) : screen === "home" ? (
           <DashboardPage
             words={library.words}
             onGoalChange={(goal) => {

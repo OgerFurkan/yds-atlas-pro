@@ -1,7 +1,7 @@
 name: SaaS quality gates
 on:
   push:
-    branches: [main]
+    branches: [main, staging/atlas-all-prs-20261115]
   pull_request:
 
 jobs:
@@ -19,6 +19,8 @@ jobs:
         run: bun run build
       - name: Unit tests
         run: bun test backend/tests frontend/tests/unit
+      - name: Architecture boundary unit tests
+        run: node --test scripts/quality/tests/dependency-targets.test.mjs
       - name: Repository audit
         run: node scripts/quality/repository-audit.mjs
       - name: Install browser

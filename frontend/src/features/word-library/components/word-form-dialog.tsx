@@ -81,7 +81,12 @@ export function WordFormDialog({
           (item) => item.sentence === example.sentence && item.translation === example.translation,
         );
         return original
-          ? { ...example, translationFocus: original.translationFocus, source: original.source }
+          ? {
+              ...example,
+              translationFocus: original.translationFocus,
+              source: original.source,
+              purpose: original.purpose,
+            }
           : example;
       });
       if (source.word.toLocaleLowerCase("en") === input.word.toLocaleLowerCase("en")) {
@@ -89,7 +94,15 @@ export function WordFormDialog({
         input.senses = source.senses.flatMap((sense) => {
           if (sense.partOfSpeech !== input.partOfSpeech) return [sense];
           return canKeepMainSense
-            ? [{ ...sense, meanings: input.meanings ?? [], usageNote: input.usageNote ?? "", cefr: input.cefr ?? "Belirtilmedi", examples: (input.examples ?? []).slice(0, 5) }]
+            ? [
+                {
+                  ...sense,
+                  meanings: input.meanings ?? [],
+                  usageNote: input.usageNote ?? "",
+                  cefr: input.cefr ?? "Belirtilmedi",
+                  examples: (input.examples ?? []).slice(0, 5),
+                },
+              ]
             : [];
         });
       }
@@ -98,11 +111,15 @@ export function WordFormDialog({
       onOpenChange(false);
       const readiness = getStudyReadiness(prepared);
       if (readiness.ready) {
-        onNotify.success(word ? "Kelime güncellendi, çalışmaya hazır." : "Kelime eklendi, çalışmaya hazır.");
+        onNotify.success(
+          word ? "Kelime güncellendi, çalışmaya hazır." : "Kelime eklendi, çalışmaya hazır.",
+        );
       } else {
-        onNotify.info(readiness.missingMeanings
-          ? "Kelime kütüphaneye kaydedildi. Çalışmaya almak için Türkçe anlam ekle."
-          : `Kelime kaydedildi fakat çalışmaya henüz hazır değil (${readiness.usable}/5 uygun örnek). Gemini ile tamamlayabilirsin.`);
+        onNotify.info(
+          readiness.missingMeanings
+            ? "Kelime kütüphaneye kaydedildi. Çalışmaya almak için Türkçe anlam ekle."
+            : `Kelime kaydedildi fakat çalışmaya henüz hazır değil (${readiness.usable}/5 uygun örnek). Gemini ile tamamlayabilirsin.`,
+        );
       }
     } catch (error) {
       onNotify.error(error instanceof Error ? error.message : "Kelime kaydedilemedi.");

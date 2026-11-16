@@ -3,6 +3,7 @@ import { getStarterWord, starterVocabulary } from "@/features/word-library/data/
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { escapeRegExp } from "@/shared/lib/regexp";
 import { assessmentScore, emptyAssessment } from "./assessment";
+import { contextExamplesForPhase } from "./context-examples";
 import type { Confidence, GameSession } from "./game-session";
 import { startMatchingBoard } from "./matching-engine";
 
@@ -101,12 +102,22 @@ export function makeQuestion(session: GameSession) {
   const context = session.phase.endsWith("context");
   const attemptKey = `${session.phase}:${word.id}`;
   const attempt = session.attempts[attemptKey] ?? 0;
-  const examples = usableExamples(word);
+  const usable = usableExamples(word);
+  const examples = context ? contextExamplesForPhase(usable, isFinal(session)) : usable;
   const contextAttempts = isFinal(session) ? (session.attempts[`context:${word.id}`] ?? 0) : 0;
-  const exampleOrder = orderChoices(
-    examples.slice(1).map((_, index) => String(index + 1)),
-    `${session.id}:${word.id}:examples`,
-  );
+  // The first group prompt still starts at index one (legacy tutorial contract),
+  // but unlike the old single-item slice, a two-example pool rotates to index zero.
+  // Final exam-tagged pools retain the seed-stable shuffled order.
+  const tagged =
+    context && examples.some((item) => item.purpose === (isFinal(session) ? "exam" : "practice"));
+  const startIndex = tagged ? 0 : 1;
+  const exampleOrder =
+    tagged && !isFinal(session)
+      ? [...examples.slice(1).map((_, index) => String(index + 1)), "0"]
+      : orderChoices(
+          examples.slice(startIndex).map((_, index) => String(index + startIndex)),
+          `${session.id}:${word.id}:examples`,
+        );
   const example = exampleOrder.length
     ? examples[Number(exampleOrder[(attempt + contextAttempts) % exampleOrder.length])]
     : examples[0];

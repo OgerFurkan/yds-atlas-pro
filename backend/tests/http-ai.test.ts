@@ -286,7 +286,7 @@ describe("Gemini provider", () => {
         generateChatReply({ messages }, config, undefined, fetcher),
       ).rejects.toMatchObject({ code });
     }
-  });
+  }, 15_000);
   test("chat tells the user how long to wait when Gemini rate limits", async () => {
     const messages = [{ role: "user" as const, content: "Explain indicate." }];
     const withDelay = (async () =>

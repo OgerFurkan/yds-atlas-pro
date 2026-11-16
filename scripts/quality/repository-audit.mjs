@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
+import { targetForSharedImport, isForbiddenSharedDependency } from "./dependency-targets.mjs";
 
 const root = process.cwd();
 function walk(dir, found = []) {
@@ -24,9 +25,8 @@ for (const file of sources) {
   if (!relative.startsWith("frontend/src/shared/")) continue;
   for (const match of code.matchAll(/\b(?:import|export)\s+(?:[\s\S]{0,120}?\s+from\s*)?["']([^"']+)["']/g)) {
     const spec = match[1];
-    if (!spec.startsWith('.')) continue;
-    const dest = path.relative(root, path.resolve(path.dirname(file), spec)).split(path.sep).join("/");
-    if (dest.startsWith("frontend/src/app/") || dest.startsWith("frontend/src/features/"))
+    const dest = targetForSharedImport(file, spec, root);
+    if (isForbiddenSharedDependency(dest))
       violations.push({ file: relative, import: spec });
   }
 }

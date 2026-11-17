@@ -17,6 +17,7 @@ import {
 import { enrichWordInput } from "../data/starter-vocabulary";
 import { useWordSpellcheck } from "../hooks/use-word-spellcheck";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
+import { restoreExampleMetadata } from "../model/restore-example-metadata";
 import { type WordFormValues, wordFormSchema } from "../model/word-form.schema";
 import { toFormValues, toWordInput } from "../model/word-form-mappers";
 import { AiFillProgress } from "./ai-fill-progress";
@@ -76,15 +77,7 @@ export function WordFormDialog({
       if (!checked) return;
       const input = toWordInput(values, checked.normalized);
       const source = wordInputSchema.parse(aiSource.current ?? word ?? { word: input.word });
-      input.examples = input.examples?.map((example) => {
-        const original = source.examples.find(
-          (item) => item.sentence === example.sentence && item.translation === example.translation,
-        );
-        return original
-          ? { ...example, translationFocus: original.translationFocus, source: original.source,
-              difficulty: original.difficulty }
-          : example;
-      });
+      input.examples = restoreExampleMetadata(input.examples ?? [], source.examples);
       if (source.word.toLocaleLowerCase("en") === input.word.toLocaleLowerCase("en")) {
         const canKeepMainSense = Boolean(input.meanings?.length && input.examples?.length);
         input.senses = source.senses.flatMap((sense) => {

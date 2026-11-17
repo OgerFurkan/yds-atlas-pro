@@ -70,8 +70,9 @@ test("pronunciation guide points to the button and advances only when listening 
     (window as unknown as { __speechMock: { finish: () => void } }).__speechMock.finish(),
   );
   await expect(page.locator(".driver-popover-title")).toHaveText("Oyun rehberi · 7/28");
+  await expect(page.locator("#word-example")).toContainText("Heat makes metals expand.");
   await expect(page.locator("#word-example p").last().locator("strong.italic")).toHaveText(
-    "genişletmeyi",
+    "genleşmesini",
   );
 });
 
@@ -231,7 +232,9 @@ test("appearance and language preferences persist and library cards stay distinc
       "rgb(58, 49, 32)",
     );
   } else {
-    const mobileCard = page.locator(".library-word-card").filter({ has: page.getByRole("checkbox", { name: "Select Zebra", exact: true }) });
+    const mobileCard = page
+      .locator(".library-word-card")
+      .filter({ has: page.getByRole("checkbox", { name: "Select Zebra", exact: true }) });
     await mobileCard.getByRole("checkbox", { name: "Select Zebra" }).click();
     await expect(mobileCard).toHaveAttribute("data-selected", "true");
     await expect(mobileCard).toHaveClass(/is-selected/);

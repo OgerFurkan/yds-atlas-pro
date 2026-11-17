@@ -40,7 +40,12 @@ test("single and bulk imports normalize words, review spelling and skip duplicat
     )
     .toBe(3);
   await page.getByRole("button", { name: "Abandon kelime ayrıntıları" }).click();
-  await expect(page.getByRole("dialog").getByText(/Mürettebat/)).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByText("They had to abandon the house.", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("dialog").getByText("Evi terk etmek zorunda kaldılar.", { exact: true }),
+  ).toBeVisible();
   await page.getByRole("button", { name: "Pencereyi kapat" }).click();
   for (const width of [320, 390, 768, 1024, 1170, 1440]) {
     await page.setViewportSize({ width, height: 900 });

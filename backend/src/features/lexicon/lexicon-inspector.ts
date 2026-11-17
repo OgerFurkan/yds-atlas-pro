@@ -1,6 +1,7 @@
 import { hasCompleteTierSet } from "@yds-atlas/shared";
 import type { ServerConfig } from "../../config/env";
-import { HttpError } from "../../shared/errors";
+import { databaseError, HttpError } from "../../shared/errors";
+import type { RequestContext } from "../../shared/supabase";
 import { quotaClient } from "../../shared/supabase";
 import { validateLexicalCandidate } from "./lexicon-content-validator";
 import { lexicalIdentity } from "./lexicon-identity";
@@ -78,4 +79,16 @@ export async function inspectCachedLexicon(query: InspectorQuery, store: Inspect
 export async function inspectTieredLexicon(config: ServerConfig, query: InspectorQuery) {
   const valid = validateInspectorQuery(query); // Reject invalid data BEFORE privileged client creation.
   return inspectCachedLexicon(valid, lexiconStore(quotaClient(config)));
+}
+
+/** Refuse Inspector while any unfinished cloud game exists for this authenticated user. */
+export async function rejectInspectorDuringSavedAssessment(ctx: RequestContext): Promise<void> {
+  const result = await ctx.db.from("learning_sessions").select("id")
+    .is("completed_at", null).limit(1);
+  databaseError(result.error);
+  if (!Array.isArray(result.data))
+    throw new HttpError(503, "Oturum durumu doğrulanamadı.", "INSPECTOR_SESSION_UNAVAILABLE");
+  if (result.data.length > 0)
+    throw new HttpError(409, "Aktif öğrenme oturumunu tamamladıktan sonra kelimeyi inceleyebilirsin.",
+      "INSPECTOR_ACTIVE_ASSESSMENT");
 }

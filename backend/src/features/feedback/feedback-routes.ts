@@ -20,7 +20,7 @@ import {
 } from "../lexicon/lexicon-http";
 import { recommendLexiconWords } from "../lexicon/lexicon-recommendations";
 import { verifyUserWordLexiconBinding } from "../lexicon/lexicon-binding";
-import { inspectTieredLexicon } from "../lexicon/lexicon-inspector";
+import { inspectTieredLexicon, rejectInspectorDuringSavedAssessment } from "../lexicon/lexicon-inspector";
 import { assertAtlasAdmin, adminOverview } from "../admin/admin-service";
 import { tryEditorialAdminRoute } from "../admin/admin-editorial-routes";
 
@@ -50,6 +50,7 @@ export async function tryFeedbackRoute(
           ["word", "partOfSpeech", "meaning"].some(k => url.searchParams.getAll(k).length > 1)) {
         throw new HttpError(400, "Kelime inceleme parametreleri geçersiz.", "INSPECTOR_INVALID_QUERY");
       }
+      await rejectInspectorDuringSavedAssessment(ctx);
       return { handled: true, value: await inspectTieredLexicon(config, {
         word: url.searchParams.get("word") ?? "",
         partOfSpeech: url.searchParams.get("partOfSpeech") ?? undefined,

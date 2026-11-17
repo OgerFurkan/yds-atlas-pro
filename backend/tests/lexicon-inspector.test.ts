@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import type { LeveledExample } from "@yds-atlas/shared";
 import { createHash } from "node:crypto";
-import { inspectCachedLexicon, validateInspectorQuery } from "../src/features/lexicon/lexicon-inspector";
+import { inspectCachedLexicon, validateInspectorQuery, rejectInspectorDuringSavedAssessment } from "../src/features/lexicon/lexicon-inspector";
 import type { LexicalContent, LexiconEntry, LexiconStore } from "../src/features/lexicon/lexicon-resolver";
 
 const examples: LeveledExample[] = [
@@ -130,5 +130,34 @@ describe("F4a Word Inspector cache-only boundary (no remote DB)",()=>{
     const item=entry(),before=JSON.stringify(item);const s=store([item]);
     await inspectCachedLexicon({word:"obtain"},s.client);
     expect(JSON.stringify(item)).toBe(before);expect(s.calls).toEqual(["find:obtain"]);
+  });
+});
+
+
+describe("Feedback staging: server-side saved-assessment Inspector gate",()=>{
+  const ctx=(data: unknown,error: unknown=null)=>({db:{from(table:string){
+    if(table!=="learning_sessions") throw Error("Unexpected table");
+    return {select(columns:string){
+      if(columns!=="id") throw Error("Unexpected projection");
+      return {is(column:string,value:unknown){
+        if(column!=="completed_at"||value!==null) throw Error("Unexpected filter");
+        return {limit(n:number){if(n!==1)throw Error("Unexpected limit");return Promise.resolve({data,error})}};
+      }};
+    }};
+  }}}) as never;
+  test("uncompleted cloud game blocks Inspector even if the UI route is bypassed",async()=>{
+    await expect(rejectInspectorDuringSavedAssessment(ctx([{id:"game-session"}])))
+      .rejects.toMatchObject({status:409,code:"INSPECTOR_ACTIVE_ASSESSMENT"});
+  });
+  test("no unfinished session allows cache-only Inspector lookup",async()=>{
+    await expect(rejectInspectorDuringSavedAssessment(ctx([]))).resolves.toBeUndefined();
+  });
+  test("null result fails closed rather than leaking inspector hints",async()=>{
+    await expect(rejectInspectorDuringSavedAssessment(ctx(null)))
+      .rejects.toMatchObject({status:503,code:"INSPECTOR_SESSION_UNAVAILABLE"});
+  });
+  test("database permission errors fail closed",async()=>{
+    await expect(rejectInspectorDuringSavedAssessment(ctx(null,{code:"42501",message:"denied"})))
+      .rejects.toBeDefined();
   });
 });

@@ -83,8 +83,9 @@ export async function inspectTieredLexicon(config: ServerConfig, query: Inspecto
 
 /** Refuse Inspector while any unfinished cloud game exists for this authenticated user. */
 export async function rejectInspectorDuringSavedAssessment(ctx: RequestContext): Promise<void> {
+  const activeSince = new Date(Date.now() - 15 * 60_000).toISOString();
   const result = await ctx.db.from("learning_sessions").select("id")
-    .is("completed_at", null).limit(1);
+    .is("completed_at", null).gte("updated_at", activeSince).limit(1);
   databaseError(result.error);
   if (!Array.isArray(result.data))
     throw new HttpError(503, "Oturum durumu doğrulanamadı.", "INSPECTOR_SESSION_UNAVAILABLE");

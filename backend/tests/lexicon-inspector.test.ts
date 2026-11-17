@@ -141,13 +141,20 @@ describe("Feedback staging: server-side saved-assessment Inspector gate",()=>{
       if(columns!=="id") throw Error("Unexpected projection");
       return {is(column:string,value:unknown){
         if(column!=="completed_at"||value!==null) throw Error("Unexpected filter");
-        return {limit(n:number){if(n!==1)throw Error("Unexpected limit");return Promise.resolve({data,error})}};
+        return {gte(field:string,since:string){
+          if(field!=="updated_at"||Number.isNaN(Date.parse(since))||
+             Math.abs(Date.now()-Date.parse(since)-15*60_000)>2000) throw Error("Unexpected recency gate");
+          return {limit(n:number){if(n!==1)throw Error("Unexpected limit");return Promise.resolve({data,error})}};
+        }};
       }};
     }};
   }}}) as never;
   test("uncompleted cloud game blocks Inspector even if the UI route is bypassed",async()=>{
     await expect(rejectInspectorDuringSavedAssessment(ctx([{id:"game-session"}])))
       .rejects.toMatchObject({status:409,code:"INSPECTOR_ACTIVE_ASSESSMENT"});
+  });
+  test("paused or stale unfinished games are excluded by the 15 minute database filter",async()=>{
+    await expect(rejectInspectorDuringSavedAssessment(ctx([]))).resolves.toBeUndefined();
   });
   test("no unfinished session allows cache-only Inspector lookup",async()=>{
     await expect(rejectInspectorDuringSavedAssessment(ctx([]))).resolves.toBeUndefined();

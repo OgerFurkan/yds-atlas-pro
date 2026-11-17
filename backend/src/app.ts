@@ -32,6 +32,7 @@ import { replyUsingLexiconOrAi } from "./features/lexicon/lexicon-chat";
 import { assertAtlasAdmin, adminOverview } from "./features/admin/admin-service";
 import { resolveTieredLexiconRequest, completeTieredLexiconWords, listTieredLexiconCandidates } from "./features/lexicon/lexicon-http";
 import { verifyUserWordLexiconBinding } from "./features/lexicon/lexicon-binding";
+import { tryFeedbackRoute } from "./features/feedback/feedback-routes";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, dailyPlanWriterClient, goalWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
@@ -100,7 +101,14 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       if (!path.startsWith("/api/")) throw new HttpError(404, "İstek bulunamadı.", "NOT_FOUND");
       const ctx = await (dependencies.authenticate?.(request) ?? authenticate(request, config));
       let result: unknown;
-      if (path === "/api/lexicon/candidates" && request.method === "GET") {
+      // Authenticate first; the Feedback router is a strict no-op while the flag is OFF.
+      // Existing v4 learning, SRS, writer and Lexicon routes remain the fallback.
+      const feedback = await tryFeedbackRoute(request, ctx, config, {
+        generateChat: dependencies.generateChat ?? generateChatReply,
+        consumeQuota: dependencies.consumeQuota,
+      });
+      if (feedback.handled) result = feedback.value;
+      else if (path === "/api/lexicon/candidates" && request.method === "GET") {
         result=await listTieredLexiconCandidates(config,new URL(request.url).searchParams.get("word")??"");
       } else if (path === "/api/lexicon/resolve" && request.method === "POST")
         result = await resolveTieredLexiconRequest(ctx,config,

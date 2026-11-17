@@ -1,5 +1,5 @@
 import type { WordGroup, WordInput } from "@yds-atlas/shared";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { useTranslation } from "react-i18next";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
@@ -20,6 +20,9 @@ import { LoginPage } from "@/features/auth/components/login-page";
 import { useAuth } from "@/features/auth/hooks/use-auth";
 import { DashboardPage } from "@/features/dashboard/components/dashboard-page";
 import { checkAdminAccess } from "@/features/admin/api/admin-api";
+import { ADMIN_UI_ENABLED, useAdminAccess } from "@/features/admin/hooks/use-admin-access";
+import { INSPECTOR_UI_ENABLED } from "@/features/word-inspector/api/word-inspector-api";
+import { readSession } from "@/features/learning-game/model/game-storage";
 import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api";
 import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
@@ -27,6 +30,36 @@ import { prepareWordInputs } from "@/features/word-library/model/prepare-word-in
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
 
 const AdminDashboard = lazy(() => import("@/features/admin/components/admin-dashboard").then(x => ({default:x.AdminDashboard})));
+const WordInspectorPage = lazy(() =>
+  import("@/features/word-inspector/components/word-inspector-page").then((module) => ({
+    default: module.WordInspectorPage,
+  })),
+);
+const AdminControlCenterPage = lazy(() =>
+  import("@/features/admin/components/admin-control-center-page").then((module) => ({
+    default: module.AdminControlCenterPage,
+  })),
+);
+/** Read from the existing account-scoped game store; do not clear or mutate progress. */
+function hasActiveSavedGame(): boolean {
+  const session = readSession();
+  return session !== null && !session.tutorial && session.phase !== "complete";
+}
+
+/** Hash/back-forward and cross-tab storage changes must both invalidate Inspector access. */
+function subscribeToGameSessionChanges(notify: () => void) {
+  window.addEventListener("hashchange", notify);
+  window.addEventListener("storage", notify);
+  window.addEventListener("focus", notify);
+  window.addEventListener("pageshow", notify);
+  return () => {
+    window.removeEventListener("hashchange", notify);
+    window.removeEventListener("storage", notify);
+    window.removeEventListener("focus", notify);
+    window.removeEventListener("pageshow", notify);
+  };
+}
+
 const WordLibraryPage = lazy(() =>
   import("@/features/word-library/components/word-library-page").then((module) => ({
     default: module.WordLibraryPage,
@@ -94,11 +127,16 @@ function AppWorkspace({
   const { t } = useTranslation();
   const notify = useNotify();
   const account = useAccountData(auth.user?.id, api, initial, notify);
+  const feedbackAdminAccess = useAdminAccess(auth.user?.id ?? null);
+  const inspectorBlockedByGame = useSyncExternalStore(
+    subscribeToGameSessionChanges, hasActiveSavedGame, () => false,
+  );
   const library = account.library;
   const [accountOpen, setAccountOpen] = useState(false);
   const [adminVisible,setAdminVisible] = useState(false);
   const [adminChecked,setAdminChecked] = useState(false);
   useEffect(()=>{
+    if (ADMIN_UI_ENABLED) return; // The Feedback hook owns admin discovery when enabled.
     let mounted=true;
     setAdminVisible(false);setAdminChecked(false);
     if(!auth.user){setAdminChecked(true);return;}
@@ -193,7 +231,8 @@ function AppWorkspace({
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
         onOpenSettings={() => setSettingsOpen(true)}
         signedIn={!!auth.user}
-        adminVisible={adminVisible}
+        showAdmin={ADMIN_UI_ENABLED ? feedbackAdminAccess === "allowed" : adminVisible}
+        showInspector={!!auth.user && INSPECTOR_UI_ENABLED && screen !== "game" && !inspectorBlockedByGame}
         screen={screen}
         onNavigate={(nextScreen) => {
           setOpenCreateOnLibrary(false);
@@ -220,12 +259,29 @@ function AppWorkspace({
             </button>
           </div>
         )}
-        {screen === "admin" ? (
+        {screen === "admin" && ADMIN_UI_ENABLED ? (
+          <Suspense fallback={<p role="status" className="py-20 text-center text-sm text-muted-foreground">Control Center açılıyor…</p>}>
+            <AdminControlCenterPage userId={auth.user?.id ?? null} access={feedbackAdminAccess} />
+          </Suspense>
+        ) : screen === "admin" ? (
           !adminChecked ? <p role="status" className="py-16 text-center">Yönetici yetkisi doğrulanıyor…</p>
           : !adminVisible ? <p role="alert" className="py-16 text-center">Yönetim merkezine erişim yetkin yok.</p>
           : <Suspense fallback={<p role="status" className="py-16 text-center">Yönetim merkezi yükleniyor…</p>}>
               <AdminDashboard onBack={()=>navigate("home")}/>
             </Suspense>
+        ) : screen === "inspector" ? (
+          INSPECTOR_UI_ENABLED && auth.user && inspectorBlockedByGame ? (
+            <div role="status" className="rounded-xl border border-atlas-line bg-white p-6 text-sm text-atlas-navy">
+              Devam eden öğrenme oturumunda kelime inceleme kapalı. Oturumunu tamamladıktan sonra kelimeleri inceleyebilirsin; ilerlemen korunuyor.
+              <button type="button" className="mt-4 block rounded-lg border border-atlas-line px-4 py-2 font-semibold focus-visible:outline-2 focus-visible:outline-atlas-blue" onClick={() => navigate("game")}>Öğrenmeye devam et</button>
+            </div>
+          ) : INSPECTOR_UI_ENABLED && auth.user ? (
+            <Suspense fallback={<p role="status" className="py-20 text-center text-sm text-slate-500">Word Inspector açılıyor…</p>}>
+              <WordInspectorPage userId={auth.user.id} onAddToLibrary={(word) => library.addMany([word])} />
+            </Suspense>
+          ) : (
+            <p role="status" className="rounded-xl border border-atlas-line bg-white p-6 text-sm text-atlas-navy">Kelime inceleme bu ortamda kapalı veya oturumun açık değil.</p>
+          )
         ) : screen === "home" ? (
           <DashboardPage
             words={library.words}

@@ -161,7 +161,7 @@ export function SetupSourcePicker({
                     <ol className="mt-2 space-y-2 text-xs text-slate-600">
                       {word.examples?.map((example) => (
                         <li key={example.sentence}>
-                          <p><SentenceWordTooltips text={example.sentence} focusWord={word} allowDuringGame /></p>
+                          <p><SentenceWordTooltips text={example.sentence} focusWord={{ word: word.word, meanings: word.meanings ?? [], partOfSpeech: word.partOfSpeech ?? "", alternatives: word.alternatives ?? [], pronunciationUk: word.pronunciationUk ?? null, pronunciationUs: word.pronunciationUs ?? null }} allowDuringGame /></p>
                           <p>{example.translation}</p>
                         </li>
                       ))}

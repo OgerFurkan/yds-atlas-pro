@@ -33,7 +33,7 @@ import { assertAtlasAdmin, adminOverview } from "./features/admin/admin-service"
 import { resolveTieredLexiconRequest, completeTieredLexiconWords, listTieredLexiconCandidates } from "./features/lexicon/lexicon-http";
 import { verifyUserWordLexiconBinding } from "./features/lexicon/lexicon-binding";
 import { tryFeedbackRoute } from "./features/feedback/feedback-routes";
-import { lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
+import { cachedTooltipBatch, cachedOrLiveTooltip, enqueueTooltipExamples, adminBackfillTooltipPage } from "./features/lexicon/tooltip-prewarm";
 import { rejectInspectorDuringSavedAssessment } from "./features/lexicon/lexicon-inspector";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
@@ -57,6 +57,10 @@ const bulk = z.array(wordInputSchema).min(1).max(500);
 const sessionBody = z
   .object({ snapshot: gameSessionSchema, revision: z.number().int().min(0) })
   .strict();
+async function safePrewarm(config:ServerConfig,examples:readonly {sentence?:string}[]){
+  if(!config.ATLAS_TOOLTIP_PREWARM_ENABLED)return;
+  try{await enqueueTooltipExamples(config,examples);}catch{/* The learning write remains authoritative. */}
+}
 export function createApp(config: ServerConfig, dependencies: Dependencies = {}) {
   const origins = new Set(
     config.APP_ORIGINS.split(",")
@@ -110,19 +114,27 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         consumeQuota: dependencies.consumeQuota,
       });
       if (feedback.handled) result = feedback.value;
+      else if (path === "/api/dictionary/turkish/batch" && request.method === "GET") {
+        if(!config.ATLAS_FEEDBACK_LEXICON_ENABLED)throw new HttpError(404,"Sözlük kapalı.","DICTIONARY_DISABLED");
+        await rejectInspectorDuringSavedAssessment(ctx);
+        result={words:await cachedTooltipBatch(config,new URL(request.url).searchParams.getAll("word"))};
+      }
       else if (path === "/api/dictionary/turkish" && request.method === "GET") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) throw new HttpError(404,"Sözlük etkin değil.","DICTIONARY_DISABLED");
         await rejectInspectorDuringSavedAssessment(ctx);
-        result=await lookupPublicTurkish(new URL(request.url).searchParams.get("word")??"",ctx.userId);
+        result=await cachedOrLiveTooltip(config,new URL(request.url).searchParams.get("word")??"",ctx.userId);
       }
       else if (path === "/api/lexicon/candidates" && request.method === "GET") {
         result=await listTieredLexiconCandidates(config,new URL(request.url).searchParams.get("word")??"");
-      } else if (path === "/api/lexicon/resolve" && request.method === "POST")
+      } else if (path === "/api/lexicon/resolve" && request.method === "POST") {
         result = await resolveTieredLexiconRequest(ctx,config,
           lexiconResolveRequestSchema.parse(await readJson(request,4096)),request.signal);
+        await safePrewarm(config,(result as Awaited<ReturnType<typeof resolveTieredLexiconRequest>>).entry.content.examples);
+      }
       else if(path === "/api/lexicon/complete" && request.method === "POST") {
         const words = aiNamedWordsRequestSchema.parse(await readJson(request,4096)).words;
         result = await completeTieredLexiconWords(ctx,config,words,request.signal);
+        for(const v of (result as Awaited<ReturnType<typeof completeTieredLexiconWords>>).suggestions)await safePrewarm(config,v.examples);
       } else if(path === "/api/lexicon/suggest" && request.method === "POST") {
         const input=aiWordListRequestSchema.parse(await readJson(request,4096));
         result=await recommendLexiconWords(ctx,config,input.count,input.exclude);
@@ -133,6 +145,10 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       } else if(path === "/api/admin/me" && request.method === "GET") {
         assertAtlasAdmin(ctx,config);
         result={admin:true};
+      } else if(path === "/api/admin/tooltip-prewarm/backfill" && request.method === "POST") {
+        assertAtlasAdmin(ctx,config);
+        const p=z.object({afterId:z.string().uuid().nullable().optional(),maxWords:z.number().int().min(1).max(50).optional()}).strict().parse(await readJson(request,2048));
+        result=await adminBackfillTooltipPage(ctx,config,p.afterId??null,p.maxWords??50);
       } else if(path === "/api/admin/overview" && request.method === "GET") {
         result=await adminOverview(ctx,config);
       } else if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
@@ -140,11 +156,13 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         const input=wordInputSchema.parse(await readJson(request));
         await verifyUserWordLexiconBinding(config,input);
         result=await saveWord(ctx,input);
+        await safePrewarm(config,(result as Awaited<ReturnType<typeof saveWord>>).examples);
       }
       else if (path === "/api/words/import" && request.method === "POST") {
         const inputs=bulk.parse(await readJson(request));
         for(const input of inputs)if(input.lexicon)await verifyUserWordLexiconBinding(config,input);
         result = await importWords(ctx,inputs);
+        for(const input of inputs)await safePrewarm(config,input.examples);
       }
       else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
@@ -186,6 +204,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           const input=wordInputSchema.parse(await readJson(request));
           await verifyUserWordLexiconBinding(config,input);
           result=await saveWord(ctx,input,id);
+          await safePrewarm(config,(result as Awaited<ReturnType<typeof saveWord>>).examples);
         }
         else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");

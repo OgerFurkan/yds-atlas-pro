@@ -113,3 +113,10 @@ export async function lookupOpenTurkishDictionary(word:string,userId:string,sign
  const query=new URLSearchParams({word});
  return openTurkishDictionarySchema.parse(await apiRequest<unknown>("/api/dictionary/turkish?"+query.toString(),{method:"GET",signal},userId));
 }
+/** Read-only, bulk hydration of the private precomputed dictionary. */
+export async function readCachedTurkishBatch(words:readonly string[],userId:string,signal?:AbortSignal){
+  if(!userId||words.length>65)throw new Error('Invalid cached dictionary batch');
+  const p=new URLSearchParams();for(const word of [...new Set(words)])p.append('word',word);
+  const response=await apiRequest<unknown>('/api/dictionary/turkish/batch?'+p.toString(),{method:'GET',signal},userId);
+  return z.object({words:z.record(z.string(),openTurkishDictionarySchema)}).strict().parse(response).words;
+}

@@ -36,6 +36,7 @@ const schema = z
     SESSION_SAVE_V5_ENABLED: z.enum(["true", "false"]).default("false").transform((value) => value === "true"),
     GOAL_WRITE_V6_ENABLED: z.enum(["true","false"]).default("false").transform((value) => value === "true"),
     // Feedback is isolated and disabled by default; no DB migrations or env writes here.
+    ATLAS_TOOLTIP_PREWARM_ENABLED: z.enum(["true", "false"]).default("false").transform(x=>x==="true"),
     ATLAS_FEEDBACK_LEXICON_ENABLED: z.enum(["true", "false"]).default("false")
       .transform((value) => value === "true"),
     GEMINI_API_KEY: optional,

@@ -69,7 +69,9 @@ export async function lookupPublicTurkish(wordInput:string,userId:string,fetcher
   if(sharedBudget.count>=650)throw new HttpError(429,"Sözlük kullanım sınırı doldu.","DICTIONARY_RATE_LIMIT");
   let budget=userBudgets.get(userId);
   if(!budget||budget.expires<now)budget={expires:now+3_600_000,count:0};
-  if(budget.count>=60)throw new HttpError(429,"Saatlik sözlük sınırına ulaşıldı.","DICTIONARY_RATE_LIMIT");
+  // Worker ID is not a valid authenticated UUID; its quota is still bounded.
+  const userCap=userId==="atlas-internal-prewarm-worker"?200:60;
+  if(budget.count>=userCap)throw new HttpError(429,"Saatlik sözlük sınırına ulaşıldı.","DICTIONARY_RATE_LIMIT");
   budget.count++;sharedBudget.count++;userBudgets.set(userId,budget);
   if(userBudgets.size>1500)for(const [id,b] of userBudgets)if(b.expires<now)userBudgets.delete(id);
   const task=(async()=>{

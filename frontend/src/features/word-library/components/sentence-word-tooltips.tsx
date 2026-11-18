@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
-import { inspectFromPool, lookupOpenTurkishDictionary, INSPECTOR_UI_ENABLED, type InspectorResult, type OpenTurkishDictionary } from "@/features/word-inspector/api/word-inspector-api";
+import { inspectFromPool, lookupOpenTurkishDictionary, readCachedTurkishBatch, INSPECTOR_UI_ENABLED, type InspectorResult, type OpenTurkishDictionary } from "@/features/word-inspector/api/word-inspector-api";
 import {
   buildVocabularyIndex, matchVocabulary, normalizeTooltipWord,
   splitChatSentenceSegments, splitSentenceWords, tooltipMeanings,
@@ -72,6 +72,27 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
   );
   const parts = useMemo(() => splitSentenceWords(text), [text]);
   const id = useId().replace(/:/g, "");
+  // Optional Preview-only opt-in: do not hit an older staging API until deployed.
+  const prewarmUiEnabled = import.meta.env.VITE_TOOLTIP_PREWARM_UI_ENABLED === "true";
+  // Prefetch only already-validated cache entries; no AI or upstream calls.
+  useEffect(()=>{
+    if(!prewarmUiEnabled||!enabled||!userId||!allowPoolLookup)return;
+    const tokens=[...new Set(parts.filter(p=>p.kind==="word")
+      .map(p=>normalizeTooltipWord(p.text))
+      .filter(k=>/^[a-z]+(?:[-\x27][a-z]+)?$/.test(k)&&k.length>=2&&k.length<=45)
+      .filter(k=>!matchVocabulary(k,libraryIndex).length&&!matchVocabulary(k,fallbackIndex).length))].slice(0,65);
+    if(!tokens.length)return;
+    const controller=new AbortController();
+    void readCachedTurkishBatch(tokens,userId,controller.signal).then(words=>{
+      if(controller.signal.aborted)return;
+      setPoolLookup(prev=>{const updated={...prev};
+        for(const [key,value] of Object.entries(words))
+          if(!updated[key])updated[key]=tooltipFromOpenDictionary(value);
+        return updated;
+      });
+    }).catch(()=>{/* Optional table may not yet exist. */});
+    return ()=>controller.abort();
+  },[prewarmUiEnabled,enabled,userId,allowPoolLookup,parts,libraryIndex,fallbackIndex]);
   const [active, setActive] = useState<number | null>(null);
   const [pinned, setPinned] = useState(false);
 

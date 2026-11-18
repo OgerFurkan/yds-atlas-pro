@@ -27,12 +27,15 @@ import { setDailyGoalWithPrivilegedWriter } from "./features/learning/goal-write
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
+import {queueWordSentenceCoverage,lookupSentenceTerm,processSentenceTerms,backfillSentenceTerms} from "./features/lexicon/sentence-term-coverage";
 import { recommendLexiconWords } from "./features/lexicon/lexicon-recommendations";
 import { replyUsingLexiconOrAi } from "./features/lexicon/lexicon-chat";
 import { assertAtlasAdmin, adminOverview } from "./features/admin/admin-service";
 import { resolveTieredLexiconRequest, completeTieredLexiconWords, listTieredLexiconCandidates } from "./features/lexicon/lexicon-http";
 import { verifyUserWordLexiconBinding } from "./features/lexicon/lexicon-binding";
 import { tryFeedbackRoute } from "./features/feedback/feedback-routes";
+import { lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
+import { rejectInspectorDuringSavedAssessment } from "./features/lexicon/lexicon-inspector";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, dailyPlanWriterClient, goalWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
@@ -108,6 +111,18 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         consumeQuota: dependencies.consumeQuota,
       });
       if (feedback.handled) result = feedback.value;
+      else if (path === "/api/dictionary/turkish" && request.method === "GET") {
+        if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) throw new HttpError(404,"Sözlük etkin değil.","DICTIONARY_DISABLED");
+        await rejectInspectorDuringSavedAssessment(ctx);
+        const term=new URL(request.url).searchParams.get("word")??"";
+        let ready=null;
+        try{ready=await lookupSentenceTerm(quotaClient(config),term);}catch{/* staged optional table */}
+        result=ready?{status:"ready",word:term,entries:[{partOfSpeech:ready.partOfSpeech??"Unspecified",meanings:ready.meanings}],
+          ...(ready.sourceUrl&&ready.license==="CC BY-SA 4.0"?{source:{provider:"FreeDictionaryAPI.com / Wiktionary" as const,
+           url:ready.sourceUrl,license:"CC BY-SA 4.0" as const,
+           licenseUrl:"https://creativecommons.org/licenses/by-sa/4.0/"}}:{})}:
+          await lookupPublicTurkish(term,ctx.userId);
+      }
       else if (path === "/api/lexicon/candidates" && request.method === "GET") {
         result=await listTieredLexiconCandidates(config,new URL(request.url).searchParams.get("word")??"");
       } else if (path === "/api/lexicon/resolve" && request.method === "POST")
@@ -128,16 +143,26 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         result={admin:true};
       } else if(path === "/api/admin/overview" && request.method === "GET") {
         result=await adminOverview(ctx,config);
+      } else if(path === "/api/admin/sentence-coverage/backfill" && request.method === "POST"){
+        assertAtlasAdmin(ctx,config);
+        if(!config.ATLAS_FEEDBACK_LEXICON_ENABLED)throw new HttpError(404,"Disabled","COVERAGE_DISABLED");
+        result=await backfillSentenceTerms(quotaClient(config));
+      } else if(path === "/api/admin/sentence-coverage/run" && request.method === "POST"){
+        assertAtlasAdmin(ctx,config);
+        if(!config.ATLAS_FEEDBACK_LEXICON_ENABLED)throw new HttpError(404,"Disabled","COVERAGE_DISABLED");
+        result=await processSentenceTerms(quotaClient(config),{max:10});
       } else if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
       else if (path === "/api/words" && request.method === "POST") {
         const input=wordInputSchema.parse(await readJson(request));
         await verifyUserWordLexiconBinding(config,input);
         result=await saveWord(ctx,input);
+        try{await queueWordSentenceCoverage(config,[input]);}catch{console.warn("SENTENCE_PREFETCH_QUEUE_UNAVAILABLE");}
       }
       else if (path === "/api/words/import" && request.method === "POST") {
         const inputs=bulk.parse(await readJson(request));
         for(const input of inputs)if(input.lexicon)await verifyUserWordLexiconBinding(config,input);
         result = await importWords(ctx,inputs);
+        try{await queueWordSentenceCoverage(config,inputs);}catch{console.warn("SENTENCE_PREFETCH_QUEUE_UNAVAILABLE");}
       }
       else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
@@ -179,6 +204,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           const input=wordInputSchema.parse(await readJson(request));
           await verifyUserWordLexiconBinding(config,input);
           result=await saveWord(ctx,input,id);
+          try{await queueWordSentenceCoverage(config,[input]);}catch{console.warn("SENTENCE_PREFETCH_QUEUE_UNAVAILABLE");}
         }
         else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");

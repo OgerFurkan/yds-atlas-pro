@@ -151,10 +151,14 @@ export async function drainSharedLexiconQueue(config:ServerConfig,deps?:ProcessD
  if(!next.length){working=false;return null;}
  try {
   const db=quotaClient(config);
-  const result=await processSharedLexiconWords(db,next,deps);
-  // Missing/ambiguous definitions are not claimed to be verified.
-  // Avoid repeated external calls during one service lifetime.
-  for(const key of next)queue.delete(key);
+  const result:ProcessReport={processed:0,existing:0,cached:0,inserted:0,ambiguous:0,missing:0,errors:0};
+  for(const key of next){
+   const item=await processSharedLexiconWords(db,[key],deps);
+   for(const field of Object.keys(result) as Array<keyof ProcessReport>)result[field]+=item[field];
+   // A transient database/provider error must not silently discard queued work.
+   if(item.errors)queue.set(key,Date.now()+3_600_000);
+   else queue.delete(key);
+  }
   return result;
  }finally{working=false;}
 }
@@ -176,7 +180,7 @@ export function startSharedLexiconPrefetch(config:ServerConfig){
  if(!tooltipWriteEnabled(config))return ()=>{};
  const db=quotaClient(config);
  void scanSavedSentences(db).catch(()=>{});
- const timer=setInterval(()=>{void drainSharedLexiconQueue(config).catch(()=>{});},180_000);
+ const timer=setInterval(()=>{void drainSharedLexiconQueue(config).catch(()=>{});},360_000);
  timer.unref?.();
  return ()=>clearInterval(timer);
 }

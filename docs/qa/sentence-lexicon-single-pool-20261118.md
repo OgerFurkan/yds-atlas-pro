@@ -34,7 +34,7 @@ the 5-example content validator are unchanged.
 - Measure unknown/ambiguous word coverage, external API rate and associated costs
   before any production proposal. The glossary is a word-form definition, not
   a context-certified translation.
-- Multi-worker deployments can duplicate external API calls even though rows
+- A transient error is retried after one hour in the same process; a restart reseeds from words.\n- Multi-worker deployments can duplicate external API calls even though rows
   remain deduplicated; deploy with one worker or add a distributed lease
   before high-volume production use.
 

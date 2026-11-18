@@ -115,7 +115,10 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) throw new HttpError(404,"Sözlük etkin değil.","DICTIONARY_DISABLED");
         await rejectInspectorDuringSavedAssessment(ctx);
         const term=new URL(request.url).searchParams.get("word")??"";
-        const cached=await lookupSharedGloss(quotaClient(config),term);
+        // Cache errors or missing service credentials must not break licensed fallback.
+        let cached=null;
+        try{cached=await lookupSharedGloss(quotaClient(config),term);}
+        catch{/* Non-destructive fallback to source-checked public dictionary. */}
         result=cached?{status:"ready" as const,word:term,
          entries:[{partOfSpeech:cached.partOfSpeech,meanings:cached.meanings}],
          source:{provider:"FreeDictionaryAPI.com / Wiktionary" as const,url:cached.url,

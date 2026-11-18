@@ -150,6 +150,10 @@ export async function queueWordSentenceCoverage(config:ServerConfig,inputs:reado
 /** Bounded automatic processing, roughly 50 provider calls/hour per server. */
 export function startSentenceCoverageWorker(config:ServerConfig){
  if(!config.ATLAS_FEEDBACK_LEXICON_ENABLED||!config.SUPABASE_SECRET_KEY)return ()=>{};
+ // Once the staging schema exists, a restart will enqueue all previously saved sentences.
+ // Only word forms are persisted; personal study data remains in its original table.
+ try{void backfillSentenceTerms(quotaClient(config)).catch(()=>{});}
+ catch{/* Staging schema may not be installed. */}
  const interval=setInterval(()=>{
   try{void processSentenceTerms(quotaClient(config),{max:5}).catch(()=>{});}
   catch{/* Migration may not yet be installed. */}

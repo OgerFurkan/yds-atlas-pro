@@ -17,6 +17,8 @@ create table if not exists public.atlas_sentence_terms (
 );
 alter table public.atlas_sentence_terms enable row level security;
 revoke all on public.atlas_sentence_terms from PUBLIC,anon,authenticated;
+-- Backend service role only; deny browser clients.
+grant select,insert,update on public.atlas_sentence_terms to service_role;
 create index if not exists atlas_sentence_terms_pending_idx
  on public.atlas_sentence_terms(next_attempt_at,updated_at,word_key)
  where status='pending';

@@ -13,7 +13,7 @@ export type TooltipVocabulary = {
 export type SentencePiece = { text: string; kind: "word" | "separator"; offset: number };
 export type VocabularyIndex = Map<string, TooltipVocabulary[]>;
 
-const TOKEN = /[A-Za-z]+(?:[’'][A-Za-z]+)*(?:-[A-Za-z]+)*/g;
+const TOKEN = /[A-Za-z][A-Za-z0-9]*(?:[’'][A-Za-z0-9]+)*(?:-[A-Za-z0-9]+)*/g;
 const ENGLISH_COMMON = new Set([
   "a", "an", "the", "in", "on", "at", "of", "to", "for", "from", "with", "and", "or", "but",
   "is", "are", "was", "were", "be", "been", "have", "has", "had", "will", "would", "could", "should",

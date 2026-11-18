@@ -19,6 +19,12 @@ describe("safe sentence tooltip lexical matching", () => {
     expect(parts.filter(p => p.kind === "word").map(p => p.text))
       .toEqual(["They", "don't", "abandon", "their", "approach", "ever"]);
   });
+  test("legacy browser fixtures with numeral-suffixed headwords remain one interactive word", () => {
+    const parts = splitSentenceWords("The atlasword0 appears in test context 1.");
+    expect(parts.filter(p => p.kind === "word").map(p => p.text)).toContain("atlasword0");
+    const index = buildVocabularyIndex([{word:"atlasword0",meanings:["test meaning"],partOfSpeech:"Noun"}]);
+    expect(matchVocabulary("atlasword0", index)[0].meanings).toEqual(["test meaning"]);
+  });
   test("known words have real meanings, senses and POS, unknown words are never fabricated", () => {
     expect(tooltipMeanings(matchVocabulary("Approach", library)[0]))
       .toEqual(["yaklaşım", "yaklaşmak"]);

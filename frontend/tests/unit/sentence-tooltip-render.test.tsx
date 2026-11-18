@@ -5,7 +5,7 @@ import { ChatMessageMarkdown } from "@/features/ai-chat/components/chat-message-
 import { createSession } from "@/features/learning-game/model/game-engine";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import {
-  EnglishChatSentenceTooltips, SentenceVocabularyProvider, SentenceWordTooltips,
+  EnglishChatSentenceTooltips, SentenceVocabularyProvider, SentenceWordTooltips, tooltipFromInspector,
 } from "@/features/word-library/components/sentence-word-tooltips";
 
 const entries = [
@@ -103,5 +103,38 @@ describe("explicit selected sense wins over an ambiguous personal library lemma"
     );
     expect(html).toContain("approach: yaklaşmak");
     expect(html).not.toContain("approach: yaklaşım");
+  });
+});
+
+describe("explicit-click canonical fallback projection", () => {
+  test("a missing word never fabricates a Turkish meaning", () => {
+    expect(tooltipFromInspector({status:"missing",word:"adverse"})).toEqual({status:"missing"});
+  });
+  test("a ready entry supplies the verified meaning, POS and pronunciations", () => {
+    const ready=tooltipFromInspector({status:"ready",word:"mitigate",entry:{
+      id:"00000000-0000-4000-8000-000000000001",word:"mitigate",partOfSpeech:"Verb",
+      meaning:"hafifletmek",revision:1,status:"machine_validated",senseKey:"hafifletmek",
+      meanings:["hafifletmek"],alternatives:[],usageNote:"",cefr:"B2",examples:[],
+      pronunciationUk:"/mɪtɪɡeɪt/",pronunciationUs:"/mɪtəɡeɪt/",
+    }});
+    expect(ready.status).toBe("ready");
+    if(ready.status!=="ready")throw Error("status");
+    expect(ready.word.meanings).toEqual(["hafifletmek"]);
+    expect(ready.word.pronunciationUs).toBe("/mɪtəɡeɪt/");
+  });
+  test("homographs expose both labeled choices", () => {
+    const value=tooltipFromInspector({status:"choices",word:"approach",choices:[
+      {id:"00000000-0000-4000-8000-000000000001",word:"approach",partOfSpeech:"Noun",meaning:"yaklaşım",revision:1,status:"machine_validated"},
+      {id:"00000000-0000-4000-8000-000000000002",word:"approach",partOfSpeech:"Verb",meaning:"yaklaşmak",revision:1,status:"machine_validated"},
+    ]});
+    expect(value).toEqual({status:"choices",meanings:["Noun: yaklaşım","Verb: yaklaşmak"]});
+  });
+  test("assessment never activates interactive remote lookup", () => {
+    const html=renderToStaticMarkup(
+      <SentenceVocabularyProvider words={[]} userId="test-user" enabled={false} allowPoolLookup>
+        <SentenceWordTooltips text="We mitigate the effects."/>
+      </SentenceVocabularyProvider>
+    );
+    expect(html).not.toContain('data-testid="sentence-word"');
   });
 });

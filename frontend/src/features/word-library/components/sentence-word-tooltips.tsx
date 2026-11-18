@@ -1,26 +1,59 @@
 import type { ReactNode } from "react";
-import { createContext, useContext, useId, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import { inspectFromPool, INSPECTOR_UI_ENABLED, type InspectorResult } from "@/features/word-inspector/api/word-inspector-api";
 import {
   buildVocabularyIndex, matchVocabulary, normalizeTooltipWord,
   splitChatSentenceSegments, splitSentenceWords, tooltipMeanings,
   type TooltipVocabulary,
 } from "../model/sentence-tooltip";
 
-const VocabularyContext = createContext<{ index: ReturnType<typeof buildVocabularyIndex>; enabled: boolean }>({index: new Map(), enabled: true});
+type TooltipContext = {
+  index: ReturnType<typeof buildVocabularyIndex>; enabled: boolean;
+  userId: string | null; allowPoolLookup: boolean;
+};
+const VocabularyContext = createContext<TooltipContext>({index: new Map(), enabled: true, userId: null, allowPoolLookup: false});
+export type CachedTooltip = { status: "ready"; word: TooltipVocabulary; source: "pool" }
+  | { status: "choices"; meanings: string[] } | { status: "missing" } | { status: "error" };
+/** Inspector is already validated by Zod. Never accept unreviewed generated text as a translation. */
+export function tooltipFromInspector(result: InspectorResult): CachedTooltip {
+  if (result.status === "missing") return {status: "missing"};
+  if (result.status === "choices") return {status: "choices", meanings: result.choices.slice(0, 8).map(choice => choice.partOfSpeech + ": " + choice.meaning)};
+  return {status: "ready", source: "pool", word: {word: result.entry.word,
+    partOfSpeech: result.entry.partOfSpeech, meanings: result.entry.meanings,
+    alternatives: result.entry.alternatives, pronunciationUk: result.entry.pronunciationUk,
+    pronunciationUs: result.entry.pronunciationUs, cefr: result.entry.cefr}};
+}
 
-export function SentenceVocabularyProvider({ words, enabled = true, children }: {
-  words: readonly TooltipVocabulary[]; enabled?: boolean; children: ReactNode;
+export function SentenceVocabularyProvider({ words, enabled = true, userId = null, allowPoolLookup = false, children }: {
+  words: readonly TooltipVocabulary[]; enabled?: boolean; userId?: string | null; allowPoolLookup?: boolean; children: ReactNode;
 }) {
   const index = useMemo(() => buildVocabularyIndex(words), [words]);
-  const value = useMemo(() => ({index, enabled}), [index, enabled]);
+  const value = useMemo(() => ({index, enabled, userId, allowPoolLookup: allowPoolLookup && INSPECTOR_UI_ENABLED && enabled && !!userId}),
+    [index, enabled, userId, allowPoolLookup]);
   return <VocabularyContext.Provider value={value}>{children}</VocabularyContext.Provider>;
 }
 
-/** No network or AI calls: tooltips must not spend quota, write data, or reveal answer keys. */
+/** No hover network calls, AI calls, writes or answer-key disclosures. Explicit-click cache-only GET only. */
 export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false }: {
   text: string; focusWord?: TooltipVocabulary | null; allowDuringGame?: boolean;
 }) {
-  const {index: libraryIndex, enabled} = useContext(VocabularyContext);
+  const {index: libraryIndex, enabled, userId, allowPoolLookup} = useContext(VocabularyContext);
+  const [poolLookup, setPoolLookup] = useState<Record<string, CachedTooltip>>({});
+  const [loadingWord, setLoadingWord] = useState<string | null>(null);
+  const activeRequest = useRef<AbortController | null>(null);
+  useEffect(() => {
+    setPoolLookup({}); setLoadingWord(null); activeRequest.current?.abort(); activeRequest.current = null;
+    return () => activeRequest.current?.abort();
+  }, [userId]);
+  function loadFromPool(key: string) {
+    if (!userId || !allowPoolLookup || loadingWord || poolLookup[key]) return;
+    activeRequest.current?.abort();
+    const controller = new AbortController(); activeRequest.current = controller; setLoadingWord(key);
+    void inspectFromPool({word: key}, userId, controller.signal)
+      .then(result => {if (!controller.signal.aborted) setPoolLookup(prev => ({...prev, [key]: tooltipFromInspector(result)}));})
+      .catch(() => {if (!controller.signal.aborted) setPoolLookup(prev => ({...prev, [key]: {status:"error"}}));})
+      .finally(() => {if (!controller.signal.aborted) setLoadingWord(null);});
+  }
   const fallbackIndex = useMemo(() => buildVocabularyIndex(focusWord ? [focusWord] : []), [focusWord]);
   const parts = useMemo(() => splitSentenceWords(text), [text]);
   const id = useId().replace(/:/g, "");
@@ -39,11 +72,18 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
       // Only the focused lemma uses this override; surrounding words still use the library.
       const isFocus = Boolean(focusWord && fallback.length > 0);
       const matches = isFocus ? fallback : local;
-      const main = matches[0];
-      const meanings = matches.flatMap(tooltipMeanings).filter((v, i, all) => all.indexOf(v) === i).slice(0, 4);
+      const key = normalizeTooltipWord(part.text);
+      const cached = !matches.length ? poolLookup[key] : undefined;
+      const pooledWord = cached?.status === "ready" ? cached.word : undefined;
+      const main = matches[0] ?? pooledWord;
+      const meanings = (pooledWord ? tooltipMeanings(pooledWord) : matches.flatMap(tooltipMeanings)).filter((v, i, all) => all.indexOf(v) === i).slice(0, 4);
       const show = active === part.offset;
       const tooltipId = `${id}-tip-${part.offset}`;
-      const description = meanings.length ? meanings.join(" · ") : "Kütüphanende henüz kayıtlı değil";
+      const description = meanings.length ? meanings.join(" · ") :
+        cached?.status === "choices" ? cached.meanings.join(" · ") :
+        cached?.status === "missing" ? "Ortak havuzda da bulunamadı" :
+        cached?.status === "error" ? "Sözlük şu anda kullanılamıyor" :
+        loadingWord === key ? "Ortak havuzda aranıyor…" : "Kütüphanende henüz kayıtlı değil";
       return <span key={part.offset} className="relative inline" onMouseLeave={() => {
         if (!pinned) setActive(null);
       }}>
@@ -56,7 +96,9 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           onBlur={() => { if (!pinned) setActive(null); }}
           onClick={() => {
             if (show && pinned) { setActive(null); setPinned(false); }
-            else { setActive(part.offset); setPinned(true); }
+            else { setActive(part.offset); setPinned(true);
+              if (!matches.length && !cached && allowPoolLookup) loadFromPool(key);
+            }
           }}
           className="cursor-help rounded-sm border-b border-dotted border-current/50 bg-transparent p-0 text-inherit underline-offset-2 hover:border-atlas-blue hover:text-atlas-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue"
         >
@@ -71,7 +113,10 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           <span className="mt-1 block">{description}</span>
           {main?.pronunciationUk && <span className="block text-slate-300">UK {main.pronunciationUk}</span>}
           {main?.pronunciationUs && <span className="block text-slate-300">US {main.pronunciationUs}</span>}
-          {!main && <span className="block text-slate-300">Kelimeyi Inspector'da arayabilirsin.</span>}
+          {cached?.status === "ready" && <span className="block text-slate-300">Kaynak: doğrulanmış ortak sözlük</span>}
+          {cached?.status === "choices" && <span className="block text-slate-300">Birden fazla anlam bulundu. Inspector'da uygun anlamı seç.</span>}
+          {!main && allowPoolLookup && !cached && <span className="block text-slate-300">Ortak sözlükte aramak için kelimeye tıkla.</span>}
+          {!main && (!allowPoolLookup || cached?.status === "missing") && <span className="block text-slate-300">Kelimeyi Inspector'da arayabilirsin.</span>}
         </span>}
       </span>;
     })}

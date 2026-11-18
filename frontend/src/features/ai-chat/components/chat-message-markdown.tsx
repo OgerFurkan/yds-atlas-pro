@@ -8,9 +8,9 @@ function renderInline(content: string): ReactNode[] {
     const key = `${index}-${token.kind}`;
     switch (token.kind) {
       case "strong":
-        return <strong key={key} className="font-bold text-[#113d60]">{token.text}</strong>;
+        return <strong key={key} className="font-bold text-[#113d60]"><EnglishChatSentenceTooltips text={token.text} /></strong>;
       case "emphasis":
-        return <em key={key} className="italic">{token.text}</em>;
+        return <em key={key} className="italic"><EnglishChatSentenceTooltips text={token.text} /></em>;
       case "code":
         return <code key={key} className="rounded bg-[#edf3f7] px-1 py-0.5 font-mono text-[0.9em] text-[#123b59]">{token.text}</code>;
       case "link":

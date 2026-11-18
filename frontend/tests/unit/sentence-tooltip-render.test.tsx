@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
 import { QuizPanel } from "@/features/learning-game/components/quiz-panel";
+import { ChatMessageMarkdown } from "@/features/ai-chat/components/chat-message-markdown";
 import { createSession } from "@/features/learning-game/model/game-engine";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import {
@@ -75,5 +76,18 @@ describe("answered game context can reveal words without leaking pre-answer hint
     const answered = panel(true);
     expect(answered).toContain('data-testid="english-sentence-tooltips"');
     expect(answered).toContain('data-testid="sentence-word"');
+  });
+});
+
+describe("formatted AI chat preserves English tooltip coverage", () => {
+  test("strong and emphasized English sentences receive tooltips but code does not", () => {
+    const html = renderToStaticMarkup(
+      <SentenceVocabularyProvider words={entries}>
+        <ChatMessageMarkdown content={"**They abandon the plan.**\n\n*They approach the subject.*\n\n`They abandon the plan.`"} />
+      </SentenceVocabularyProvider>,
+    );
+    expect((html.match(/data-word="abandon"/g) ?? []).length).toBe(1);
+    expect((html.match(/data-word="approach"/g) ?? []).length).toBe(1);
+    expect(html).toContain("<code");
   });
 });

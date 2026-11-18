@@ -5,7 +5,7 @@ import { ChatMessageMarkdown } from "@/features/ai-chat/components/chat-message-
 import { createSession } from "@/features/learning-game/model/game-engine";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import {
-  EnglishChatSentenceTooltips, SentenceVocabularyProvider, SentenceWordTooltips, tooltipFromInspector,
+  EnglishChatSentenceTooltips, SentenceVocabularyProvider, SentenceWordTooltips, tooltipFromInspector, tooltipFromOpenDictionary,
 } from "@/features/word-library/components/sentence-word-tooltips";
 
 const entries = [
@@ -136,5 +136,32 @@ describe("explicit-click canonical fallback projection", () => {
       </SentenceVocabularyProvider>
     );
     expect(html).not.toContain('data-testid="sentence-word"');
+  });
+});
+
+describe("licensed public dictionary — explicit hypothetical meaning provenance",()=>{
+  const source={provider:"FreeDictionaryAPI.com / Wiktionary" as const,
+    url:"https://en.wiktionary.org/wiki/drought",license:"CC BY-SA 4.0" as const,
+    licenseUrl:"https://creativecommons.org/licenses/by-sa/4.0/" as const};
+  test("ready word is source-marked and never presented as a personal-library word",()=>{
+    const x=tooltipFromOpenDictionary({status:"ready",word:"drought",entries:[
+      {partOfSpeech:"noun",meanings:["kuraklık"]},
+    ],source});
+    expect(x.status).toBe("ready");
+    if(x.status!=="ready")throw Error("status");
+    expect(x.source).toBe("open");
+    expect(x.word.meanings).toEqual(["kuraklık"]);
+    expect(x.attribution?.license).toBe("CC BY-SA 4.0");
+  });
+  test("multiple possible parts of speech stay separate",()=>{
+    const x=tooltipFromOpenDictionary({status:"choices",word:"approach",entries:[
+      {partOfSpeech:"noun",meanings:["yaklaşım"]},{partOfSpeech:"verb",meanings:["yaklaşmak"]},
+    ],source});
+    expect(x.status).toBe("choices");
+    if(x.status!=="choices")throw Error("status");
+    expect(x.meanings).toEqual(["noun: yaklaşım","verb: yaklaşmak"]);
+  });
+  test("no Turkish meanings means missing, not hallucinated",()=>{
+    expect(tooltipFromOpenDictionary({status:"missing",word:"adverse",entries:[],source})).toEqual({status:"missing"});
   });
 });

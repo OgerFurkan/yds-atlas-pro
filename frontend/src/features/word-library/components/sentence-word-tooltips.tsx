@@ -124,6 +124,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           {main?.pronunciationUk && <span className="block text-slate-300">UK {main.pronunciationUk}</span>}
           {main?.pronunciationUs && <span className="block text-slate-300">US {main.pronunciationUs}</span>}
           {cached?.status === "ready" && cached.source === "pool" && <span className="block text-slate-300">Kaynak: doğrulanmış ortak sözlük</span>}
+          {cached && "attribution" in cached && cached.attribution && <span className="block text-amber-200">Dış sözlükteki olası anlam; cümlenin bağlamı doğrulanmadı.</span>}
           {cached && "attribution" in cached && cached.attribution && <span className="mt-2 block text-slate-300">
             <a href={cached.attribution.url} rel="noopener noreferrer" target="_blank" className="underline">Wiktionary</a> · <a href={cached.attribution.licenseUrl} rel="noopener noreferrer" target="_blank" className="underline">CC BY-SA 4.0</a> · <a href="https://freedictionaryapi.com" rel="noopener noreferrer" target="_blank" className="underline">FreeDictionaryAPI.com</a>
           </span>}

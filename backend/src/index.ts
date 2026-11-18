@@ -1,6 +1,6 @@
 ﻿import { createApp } from "./app";
 import { readConfig } from "./config/env";
-import { startSentenceCoverageWorker } from "./features/lexicon/sentence-term-coverage";
+import {startSharedLexiconPrefetch} from "./features/lexicon/sentence-lexicon-prefetch";
 const config = readConfig(Bun.env);
 const server = Bun.serve({
   port: config.PORT,
@@ -8,5 +8,5 @@ const server = Bun.serve({
   maxRequestBodySize: 1_500_000,
   fetch: createApp(config),
 });
-startSentenceCoverageWorker(config);
+startSharedLexiconPrefetch(config);
 console.info("YDS Atlas API: " + server.url.origin);

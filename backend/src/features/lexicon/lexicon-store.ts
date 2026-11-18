@@ -10,6 +10,7 @@ export function lexiconStore(db: SupabaseClient): LexiconStore {
       const {data,error} = await db.from(table)
         .select("id,word_key,part_of_speech,sense_key,revision,status,content,provenance")
         .eq("word_key",wordKey)
+        .neq("part_of_speech","Tooltip")
         .in("status",["machine_validated","human_reviewed"])
         .limit(30);
       if(error)throw error;

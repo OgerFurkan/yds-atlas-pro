@@ -63,6 +63,20 @@ describe("automatic sentence tooltip vocabulary coverage",()=>{
   expect(r).toMatchObject({ready:1,processed:1});
   expect(updates[0]).toMatchObject({status:"ready",meanings:["iklim"],license:"CC BY-SA 4.0"});
  });
+ test("canonical Lexicon cache hit prevents any external dictionary request",async()=>{
+  let outgoing=0;const updates:unknown[]=[];
+  const db={from:()=>({
+   select:()=>({eq:()=>({lte:()=>({order:()=>({limit:async()=>({data:[{word_key:"mitigate",attempts:0}],error:null})})})})}),
+   update:(v:unknown)=>({eq:()=>({eq:async()=>{updates.push(v);return {error:null}}})})
+  })};
+  const r=await processSentenceTerms(db as never,{
+   lookupExisting:async()=>({word:"mitigate",status:"ready",entries:[{partOfSpeech:"Verb",meanings:["hafifletmek"]}]}),
+   lookup:async()=>{outgoing++;throw Error("must never run external lookup");},
+  });
+  expect(outgoing).toBe(0);
+  expect(r).toMatchObject({ready:1,processed:1});
+  expect(updates[0]).toMatchObject({source:"Atlas Lexicon",meanings:["hafifletmek"]});
+ });
  test("surface form takes precedence over guessed lemma",async()=>{
   const db={from:()=>({select:()=>({in:()=>({eq:()=>({limit:async()=>({data:[
    {word_key:"effect",part_of_speech:"Noun",meanings:["etki"],source:"curated",status:"ready"},

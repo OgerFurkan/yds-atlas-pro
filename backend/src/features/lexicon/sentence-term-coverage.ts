@@ -88,8 +88,19 @@ export async function backfillSentenceTerms(db:SupabaseClient){
  }
  return {scanned,queued};
 }
+/** Read the existing canonical Lexicon before issuing licensed external requests. */
+export async function lookupExistingPool(db:SupabaseClient,word:string):Promise<PublicTurkishResult|null>{
+ const {data,error}=await db.from("atlas_lexicon_entries")
+  .select("word_key,part_of_speech,content").in("word_key",lemmaCandidates(word))
+  .in("status",["machine_validated","human_reviewed"]).limit(15);
+ if(error)throw error;
+ const entries=(data??[]).filter(row=>Array.isArray(row.content?.meanings)&&row.content.meanings.length)
+  .map(row=>({partOfSpeech:String(row.part_of_speech),meanings:row.content.meanings as string[]}));
+ if(!entries.length)return null;
+ return {word,status:entries.length===1?"ready":"choices",entries};
+}
 export type CoverageStats={processed:number;ready:number;ambiguous:number;missing:number;errors:number};
-type WorkerOpts={lookup?:(word:string)=>Promise<PublicTurkishResult>;max?:number};
+type WorkerOpts={lookup?:(word:string)=>Promise<PublicTurkishResult>;lookupExisting?:(word:string)=>Promise<PublicTurkishResult|null>;max?:number};
 export async function processSentenceTerms(db:SupabaseClient,opts:WorkerOpts={}):Promise<CoverageStats>{
  const max=Math.max(1,Math.min(10,opts.max??5));
  const {data,error}=await db.from("atlas_sentence_terms").select("word_key,attempts")
@@ -100,14 +111,15 @@ export async function processSentenceTerms(db:SupabaseClient,opts:WorkerOpts={})
  for(const row of data??[]){
   const word=String(row.word_key);
   try{
-   const value=await (opts.lookup??(w=>lookupPublicTurkish(w,"atlas-sentence-prefetch")))(word);
+   const existing=await (opts.lookupExisting ?? (opts.lookup ? async()=>null : w=>lookupExistingPool(db,w)))(word);
+   const value=existing??await (opts.lookup??(w=>lookupPublicTurkish(w,"atlas-sentence-prefetch")))(word);
    const status=value.status==="ready"&&value.entries.length===1?"ready":
     value.status==="missing"?"missing":"ambiguous";
    const entry=value.entries[0];
    const {error:saveError}=await db.from("atlas_sentence_terms").update({
     status,meanings:status==="ready"?entry.meanings:[],
     part_of_speech:status==="ready"?entry.partOfSpeech:null,
-    source:status==="ready"?"FreeDictionaryAPI.com / Wiktionary":status,
+    source:status==="ready"?(value.source?.provider??"Atlas Lexicon"):status,
     source_url:value.source?.url??null,license:value.source?.license??null,
     attempts:0,updated_at:new Date().toISOString()
    }).eq("word_key",word).eq("status","pending");

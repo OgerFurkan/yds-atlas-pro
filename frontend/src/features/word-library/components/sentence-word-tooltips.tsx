@@ -72,9 +72,11 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
   );
   const parts = useMemo(() => splitSentenceWords(text), [text]);
   const id = useId().replace(/:/g, "");
+  // Optional Preview-only opt-in: do not hit an older staging API until deployed.
+  const prewarmUiEnabled = import.meta.env.VITE_TOOLTIP_PREWARM_UI_ENABLED === "true";
   // Prefetch only already-validated cache entries; no AI or upstream calls.
   useEffect(()=>{
-    if(!enabled||!userId||!allowPoolLookup)return;
+    if(!prewarmUiEnabled||!enabled||!userId||!allowPoolLookup)return;
     const tokens=[...new Set(parts.filter(p=>p.kind==="word")
       .map(p=>normalizeTooltipWord(p.text))
       .filter(k=>/^[a-z]+(?:[-\x27][a-z]+)?$/.test(k)&&k.length>=2&&k.length<=45)
@@ -90,7 +92,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
       });
     }).catch(()=>{/* Optional table may not yet exist. */});
     return ()=>controller.abort();
-  },[enabled,userId,allowPoolLookup,parts,libraryIndex,fallbackIndex]);
+  },[prewarmUiEnabled,enabled,userId,allowPoolLookup,parts,libraryIndex,fallbackIndex]);
   const [active, setActive] = useState<number | null>(null);
   const [pinned, setPinned] = useState(false);
 

@@ -13,7 +13,7 @@ Rollout requires specific staging migration review and authorization:
 1. Review docs/staging/atlas-tooltip-prewarm-migration-CANDIDATE.sql; DO NOT apply to production.
 2. Apply to staging Supabase only, validate RLS (no anon/auth access), grants and claim RPC.
 3. Deploy exact reviewed commit to staging Render and validate Preview CORS.
-4. Enable ATLAS_TOOLTIP_PREWARM_ENABLED=true only on staging backend.
+4. Enable ATLAS_TOOLTIP_PREWARM_ENABLED=true on staging backend, then VITE_TOOLTIP_PREWARM_UI_ENABLED=true on the staging frontend (both default OFF).
 5. Verify automatic backfill, budget, license, ambiguous/missing statuses and desktop/mobile authenticated E2E.
 
 Rollback: disable flag; the new cache is entirely separate from personal words and learning progress.

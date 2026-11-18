@@ -19,7 +19,7 @@ the 5-example content validator are unchanged.
 - Check existing complete Lexicon records first, then a verified short glossary hit.
 - Only then consult licensed FreeDictionaryAPI / Wiktionary English-to-Turkish data.
 - A unique, source-validated candidate is written idempotently into the
-  same shared table. Multiple POS options, absent translations, invalid source
+  same shared table through existing `atlas_lexicon_claim_v1`/`atlas_lexicon_publish_v1` RPCs so every new entry has a revision ledger row. Direct table upsert is forbidden. Multiple POS options, absent translations, invalid source
   or source outage never create a claimed-verified meaning.
 - Tooltip GET remains authenticated and blocked during an active saved assessment.
   The full original Inspector lookup remains the preferred source in the frontend.

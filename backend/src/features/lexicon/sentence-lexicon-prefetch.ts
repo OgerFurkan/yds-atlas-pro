@@ -1,9 +1,11 @@
-import {createHash} from "node:crypto";
+import {createHash,randomUUID} from "node:crypto";
 import {hasCompleteTierSet, type WordInput} from "@yds-atlas/shared";
 import type {SupabaseClient} from "@supabase/supabase-js";
 import type {ServerConfig} from "../../config/env";
 import {quotaClient} from "../../shared/supabase";
 import {dictionaryWord,lookupPublicTurkish,type PublicTurkishResult} from "./public-turkish-dictionary";
+import {lexiconStore} from "./lexicon-store";
+import type {LexiconStore} from "./lexicon-resolver";
 
 const KIND="atlas_tooltip_gloss_v1";
 const TOKEN=/[A-Za-z][A-Za-z0-9]*(?:[’'][A-Za-z]+)?(?:-[A-Za-z]+)*/g;
@@ -98,6 +100,27 @@ export function glossaryRecord(word:string,response:PublicTurkishResult){
    validation:"dictionary_verified_not_context_certified"},
   digest:createHash("sha256").update(JSON.stringify(content)).digest("hex")};
 }
+/** Preserve existing canonical publisher lease, collision checks and immutable revisions. */
+export async function publishSharedGlossViaLedger(
+ db:SupabaseClient, record:NonNullable<ReturnType<typeof glossaryRecord>>,
+ store:Pick<LexiconStore,"claim"|"publish"|"fail">=lexiconStore(db),
+):Promise<boolean>{
+ const identity={wordKey:record.word_key,partOfSpeech:"Tooltip",senseKey:record.sense_key};
+ const lease={...identity,token:randomUUID()};
+ const claimed=await store.claim(lease);
+ if(!claimed)return false;
+ try{
+  const saved=await store.publish(lease,identity,record.content,record.provenance);
+  const content=saved?.content as {kind?:string}|undefined;
+  if(!saved||saved.status!=="machine_validated"||content?.kind!==KIND||
+     saved.provenance.kind!==KIND||saved.provenance.license!=="CC BY-SA 4.0")
+   throw new Error("Tooltip publication rejected or conflicting canonical entry");
+  return true;
+ }finally{
+  // Token-conditional: already published leases remain ready, failures are released.
+  await store.fail(lease,"GLOSS_PUBLISH_REJECTED").catch(()=>{});
+ }
+}
 export type ProcessReport={processed:number;existing:number;cached:number;inserted:number;
  ambiguous:number;missing:number;errors:number};
 type ProcessDeps={
@@ -118,12 +141,7 @@ export async function processSharedLexiconWords(db:SupabaseClient,words:readonly
    const record=glossaryRecord(word,lookup);
    if(!record){result[lookup.status==="missing"?"missing":"ambiguous"]++;continue;}
    if(deps.persist)await deps.persist(record);
-   else {
-    const {error}=await db.from("atlas_lexicon_entries").upsert(record,{
-      onConflict:"word_key,part_of_speech,sense_key",ignoreDuplicates:true
-    });
-    if(error)throw error;
-   }
+   else if(!(await publishSharedGlossViaLedger(db,record))) {result.cached++;continue;}
    result.inserted++;
   }catch{result.errors++;}
  }

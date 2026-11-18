@@ -1,6 +1,6 @@
 import {describe,expect,test} from "bun:test";
 import {
- sentenceTokens,lemmaCandidates,glossaryRecord,processSharedLexiconWords,
+ sentenceTokens,lemmaCandidates,glossaryRecord,publishSharedGlossViaLedger,processSharedLexiconWords,
  lookupSharedGloss,existingFullEntry,queueSentenceLexicon,pendingLexiconCount,
  tooltipWriteEnabled,scanSavedSentences
 } from "../src/features/lexicon/sentence-lexicon-prefetch";
@@ -66,6 +66,35 @@ describe("single shared Lexicon sentence vocabulary automation",()=>{
   });
   expect(r).toMatchObject({processed:1,inserted:1,errors:0});
   expect(saved[0]).toMatchObject({part_of_speech:"Tooltip"});
+ });
+ test("canonical lease publishes short glossary and preserves revision audit path",async()=>{
+  const ops:string[]=[];
+  const item=glossaryRecord("climate",dictionary)!;
+  const store={
+   claim:async(lease:{wordKey:string;partOfSpeech:string;senseKey:string;token:string})=>{
+    expect(lease.partOfSpeech).toBe("Tooltip");ops.push("claim");return true;
+   },
+   publish:async(_lease:unknown,identity:unknown,content:unknown,provenance:unknown)=>{
+    ops.push("publish");expect(identity).toMatchObject({wordKey:"climate",partOfSpeech:"Tooltip"});
+    expect(content).toMatchObject({kind:"atlas_tooltip_gloss_v1",meanings:["iklim"]});
+    expect(provenance).toMatchObject({license:"CC BY-SA 4.0"});
+    return {wordKey:"climate",partOfSpeech:"Tooltip",status:"machine_validated",
+      content:item.content,provenance:item.provenance};
+   },
+   fail:async()=>{ops.push("release");}
+  };
+  expect(await publishSharedGlossViaLedger({} as never,item,store as never)).toBe(true);
+  expect(ops).toEqual(["claim","publish","release"]);
+ });
+ test("failed lease is not published; incompatible existing row fails closed",async()=>{
+  const item=glossaryRecord("climate",dictionary)!;
+  let publish=0;
+  const busy={claim:async()=>false,publish:async()=>{publish++;return null;},fail:async()=>{}};
+  expect(await publishSharedGlossViaLedger({} as never,item,busy as never)).toBe(false);
+  expect(publish).toBe(0);
+  const wrong={claim:async()=>true,publish:async()=>({status:"quarantined",
+    content:item.content,provenance:item.provenance}),fail:async()=>{}};
+  await expect(publishSharedGlossViaLedger({} as never,item,wrong as never)).rejects.toThrow();
  });
  test("cache readback rejects unlicensed rows",async()=>{
   const row=glossaryRecord("climate",dictionary)!;

@@ -91,3 +91,17 @@ describe("formatted AI chat preserves English tooltip coverage", () => {
     expect(html).toContain("<code");
   });
 });
+
+describe("explicit selected sense wins over an ambiguous personal library lemma", () => {
+  test("Inspector Verb Approach is not overwritten by the library Noun Approach", () => {
+    const html = renderToStaticMarkup(
+      <SentenceVocabularyProvider words={[{word: "Approach", meanings: ["yaklaşım"], partOfSpeech: "Noun"}]}>
+        <SentenceWordTooltips text="We approach this question." focusWord={{
+          word: "Approach", meanings: ["yaklaşmak"], partOfSpeech: "Verb",
+        }} />
+      </SentenceVocabularyProvider>,
+    );
+    expect(html).toContain("approach: yaklaşmak");
+    expect(html).not.toContain("approach: yaklaşım");
+  });
+});

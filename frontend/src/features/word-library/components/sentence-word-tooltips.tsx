@@ -35,10 +35,12 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
       if (part.kind !== "word") return <span key={part.offset}>{part.text}</span>;
       const local = matchVocabulary(part.text, libraryIndex);
       const fallback = matchVocabulary(part.text, fallbackIndex);
-      const matches = local.length ? local : fallback;
+      // An explicit Inspector/sense selection takes priority over a different personal-library sense.
+      // Only the focused lemma uses this override; surrounding words still use the library.
+      const isFocus = Boolean(focusWord && fallback.length > 0);
+      const matches = isFocus ? fallback : local;
       const main = matches[0];
       const meanings = matches.flatMap(tooltipMeanings).filter((v, i, all) => all.indexOf(v) === i).slice(0, 4);
-      const isFocus = focusWord && normalizeTooltipWord(part.text) === normalizeTooltipWord(focusWord.word);
       const show = active === part.offset;
       const tooltipId = `${id}-tip-${part.offset}`;
       const description = meanings.length ? meanings.join(" · ") : "Kütüphanende henüz kayıtlı değil";

@@ -68,6 +68,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           {main && <span className="block text-slate-300">{main.partOfSpeech}{main.cefr && main.cefr !== "Belirtilmedi" ? ` · ${main.cefr}` : ""}</span>}
           <span className="mt-1 block">{description}</span>
           {main?.pronunciationUk && <span className="block text-slate-300">UK {main.pronunciationUk}</span>}
+          {main?.pronunciationUs && <span className="block text-slate-300">US {main.pronunciationUs}</span>}
           {!main && <span className="block text-slate-300">Kelimeyi Inspector'da arayabilirsin.</span>}
         </span>}
       </span>;

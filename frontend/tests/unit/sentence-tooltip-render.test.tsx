@@ -1,5 +1,8 @@
 import { describe, expect, test } from "bun:test";
 import { renderToStaticMarkup } from "react-dom/server";
+import { QuizPanel } from "@/features/learning-game/components/quiz-panel";
+import { createSession } from "@/features/learning-game/model/game-engine";
+import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 import {
   EnglishChatSentenceTooltips, SentenceVocabularyProvider, SentenceWordTooltips,
 } from "@/features/word-library/components/sentence-word-tooltips";
@@ -54,5 +57,23 @@ describe("sentence tooltip surfaces and assessment safety", () => {
     expect(html).toContain("Bu örneği düşün.");
     expect(html).toContain('data-testid="sentence-word"');
     expect(html).toContain('abandon: terk etmek');
+  });
+});
+describe("answered game context can reveal words without leaking pre-answer hints", () => {
+  test("assessment question hides vocabulary tooltips until answer, then shows safe sentence explanations", () => {
+    const seed = starterVocabulary.find((entry) => entry.word.toLocaleLowerCase("en") === "expand") ?? starterVocabulary[0];
+    const word = { ...seed, id: "tooltip-test-word", createdAt: "2026-11-18T00:00:00Z", updatedAt: "2026-11-18T00:00:00Z" };
+    const base = createSession([word], 5);
+    const session = { ...base, phase: "context" as const, queue: [word.id] };
+    const panel = (answered: boolean) => renderToStaticMarkup(
+      <SentenceVocabularyProvider words={[word]} enabled={false}>
+        <QuizPanel session={answered ? {...session, answer: {choice: word.word, correct: true, confidence: null}} : session}
+          onAnswer={() => {}} onConfidence={() => {}} onNext={() => {}} />
+      </SentenceVocabularyProvider>,
+    );
+    expect(panel(false)).not.toContain('data-testid="english-sentence-tooltips"');
+    const answered = panel(true);
+    expect(answered).toContain('data-testid="english-sentence-tooltips"');
+    expect(answered).toContain('data-testid="sentence-word"');
   });
 });

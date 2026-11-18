@@ -70,7 +70,7 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
             <p className="mt-2 text-sm leading-7 text-slate-600">{word.usageNote}</p>
           )}
         </div>
-        {example && <WordExample word={word} example={example} compact />}
+        {example && <WordExample word={word} example={example} compact allowDuringGame />}
         <PronunciationButtons
           word={word.word}
           uk={word.pronunciationUk}

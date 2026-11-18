@@ -4,6 +4,7 @@ import type { DailyGroup, DailyPlan } from "@/features/word-library/model/daily-
 import { ArrowRightLeft, Pencil, Trash2, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 
 interface DailyPlanWordCardProps {
   word: WordEntry;
@@ -46,8 +47,8 @@ export function DailyPlanWordCard({
               : t("library.daily.manage.meaningMissing")}
           </p>
           {word.examples[0] && (
-            <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-muted-foreground">
-              {word.examples[0].sentence}
+            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+              <SentenceWordTooltips text={word.examples[0].sentence} focusWord={word} />
             </p>
           )}
           {!getStudyReadiness(word).ready && (

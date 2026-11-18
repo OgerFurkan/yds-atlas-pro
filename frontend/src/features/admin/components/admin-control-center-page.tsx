@@ -2,6 +2,7 @@ import { AlertCircle, ArrowLeft, ArrowRight, CheckCircle2, ClipboardCheck, Clock
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { ApiError } from "@/shared/api/api-client";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import {
   getEditorial, listEditorial, reviewEditorial,
   type EditorialDetail, type EditorialFilterStatus, type EditorialFilters, type EditorialList,
@@ -296,7 +297,7 @@ export function AdminControlCenterPage({ userId, access }: Props) {
                     {examples.map((example, i) => (
                       <li key={`${i}-${example.sentence}`} className="rounded-2xl border border-border bg-background p-4">
                         <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-atlas-blue">{i + 1}. örnek · {example.difficulty === "yds" ? "YDS" : example.difficulty === "easy" ? "Kolay" : example.difficulty === "medium" ? "Orta" : "Belirsiz"}</p>
-                        <p className="text-sm font-medium leading-relaxed text-foreground">{example.sentence}</p>
+                        <p className="text-sm font-medium leading-relaxed text-foreground"><SentenceWordTooltips text={example.sentence} focusWord={entry} /></p>
                         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{example.translation}</p>
                         {(example.translationFocus?.length ?? 0) > 0 &&
                           <p className="mt-2 text-xs text-muted-foreground">Odak: {example.translationFocus?.join(", ")}</p>}

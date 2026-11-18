@@ -1,5 +1,6 @@
 import type { AiChatRequest } from "@yds-atlas/shared";
 import { ChatMessageMarkdown } from "./chat-message-markdown";
+import { EnglishChatSentenceTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 
 interface ChatMessageListProps {
   messages: AiChatRequest["messages"];
@@ -16,7 +17,7 @@ export function ChatMessageList({ messages }: ChatMessageListProps) {
         >
           {message.role === "user" ? (
             <p className="max-w-[88%] whitespace-pre-wrap break-words rounded-2xl bg-[#123b59] px-3.5 py-2.5 text-sm leading-6 text-white">
-              {message.content}
+              <EnglishChatSentenceTooltips text={message.content} />
             </p>
           ) : (
             <div className="min-w-0 max-w-[93%] rounded-2xl border border-[#e5edf3] bg-white px-4 py-3 shadow-sm">

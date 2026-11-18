@@ -1,6 +1,7 @@
 import type { WordExample as Example, WordEntry } from "@yds-atlas/shared";
 import { escapeRegExp } from "@/shared/lib/regexp";
 import { getStarterWord } from "../data/starter-vocabulary";
+import { SentenceWordTooltips } from "./sentence-word-tooltips";
 
 function HighlightedText({ text, terms }: { text: string; terms: string[] }) {
   const escaped = terms
@@ -34,10 +35,12 @@ export function WordExample({
   word,
   example,
   compact = false,
+  allowDuringGame = false,
 }: {
   word: WordEntry;
   example: Example;
   compact?: boolean;
+  allowDuringGame?: boolean;
 }) {
   const seed = getStarterWord(word.word)?.examples.find(
     (item) => item.sentence === example.sentence,
@@ -60,7 +63,7 @@ export function WordExample({
       }
     >
       <p className="text-sm leading-7 text-slate-700 sm:text-base">
-        <HighlightedText text={example.sentence} terms={[word.word, ...word.alternatives]} />
+        <SentenceWordTooltips text={example.sentence} focusWord={word} allowDuringGame={allowDuringGame} />
       </p>
       <p className="text-sm leading-7 text-slate-600">
         {translation ? (

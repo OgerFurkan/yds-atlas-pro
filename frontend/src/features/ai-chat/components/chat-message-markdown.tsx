@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { parseChatBlocks, parseChatInline } from "../model/chat-markdown";
+import { EnglishChatSentenceTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 
 /** Model output is always rendered as React text nodes; no HTML injection. */
 function renderInline(content: string): ReactNode[] {
@@ -15,7 +16,7 @@ function renderInline(content: string): ReactNode[] {
       case "link":
         return <a key={key} href={token.url} target="_blank" rel="noopener noreferrer" className="break-all font-semibold text-[#17649c] underline decoration-[#a4c3d9] underline-offset-2 hover:text-[#0e436a]">{token.text}</a>;
       default:
-        return <span key={key}>{token.text}</span>;
+        return <span key={key}><EnglishChatSentenceTooltips text={token.text} /></span>;
     }
   });
 }

@@ -76,7 +76,7 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
               <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">
                 {t("game.context")}
               </p>
-              <WordExample word={word} example={example} />
+              <WordExample word={word} example={example} allowDuringGame />
             </div>
           )}
         </div>

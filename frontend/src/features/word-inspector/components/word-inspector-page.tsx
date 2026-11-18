@@ -7,6 +7,7 @@ import {
   type InspectorQuery, type InspectorResult,
 } from "../api/word-inspector-api";
 import { inspectorDifficultyLabels, inspectorSaveBelongsTo } from "../model/word-inspector-model";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 
 type AddResult = { added: number; duplicates: number };
 interface WordInspectorPageProps {
@@ -196,7 +197,7 @@ export function WordInspectorPage({ userId, onAddToLibrary }: WordInspectorPageP
                   <div className="flex items-center justify-between gap-3 text-xs font-bold uppercase tracking-wide text-atlas-blue">
                     <span>{index + 1}. örnek</span><span>{inspectorDifficultyLabels[example.difficulty]}</span>
                   </div>
-                  <p className="mt-3 text-base leading-7 font-semibold text-atlas-navy">{example.sentence}</p>
+                  <p className="mt-3 text-base leading-7 font-semibold text-atlas-navy"><SentenceWordTooltips text={example.sentence} focusWord={entry} /></p>
                   <p className="mt-2 text-sm leading-7 text-slate-700">{example.translation}</p>
                   <div className="mt-3 flex flex-wrap gap-1.5" aria-label="Çeviri vurgu alanları">
                     {example.translationFocus.map((focus) => <span key={focus} className="rounded-md bg-orange-50 px-2 py-1 text-xs font-medium text-orange-900">{focus}</span>)}

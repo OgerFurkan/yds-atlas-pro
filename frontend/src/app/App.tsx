@@ -28,6 +28,7 @@ import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
+import { SentenceVocabularyProvider } from "@/features/word-library/components/sentence-word-tooltips";
 
 const AdminDashboard = lazy(() => import("@/features/admin/components/admin-dashboard").then(x => ({default:x.AdminDashboard})));
 const WordInspectorPage = lazy(() =>
@@ -226,6 +227,7 @@ function AppWorkspace({
   }
 
   return (
+    <SentenceVocabularyProvider words={library.words} enabled={screen !== "game"}>
     <div className="flex min-h-screen flex-col bg-atlas-canvas">
       <AppHeader
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
@@ -386,5 +388,6 @@ function AppWorkspace({
         closeButton={AtlasToastClose}
       />
     </div>
+    </SentenceVocabularyProvider>
   );
 }

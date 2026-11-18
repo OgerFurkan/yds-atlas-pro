@@ -50,14 +50,35 @@ export async function listWords({ db }: RequestContext) {
 }
 export async function saveWord(ctx: RequestContext, input: WordInput, id?: string) {
   const content = normalizeInput(input);
+  // An old set can have an operator-owned, server-only historical backup.
+  // The public WordInput schema deliberately strips unknown fields, so never trust
+  // the browser to return or preserve this recovery copy when saving an edit.
+  let legacyBackup: unknown;
+  let expectedUpdatedAt: string | null = null;
+  if (id) {
+    const previous = await ctx.db.from("words").select("content,updated_at")
+      .eq("id", id).eq("user_id", ctx.userId).maybeSingle();
+    databaseError(previous.error);
+    if (!previous.data) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+    const value = (previous.data.content as Record<string, unknown> | null)?.legacyExamplesBackup;
+    if (value !== undefined) {
+      if (!Array.isArray(value) || value.length !== 5 || value.some(item =>
+        !item || typeof item !== "object" || typeof item.sentence !== "string" ||
+        typeof item.translation !== "string") || JSON.stringify(value).length > 64_000)
+        throw new HttpError(409, "Eski cümle yedeği doğrulanamadı; veri değiştirilmedi.", "LEGACY_BACKUP_INVALID");
+      legacyBackup = value;
+      expectedUpdatedAt = previous.data.updated_at as string;
+    }
+  }
   const fields = {
     word: content.word,
     score: content.score,
-    content,
+    content: legacyBackup ? { ...content, legacyExamplesBackup: legacyBackup } : content,
     updated_at: new Date().toISOString(),
   };
-  const query = id
-    ? ctx.db.from("words").update(fields).eq("id", id)
+  const update = id ? ctx.db.from("words").update(fields).eq("id", id).eq("user_id", ctx.userId) : null;
+  const query = update
+    ? expectedUpdatedAt ? update.eq("updated_at", expectedUpdatedAt) : update
     : ctx.db.from("words").insert({ ...fields, user_id: ctx.userId });
   const { data, error } = await query.select("*").maybeSingle();
   databaseError(error);

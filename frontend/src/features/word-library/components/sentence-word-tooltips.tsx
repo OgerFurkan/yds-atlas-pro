@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
-import { inspectFromPool, INSPECTOR_UI_ENABLED, type InspectorResult } from "@/features/word-inspector/api/word-inspector-api";
+import { inspectFromPool, lookupOpenTurkishDictionary, INSPECTOR_UI_ENABLED, type InspectorResult, type OpenTurkishDictionary } from "@/features/word-inspector/api/word-inspector-api";
 import {
   buildVocabularyIndex, matchVocabulary, normalizeTooltipWord,
   splitChatSentenceSegments, splitSentenceWords, tooltipMeanings,
@@ -12,8 +12,9 @@ type TooltipContext = {
   userId: string | null; allowPoolLookup: boolean;
 };
 const VocabularyContext = createContext<TooltipContext>({index: new Map(), enabled: true, userId: null, allowPoolLookup: false});
-export type CachedTooltip = { status: "ready"; word: TooltipVocabulary; source: "pool" }
-  | { status: "choices"; meanings: string[] } | { status: "missing" } | { status: "error" };
+type Attribution={provider:string;url:string;license:"CC BY-SA 4.0";licenseUrl:string};
+export type CachedTooltip={status:"ready";word:TooltipVocabulary;source:"pool"|"open";attribution?:Attribution}
+|{status:"choices";meanings:string[];attribution?:Attribution}|{status:"missing"}|{status:"error"};
 /** Inspector is already validated by Zod. Never accept unreviewed generated text as a translation. */
 export function tooltipFromInspector(result: InspectorResult): CachedTooltip {
   if (result.status === "missing") return {status: "missing"};
@@ -24,6 +25,12 @@ export function tooltipFromInspector(result: InspectorResult): CachedTooltip {
     pronunciationUs: result.entry.pronunciationUs, cefr: result.entry.cefr}};
 }
 
+/** Externally licensed meanings never mutate personal/canonical vocabulary. */
+export function tooltipFromOpenDictionary(result:OpenTurkishDictionary):CachedTooltip {
+ if(result.status==="missing"||result.entries.length===0)return {status:"missing"};
+ if(result.status==="choices"||result.entries.length>1)return {status:"choices",attribution:result.source,meanings:result.entries.map(e=>e.partOfSpeech+": "+e.meanings.slice(0,4).join(" · "))};
+ const e=result.entries[0];return {status:"ready",source:"open",attribution:result.source,word:{word:result.word,partOfSpeech:e.partOfSpeech,meanings:e.meanings}};
+}
 export function SentenceVocabularyProvider({ words, enabled = true, userId = null, allowPoolLookup = false, children }: {
   words: readonly TooltipVocabulary[]; enabled?: boolean; userId?: string | null; allowPoolLookup?: boolean; children: ReactNode;
 }) {
@@ -50,7 +57,10 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
     activeRequest.current?.abort();
     const controller = new AbortController(); activeRequest.current = controller; setLoadingWord(key);
     void inspectFromPool({word: key}, userId, controller.signal)
-      .then(result => {if (!controller.signal.aborted) setPoolLookup(prev => ({...prev, [key]: tooltipFromInspector(result)}));})
+      .then(async result => result.status==="missing"
+        ? tooltipFromOpenDictionary(await lookupOpenTurkishDictionary(key,userId,controller.signal))
+        : tooltipFromInspector(result))
+      .then(result=>{if(!controller.signal.aborted)setPoolLookup(prev=>({...prev,[key]:result}));})
       .catch(() => {if (!controller.signal.aborted) setPoolLookup(prev => ({...prev, [key]: {status:"error"}}));})
       .finally(() => {if (!controller.signal.aborted) setLoadingWord(null);});
   }
@@ -81,7 +91,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
       const tooltipId = `${id}-tip-${part.offset}`;
       const description = meanings.length ? meanings.join(" · ") :
         cached?.status === "choices" ? cached.meanings.join(" · ") :
-        cached?.status === "missing" ? "Ortak havuzda da bulunamadı" :
+        cached?.status === "missing" ? "Güvenilir kaynaklarda Türkçe karşılık bulunamadı" :
         cached?.status === "error" ? "Sözlük şu anda kullanılamıyor" :
         loadingWord === key ? "Ortak havuzda aranıyor…" : "Kütüphanende henüz kayıtlı değil";
       return <span key={part.offset} className="relative inline" onMouseLeave={() => {
@@ -113,7 +123,10 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           <span className="mt-1 block">{description}</span>
           {main?.pronunciationUk && <span className="block text-slate-300">UK {main.pronunciationUk}</span>}
           {main?.pronunciationUs && <span className="block text-slate-300">US {main.pronunciationUs}</span>}
-          {cached?.status === "ready" && <span className="block text-slate-300">Kaynak: doğrulanmış ortak sözlük</span>}
+          {cached?.status === "ready" && cached.source === "pool" && <span className="block text-slate-300">Kaynak: doğrulanmış ortak sözlük</span>}
+          {cached && "attribution" in cached && cached.attribution && <span className="mt-2 block text-slate-300">
+            <a href={cached.attribution.url} rel="noopener noreferrer" target="_blank" className="underline">Wiktionary</a> · <a href={cached.attribution.licenseUrl} rel="noopener noreferrer" target="_blank" className="underline">CC BY-SA 4.0</a> · <a href="https://freedictionaryapi.com" rel="noopener noreferrer" target="_blank" className="underline">FreeDictionaryAPI.com</a>
+          </span>}
           {cached?.status === "choices" && <span className="block text-slate-300">Birden fazla anlam bulundu. Inspector'da uygun anlamı seç.</span>}
           {!main && allowPoolLookup && !cached && <span className="block text-slate-300">Ortak sözlükte aramak için kelimeye tıkla.</span>}
           {!main && (!allowPoolLookup || cached?.status === "missing") && <span className="block text-slate-300">Kelimeyi Inspector'da arayabilirsin.</span>}

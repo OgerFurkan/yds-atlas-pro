@@ -33,6 +33,8 @@ import { assertAtlasAdmin, adminOverview } from "./features/admin/admin-service"
 import { resolveTieredLexiconRequest, completeTieredLexiconWords, listTieredLexiconCandidates } from "./features/lexicon/lexicon-http";
 import { verifyUserWordLexiconBinding } from "./features/lexicon/lexicon-binding";
 import { tryFeedbackRoute } from "./features/feedback/feedback-routes";
+import { lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
+import { rejectInspectorDuringSavedAssessment } from "./features/lexicon/lexicon-inspector";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, dailyPlanWriterClient, goalWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
@@ -108,6 +110,11 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         consumeQuota: dependencies.consumeQuota,
       });
       if (feedback.handled) result = feedback.value;
+      else if (path === "/api/dictionary/turkish" && request.method === "GET") {
+        if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) throw new HttpError(404,"Sözlük etkin değil.","DICTIONARY_DISABLED");
+        await rejectInspectorDuringSavedAssessment(ctx);
+        result=await lookupPublicTurkish(new URL(request.url).searchParams.get("word")??"",ctx.userId);
+      }
       else if (path === "/api/lexicon/candidates" && request.method === "GET") {
         result=await listTieredLexiconCandidates(config,new URL(request.url).searchParams.get("word")??"");
       } else if (path === "/api/lexicon/resolve" && request.method === "POST")

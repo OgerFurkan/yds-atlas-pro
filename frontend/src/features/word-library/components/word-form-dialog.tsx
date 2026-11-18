@@ -88,7 +88,8 @@ export function WordFormDialog({
       if (source.word.toLocaleLowerCase("en") === input.word.toLocaleLowerCase("en")) {
         const canKeepMainSense = Boolean(input.meanings?.length && input.examples?.length);
         input.senses = source.senses.flatMap((sense) => {
-          if (sense.partOfSpeech !== input.partOfSpeech) return [sense];
+          if (sense.partOfSpeech.trim().toLocaleLowerCase("en") !==
+              (input.partOfSpeech ?? "").trim().toLocaleLowerCase("en")) return [sense];
           return canKeepMainSense
             ? [{ ...sense, meanings: input.meanings ?? [], usageNote: input.usageNote ?? "", cefr: input.cefr ?? "Belirtilmedi", examples: (input.examples ?? []).slice(0, 5) }]
             : [];

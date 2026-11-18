@@ -1,4 +1,4 @@
-﻿import type { WordEntry } from "@yds-atlas/shared";
+﻿import type { WordEntry, WordSense } from "@yds-atlas/shared";
 import { ArrowUpRight, BookOpen, Languages } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,9 +16,35 @@ import { PronunciationButtons } from "./pronunciation-buttons";
 import { WordExample } from "./word-example";
 import { WordStatus } from "./word-status";
 
+/** Secondary grammatical senses must not borrow the primary sense Turkish tooltip. */
+export function AdditionalWordSense({word, sense}: {word: WordEntry; sense: WordSense}) {
+  const focusedWord: WordEntry = {
+    ...word, partOfSpeech: sense.partOfSpeech, meanings: [...sense.meanings],
+    usageNote: sense.usageNote, cefr: sense.cefr, examples: sense.examples,
+  };
+  return (
+    <details className="group rounded-lg border border-border bg-background px-3 py-2" data-testid="additional-word-sense">
+      <summary className="cursor-pointer select-none text-sm font-semibold text-atlas-navy">
+        {formatWordType(sense.partOfSpeech)} · {sense.meanings.join(" · ")} · {sense.examples.length} örnek
+      </summary>
+      <div className="mt-3 space-y-4" data-testid="additional-sense-examples">
+        {sense.examples.map((example) => (
+          <WordExample key={example.sentence} word={focusedWord} example={example} compact />
+        ))}
+      </div>
+    </details>
+  );
+}
+
+export function otherWordSenses(word: Pick<WordEntry, "senses" | "partOfSpeech">): WordSense[] {
+  const primary = word.partOfSpeech.trim().toLocaleLowerCase("en");
+  return (word.senses ?? []).filter(sense => sense.partOfSpeech.trim().toLocaleLowerCase("en") !== primary);
+}
+
 export function WordDetails({ word }: { word: WordEntry }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const otherSenses = otherWordSenses(word);
   const cambridge = `https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(word.word.toLowerCase())}`;
   return (
     <>
@@ -32,7 +58,14 @@ export function WordDetails({ word }: { word: WordEntry }) {
         <BookOpen size={14} /> {t("library.detail")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent onEscapeKeyDown={(event) => {
+          // Radix listens for Escape at document level, after the tooltip handler.
+          // Dismiss the word tooltip first, not its parent modal.
+          if (event.target instanceof HTMLElement &&
+              event.target.closest("button[data-testid=sentence-word]")) {
+            event.preventDefault();
+          }
+        }}>
           <DialogHeader>
             <div>
               <DialogTitle className="flex items-center gap-3 text-4xl">
@@ -53,14 +86,11 @@ export function WordDetails({ word }: { word: WordEntry }) {
               <WordStatus score={word.score} />
             </div>
             {word.usageNote && <p className="text-sm leading-7 text-slate-600">{word.usageNote}</p>}
-            {word.senses?.some((sense) => sense.partOfSpeech !== word.partOfSpeech) && (
+            {otherSenses.length > 0 && (
               <section className="space-y-2 rounded-lg border border-border p-3" aria-label="Diğer kelime türleri">
                 <h3 className="text-sm font-semibold">Ek kelime türleri</h3>
-                {word.senses.filter((sense) => sense.partOfSpeech !== word.partOfSpeech).map((sense) => (
-                  <div key={sense.partOfSpeech} className="text-xs leading-5">
-                    <strong>{formatWordType(sense.partOfSpeech)}</strong> · {sense.meanings.join(" · ")}
-                    {sense.examples[0] && <p className="mt-1 text-muted-foreground">{sense.examples[0].sentence} — {sense.examples[0].translation}</p>}
-                  </div>
+                {otherSenses.map((sense) => (
+                  <AdditionalWordSense key={sense.partOfSpeech} word={word} sense={sense} />
                 ))}
               </section>
             )}

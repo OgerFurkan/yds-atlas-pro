@@ -1,4 +1,5 @@
 import {
+  BookOpenCheck,
   CircleHelp,
   Compass,
   Headphones,
@@ -17,7 +18,7 @@ import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { LearningMenu } from "./learning-menu";
 
-export type AppScreen = "home" | "library" | "progress" | "game" | "login" | "admin";
+export type AppScreen = "home" | "library" | "progress" | "game" | "login" | "admin" | "inspector";
 interface AppHeaderProps {
   screen: AppScreen;
   onNavigate: (screen: AppScreen) => void;
@@ -25,7 +26,8 @@ interface AppHeaderProps {
   onOpenAccount: () => void;
   onOpenSettings: () => void;
   signedIn?: boolean;
-  adminVisible?: boolean;
+  showAdmin?: boolean;
+  showInspector?: boolean;
 }
 export function AppHeader({
   screen,
@@ -34,7 +36,8 @@ export function AppHeader({
   onOpenAccount,
   onOpenSettings,
   signedIn,
-  adminVisible = false,
+  showAdmin = false,
+  showInspector = false,
 }: AppHeaderProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -141,7 +144,24 @@ export function AppHeader({
             <LibraryBig size={18} />
             {t("nav.library")}
           </Button>
-          {adminVisible && <Button variant="ghost" aria-current={screen === "admin" ? "page" : undefined} className="justify-start" onClick={() => go("admin")}><ShieldCheck size={18}/> Yönetim</Button>}
+          {showInspector && screen !== "game" && (
+            <Button
+              variant="ghost"
+              aria-current={screen === "inspector" ? "page" : undefined}
+              className={`justify-start ${screen === "inspector" ? "bg-blue-50 text-atlas-navy" : ""}`}
+              onClick={() => go("inspector")}
+            >
+              <BookOpenCheck size={18} /> Kelime İncele
+            </Button>
+          )}
+          {showAdmin && (
+            <Button variant="ghost" aria-current={screen === "admin" ? "page" : undefined}
+              className={`justify-start ${screen === "admin" ? "bg-blue-50 text-atlas-navy" : ""}`}
+              onClick={() => go("admin")}
+            >
+              <ShieldCheck size={18}/> Control Center
+            </Button>
+          )}
           <Button
             variant="ghost"
             className="justify-start sm:hidden"

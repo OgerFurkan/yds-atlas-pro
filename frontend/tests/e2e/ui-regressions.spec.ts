@@ -75,6 +75,21 @@ test("pronunciation guide points to the button and advances only when listening 
   );
 });
 
+test("English vocabulary tooltips show an actual meaning on keyboard focus and close with Escape", async ({page}) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await openPronunciationStep(page);
+  const example = page.locator("#word-example");
+  await expect(example).toBeVisible();
+  const target = example.getByTestId("sentence-word").filter({hasText: /expand/i}).first();
+  await expect(target).toBeVisible();
+  await target.focus();
+  const tooltip = example.getByTestId("sentence-word-definition");
+  await expect(tooltip).toBeVisible();
+  await expect(tooltip).toContainText(/genişlem/i);
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toHaveCount(0);
+});
+
 test("a speech failure stays on the guide step with an explicit accessible fallback", async ({
   page,
 }) => {

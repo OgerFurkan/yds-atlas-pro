@@ -8,6 +8,7 @@ import { lexiconStore } from "./lexicon-store";
 import { lexicalIdentity } from "./lexicon-identity";
 import { resolveTieredLexiconRequest } from "./lexicon-http";
 import { telemetryEvent } from "../admin/telemetry";
+import { poolContextForChat, withChatPoolContext } from "./lexicon-chat-context";
 
 const headwordPattern="([a-zA-Z]+(?:[ '-][a-zA-Z]+){0,2})";
 const directPatterns=[
@@ -74,6 +75,29 @@ export async function replyUsingLexiconOrAi(
     return {reply:composeWordReply(result.entry.content,result.entry.status==="human_reviewed"),
       provider:"Lexicon",model:"atlas-lexicon-v1"};
   }
+  // Cache-only enrichment of explicitly quoted lexical targets in free-form chat.
+  // We never pool user text or create shared lexicon entries from arbitrary chat.
+  let context: Awaited<ReturnType<typeof poolContextForChat>> = {kind:"none"};
+  try {
+    // A Lexicon read failure must not take down normal quota-controlled Gemini chat.
+    // Never publish free-form chat to the shared pool or log personal messages.
+    const store=lexiconStore(quotaClient(config));
+    context=await poolContextForChat(last,
+      (wordKey)=>store.findCandidates(wordKey),
+      (entry)=>{
+        if(entry.status!=="human_reviewed"&&entry.status!=="machine_validated")return false;
+        if(!hasCompleteTierSet(entry.content.examples))return false;
+        const identity=lexicalIdentity(entry.content.word,entry.content.partOfSpeech,entry.content.meanings[0]);
+        return identity.wordKey===entry.wordKey&&identity.partOfSpeech===entry.partOfSpeech&&identity.senseKey===entry.senseKey;
+      });
+  } catch(error) {
+    if(signal?.aborted)throw error; // Cancellation must not cause a fresh AI request.
+    console.warn("Atlas Chat Lexicon lookup unavailable; falling back to quota-controlled Gemini.");
+  }
+  if(context.kind==="clarify"){
+    void telemetryEvent(config,ctx.userId,"chat_ambiguous","chat");
+    return {reply:context.reply,provider:"Lexicon",model:"atlas-lexicon-v1"};
+  }
   if(!config.GEMINI_KEYS.length)throw new HttpError(503,"Gemini yapılandırılmadı.","AI_NOT_CONFIGURED");
   // Production uses the authenticated server-side quota RPC. Tests can inject
   // the same quota contract; never bypass quota for a Gemini chat response.
@@ -84,7 +108,10 @@ export async function replyUsingLexiconOrAi(
     return quota.data===true;
   })();
   if(!allowed)throw new HttpError(429,"AI kullanım sınırına ulaşıldı.","AI_QUOTA_EXCEEDED");
-  const reply=await generate(input,config,signal);
+  const enriched=context.kind==="context"?withChatPoolContext(input,context.text):input;
+  // A Gemini reply is counted as chat_ai only. Emitting chat_pool_hit here as well
+  // would double-count one request in the existing Admin dashboard denominator.
+  const reply=await generate(enriched,config,signal);
   void telemetryEvent(config,ctx.userId,"chat_ai","chat",{...reply.usage,model:reply.model});
   return reply;
 }

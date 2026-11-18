@@ -5,6 +5,7 @@ import { Button } from "@/shared/ui/button";
 import { isFinal, makeQuestion } from "../model/game-engine";
 import type { Confidence, GameSession } from "../model/game-session";
 import { AnswerFeedback } from "./answer-feedback";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 
 export function QuizPanel({
   session,
@@ -36,7 +37,9 @@ export function QuizPanel({
               : "font-display text-4xl sm:text-5xl",
           )}
         >
-          {question.context ? question.sentence : question.word.word}
+          {question.context ? (feedback ? (
+            <SentenceWordTooltips text={question.sentence ?? ""} focusWord={question.word} allowDuringGame />
+          ) : question.sentence) : question.word.word}
         </h2>
       </div>
       <div id="question-choices" className="grid gap-3 sm:grid-cols-2">

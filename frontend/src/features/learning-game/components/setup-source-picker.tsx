@@ -2,6 +2,7 @@ import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { BookOpen, LoaderCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { WordImportReview } from "@/features/word-library/components/word-import-review";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
@@ -160,7 +161,7 @@ export function SetupSourcePicker({
                     <ol className="mt-2 space-y-2 text-xs text-slate-600">
                       {word.examples?.map((example) => (
                         <li key={example.sentence}>
-                          <p>{example.sentence}</p>
+                          <p><SentenceWordTooltips text={example.sentence} focusWord={{ word: word.word, meanings: word.meanings ?? [], partOfSpeech: word.partOfSpeech ?? "", alternatives: word.alternatives ?? [], pronunciationUk: word.pronunciationUk ?? null, pronunciationUs: word.pronunciationUs ?? null }} allowDuringGame /></p>
                           <p>{example.translation}</p>
                         </li>
                       ))}

@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 import { cefrLevelSchema, wordPartOfSpeechSchema } from "./word-schema";
 export const aiWordRequestSchema = z
   .object({
@@ -19,7 +19,7 @@ export const aiWordSchema = z
     usageNote: z.string().min(1).max(1500),
     partOfSpeech: wordPartOfSpeechSchema,
     cefr: cefrLevelSchema,
-    lexicon: z.object({entryId:z.uuid(),revision:z.number().int().min(1),contractVersion:z.literal(1)}).optional(),
+    lexicon: z.object({entryId:z.uuid(),revision:z.number().int().min(1),contractVersion:z.literal(1)}).strict().optional(),
     sourceUrl: z.string().optional(),
     pronunciationUk: z.string().optional(),
     pronunciationUs: z.string().optional(),
@@ -51,7 +51,7 @@ export const aiWordResponseSchema = z.object({
   provider: z.enum(["Gemini","Lexicon"]),
   model: z.string(),
   dictionarySource: dictionarySourceSchema.optional(),
-  lexicon: z.object({source:z.enum(["pool","generated"]),entryId:z.uuid(),revision:z.number().int().min(1)}).optional(),
+  lexicon: z.object({source:z.enum(["pool","generated"]),entryId:z.uuid(),revision:z.number().int().min(1)}).strict().optional(),
 });
 export const aiWordListRequestSchema = z
   .object({

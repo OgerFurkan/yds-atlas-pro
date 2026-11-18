@@ -68,6 +68,26 @@ describe("2 easy / 1 medium / 2 YDS examples in library details", () => {
     ] };
     expect(otherWordSenses(input).map(sense => sense.partOfSpeech)).toEqual(["Verb"]);
   });
+  test("a focused sense never mixes primary Noun and secondary Verb meanings", () => {
+    const mixed: WordEntry = {...word, partOfSpeech:"noun", senses:[
+      {partOfSpeech:"Noun",meanings:["yaklaşım"],usageNote:"",cefr:"B2",examples:nounExamples},
+      ...word.senses,
+    ]};
+    const primary=renderToStaticMarkup(
+      <SentenceVocabularyProvider words={[mixed]}>
+        <WordExample word={mixed} example={nounExamples[0]} />
+      </SentenceVocabularyProvider>,
+    );
+    expect(primary).toContain("approach: yaklaşım");
+    expect(primary).not.toContain("approach: yaklaşmak");
+    const secondary=renderToStaticMarkup(
+      <SentenceVocabularyProvider words={[mixed]}>
+        <AdditionalWordSense word={mixed} sense={mixed.senses[1]} />
+      </SentenceVocabularyProvider>,
+    );
+    expect(secondary).toContain("approach: yaklaşmak");
+    expect(secondary).not.toContain("approach: yaklaşım");
+  });
   test("legacy unlabeled examples do not receive a fabricated difficulty badge", () => {
     const html=renderToStaticMarkup(<WordExample word={word}
       example={{sentence:"This approach is clear.",translation:"Bu yaklaşım açıktır."}}/>);

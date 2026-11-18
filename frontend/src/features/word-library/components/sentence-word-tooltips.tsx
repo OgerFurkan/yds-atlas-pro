@@ -64,7 +64,12 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
       .catch(() => {if (!controller.signal.aborted) setPoolLookup(prev => ({...prev, [key]: {status:"error"}}));})
       .finally(() => {if (!controller.signal.aborted) setLoadingWord(null);});
   }
-  const fallbackIndex = useMemo(() => buildVocabularyIndex(focusWord ? [focusWord] : []), [focusWord]);
+  // A selected lemma/POS is an exact sense. Other senses from a full WordEntry
+  // must never leak into that sense-specific tooltip (Approach Noun vs Verb).
+  const fallbackIndex = useMemo(
+    () => buildVocabularyIndex(focusWord ? [{...focusWord, senses: []}] : []),
+    [focusWord],
+  );
   const parts = useMemo(() => splitSentenceWords(text), [text]);
   const id = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);

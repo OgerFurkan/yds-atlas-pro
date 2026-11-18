@@ -36,9 +36,15 @@ export function AdditionalWordSense({word, sense}: {word: WordEntry; sense: Word
   );
 }
 
+export function otherWordSenses(word: Pick<WordEntry, "senses" | "partOfSpeech">): WordSense[] {
+  const primary = word.partOfSpeech.trim().toLocaleLowerCase("en");
+  return (word.senses ?? []).filter(sense => sense.partOfSpeech.trim().toLocaleLowerCase("en") !== primary);
+}
+
 export function WordDetails({ word }: { word: WordEntry }) {
   const { t } = useTranslation();
   const [open, setOpen] = useState(false);
+  const otherSenses = otherWordSenses(word);
   const cambridge = `https://dictionary.cambridge.org/dictionary/english/${encodeURIComponent(word.word.toLowerCase())}`;
   return (
     <>
@@ -52,7 +58,14 @@ export function WordDetails({ word }: { word: WordEntry }) {
         <BookOpen size={14} /> {t("library.detail")}
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent>
+        <DialogContent onEscapeKeyDown={(event) => {
+          // Radix listens for Escape at document level, after the tooltip handler.
+          // Dismiss the word tooltip first, not its parent modal.
+          if (event.target instanceof HTMLElement &&
+              event.target.closest("button[data-testid=sentence-word]")) {
+            event.preventDefault();
+          }
+        }}>
           <DialogHeader>
             <div>
               <DialogTitle className="flex items-center gap-3 text-4xl">
@@ -73,10 +86,10 @@ export function WordDetails({ word }: { word: WordEntry }) {
               <WordStatus score={word.score} />
             </div>
             {word.usageNote && <p className="text-sm leading-7 text-slate-600">{word.usageNote}</p>}
-            {word.senses?.some((sense) => sense.partOfSpeech !== word.partOfSpeech) && (
+            {otherSenses.length > 0 && (
               <section className="space-y-2 rounded-lg border border-border p-3" aria-label="Diğer kelime türleri">
                 <h3 className="text-sm font-semibold">Ek kelime türleri</h3>
-                {word.senses.filter((sense) => sense.partOfSpeech !== word.partOfSpeech).map((sense) => (
+                {otherSenses.map((sense) => (
                   <AdditionalWordSense key={sense.partOfSpeech} word={word} sense={sense} />
                 ))}
               </section>

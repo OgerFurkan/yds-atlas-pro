@@ -75,6 +75,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
     if (event.key === "Escape" && active !== null) {
       event.preventDefault();
       event.stopPropagation(); // A focused tooltip closes before its parent modal/dialog.
+      if (event.target instanceof HTMLElement) event.target.blur();
       setActive(null); setPinned(false);
     }
   }}>

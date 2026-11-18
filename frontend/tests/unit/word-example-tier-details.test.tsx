@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import type { WordEntry } from "@yds-atlas/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { WordExample } from "@/features/word-library/components/word-example";
-import { AdditionalWordSense } from "@/features/word-library/components/word-details";
+import { AdditionalWordSense, otherWordSenses } from "@/features/word-library/components/word-details";
 import { SentenceVocabularyProvider } from "@/features/word-library/components/sentence-word-tooltips";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
 
@@ -60,6 +60,13 @@ describe("2 easy / 1 medium / 2 YDS examples in library details", () => {
     expect([...html.matchAll(/data-difficulty="([^"]+)"/g)].map(x => x[1])).toEqual(tiers);
     expect(html).toContain("approach: yaklaşmak");
     expect(html).not.toContain("approach: yaklaşım");
+  });
+  test("a legacy lowercase primary POS is not listed as an extra grammatical sense", () => {
+    const input: WordEntry = { ...word, partOfSpeech: "noun", senses: [
+      {partOfSpeech:"Noun",meanings:["yaklaşım"],usageNote:"",cefr:"B2",examples:nounExamples},
+      ...word.senses,
+    ] };
+    expect(otherWordSenses(input).map(sense => sense.partOfSpeech)).toEqual(["Verb"]);
   });
   test("legacy unlabeled examples do not receive a fabricated difficulty badge", () => {
     const html=renderToStaticMarkup(<WordExample word={word}

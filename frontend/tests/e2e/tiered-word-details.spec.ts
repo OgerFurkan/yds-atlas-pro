@@ -20,10 +20,13 @@ const verbExamples = [
 ];
 const guestWord = {
   id:"e2e-tiered-approach",
-  word:"Approach", partOfSpeech:"Noun", meanings:["yaklaşım"], alternatives:[],
+  word:"Approach", partOfSpeech:"noun", meanings:["yaklaşım"], alternatives:[],
   cefr:"B2",score:0,usageNote:"Test verisi — gerçek kullanıcıya yazılmaz.",
   examples:nounExamples,
-  senses:[{partOfSpeech:"Verb", meanings:["yaklaşmak"],usageNote:"",cefr:"B2",examples:verbExamples}],
+  senses:[
+    {partOfSpeech:"Noun",meanings:["yaklaşım"],usageNote:"",cefr:"B2",examples:nounExamples},
+    {partOfSpeech:"Verb", meanings:["yaklaşmak"],usageNote:"",cefr:"B2",examples:verbExamples},
+  ],
   pronunciationUk:"/əˈprəʊtʃ/",pronunciationUs:"/əˈproʊtʃ/",sourceUrl:"",
   createdAt:"2026-11-18T00:00:00.000Z",updatedAt:"2026-11-18T00:00:00.000Z",
 };
@@ -48,6 +51,7 @@ test("guest library shows five 2/1/2 levels, preserves distinct Approach senses 
   await expect(primary.first().getByTestId("sentence-word-definition")).toHaveCount(0);
   await expect(dialog).toBeVisible(); // Escape dismisses the tooltip, not WordDetails.
 
+  await expect(dialog.getByTestId("additional-word-sense")).toHaveCount(1);
   const other=dialog.getByTestId("additional-word-sense");
   await other.locator("summary").click();
   const secondary=other.getByTestId("word-example");

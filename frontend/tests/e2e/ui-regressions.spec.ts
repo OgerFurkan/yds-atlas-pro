@@ -85,7 +85,7 @@ test("English vocabulary tooltips show an actual meaning on keyboard focus and c
   await target.focus();
   const tooltip = example.getByTestId("sentence-word-definition");
   await expect(tooltip).toBeVisible();
-  await expect(tooltip).toContainText(/genişlet/i);
+  await expect(tooltip).toContainText(/genişlem/i);
   await page.keyboard.press("Escape");
   await expect(tooltip).toHaveCount(0);
 });

@@ -14,6 +14,7 @@ import {
 import { formatWordType } from "../model/word-normalization";
 import { PronunciationButtons } from "./pronunciation-buttons";
 import { WordExample } from "./word-example";
+import { SentenceWordTooltips } from "./sentence-word-tooltips";
 import { WordStatus } from "./word-status";
 
 export function WordDetails({ word }: { word: WordEntry }) {
@@ -59,7 +60,7 @@ export function WordDetails({ word }: { word: WordEntry }) {
                 {word.senses.filter((sense) => sense.partOfSpeech !== word.partOfSpeech).map((sense) => (
                   <div key={sense.partOfSpeech} className="text-xs leading-5">
                     <strong>{formatWordType(sense.partOfSpeech)}</strong> · {sense.meanings.join(" · ")}
-                    {sense.examples[0] && <p className="mt-1 text-muted-foreground">{sense.examples[0].sentence} — {sense.examples[0].translation}</p>}
+                    {sense.examples[0] && <p className="mt-1 text-muted-foreground"><SentenceWordTooltips text={sense.examples[0].sentence} focusWord={word} /> — {sense.examples[0].translation}</p>}
                   </div>
                 ))}
               </section>

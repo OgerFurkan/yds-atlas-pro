@@ -2,6 +2,7 @@ import { wordPartOfSpeechSchema, type AiWordResponse, type WordInput, type WordP
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "./sentence-word-tooltips";
 import { enrichWithGemini, fetchLexiconCandidates } from "../api/ai-word-api";
 import { combineWordSenses } from "../model/combine-word-senses";
 
@@ -164,7 +165,7 @@ export function AiWordAssist({ word, onApply }: { word: string; onApply: (input:
                         <span className="mb-2 inline-flex rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-900 dark:bg-blue-900 dark:text-blue-100">
                           {example.difficulty==="easy"?"Kolay":example.difficulty==="medium"?"Orta":example.difficulty==="yds"?"YDS":"İnceleme gerekli"}
                         </span>
-                        <p className="break-words font-medium leading-6 text-slate-900 dark:text-slate-100">{example.sentence}</p>
+                        <p className="break-words font-medium leading-6 text-slate-900 dark:text-slate-100"><SentenceWordTooltips text={example.sentence} focusWord={suggestion} /></p>
                         <p className="mt-1 break-words leading-5 text-slate-600 dark:text-slate-300">{example.translation}</p>
                       </li>
                     ))}

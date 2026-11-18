@@ -72,7 +72,11 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
 
   if (!enabled && !allowDuringGame) return <>{text}</>;
   return <span data-testid="english-sentence-tooltips" lang="en" onKeyDown={(event) => {
-    if (event.key === "Escape") { setActive(null); setPinned(false); }
+    if (event.key === "Escape" && active !== null) {
+      event.preventDefault();
+      event.stopPropagation(); // A focused tooltip closes before its parent modal/dialog.
+      setActive(null); setPinned(false);
+    }
   }}>
     {parts.map((part) => {
       if (part.kind !== "word") return <span key={part.offset}>{part.text}</span>;

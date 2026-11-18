@@ -46,6 +46,7 @@ test("guest library shows five 2/1/2 levels, preserves distinct Approach senses 
   await expect(primary.first().getByTestId("sentence-word-definition")).toContainText("yaklaşım");
   await page.keyboard.press("Escape");
   await expect(primary.first().getByTestId("sentence-word-definition")).toHaveCount(0);
+  await expect(dialog).toBeVisible(); // Escape dismisses the tooltip, not WordDetails.
 
   const other=dialog.getByTestId("additional-word-sense");
   await other.locator("summary").click();

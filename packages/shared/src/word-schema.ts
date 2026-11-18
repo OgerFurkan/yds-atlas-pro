@@ -19,6 +19,7 @@ export const wordExampleSchema = z.object({
   translationFocus: z.array(z.string().trim().min(1)).optional(),
   source: z.string().trim().optional(),
   difficulty: wordExampleDifficultySchema.optional(),
+  purpose: z.enum(["practice", "exam"]).optional(),
 });
 
 /** One headword, multiple independently described grammatical senses. */

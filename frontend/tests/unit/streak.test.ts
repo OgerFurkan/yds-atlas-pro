@@ -34,7 +34,18 @@ test("every starter translation marks the exact contextual Turkish form", () => 
         expect(example.translation).toContain(term);
     }
   }
-  expect(
-    starterVocabulary.find((word) => word.word === "Expand")?.examples[0].translationFocus,
-  ).toEqual(["genişletmeyi"]);
+  // The new first practice example teaches physical expansion.
+  // The exam-intended third example retains expansion of a town.
+  const expand = starterVocabulary.find((word) => word.word === "Expand");
+  expect(expand?.examples[0]).toMatchObject({
+    sentence: "Heat makes metals expand.",
+    translation: "Isı metallerin genleşmesini sağlar.",
+    translationFocus: ["genleşmesini"],
+    purpose: "practice",
+  });
+  expect(expand?.examples[2]).toMatchObject({
+    sentence: "The town began to expand as more people moved there.",
+    translationFocus: ["genişlemeye"],
+    purpose: "exam",
+  });
 });

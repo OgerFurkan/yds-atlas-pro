@@ -1,8 +1,14 @@
-import type { WordEntry } from "@yds-atlas/shared";
-
-/** The tooltip contains only locally available, user-owned word definitions. */
-export type TooltipVocabulary = Pick<WordEntry, "word" | "meanings" | "partOfSpeech"> &
-  Partial<Pick<WordEntry, "alternatives" | "senses" | "cefr" | "pronunciationUk" | "pronunciationUs">>;
+/** Read-only public vocabulary projection: canonical library and Inspector/Admin shapes differ. */
+export type TooltipVocabulary = {
+  word: string;
+  meanings: string[];
+  partOfSpeech: string;
+  alternatives?: readonly string[];
+  senses?: ReadonlyArray<{ meanings: readonly string[] }>;
+  cefr?: string | null;
+  pronunciationUk?: string | null;
+  pronunciationUs?: string | null;
+};
 
 export type SentencePiece = { text: string; kind: "word" | "separator"; offset: number };
 export type VocabularyIndex = Map<string, TooltipVocabulary[]>;

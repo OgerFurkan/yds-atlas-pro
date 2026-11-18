@@ -71,7 +71,7 @@ export async function listEditorialEntries(
     throw new HttpError(400, "Yönetim listesi filtresi geçersiz.", "ADMIN_FILTER_INVALID");
   }
   let query = db.from("atlas_lexicon_entries")
-    .select("id,word_key,part_of_speech,sense_key,revision,status,content,digest,updated_at");
+    .select("id,word_key,part_of_speech,sense_key,revision,status,content,digest,updated_at").neq("part_of_speech","Tooltip");
   if (status !== "all") query = query.eq("status", status);
   if (word) query = query.eq("word_key", word);
   const { data, error } = await query.order("updated_at", { ascending: false })
@@ -93,6 +93,7 @@ export async function readEditorialEntry(
   databaseError(error);
   if (!data) throw new HttpError(404, "Kelime kaydı bulunamadı.", "LEXICON_ENTRY_NOT_FOUND");
   const row = data as EntryRow;
+  if(row.part_of_speech==="Tooltip")throw new HttpError(404,"Tam YDS kelime kaydı bulunamadı.","LEXICON_ENTRY_NOT_FOUND");
   // Ledger payload is bounded and explicitly projected; original content stays immutable in DB.
   const ledger = await db.from("atlas_lexicon_entry_revisions")
     .select("revision,status,action,actor_id,reason_code,digest,created_at")
@@ -131,6 +132,7 @@ export async function reviewEditorialEntry(
   databaseError(error);
   if (!data) throw new HttpError(404, "Kelime kaydı bulunamadı.", "LEXICON_ENTRY_NOT_FOUND");
   const existing = data as EntryRow;
+  if(existing.part_of_speech==="Tooltip")throw new HttpError(409,"Kısa tooltip kaydı YDS editoryal onayına uygun değil.","EDITORIAL_TRANSITION_BLOCKED");
   if (existing.revision !== input.expectedRevision) {
     throw new HttpError(409, "Kelime başka bir işlemle güncellendi; yeniden yükle.", "LEXICON_REVISION_CONFLICT");
   }

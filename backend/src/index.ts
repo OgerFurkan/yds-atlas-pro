@@ -1,5 +1,6 @@
 ﻿import { createApp } from "./app";
 import { readConfig } from "./config/env";
+import {startSharedLexiconPrefetch} from "./features/lexicon/sentence-lexicon-prefetch";
 const config = readConfig(Bun.env);
 const server = Bun.serve({
   port: config.PORT,
@@ -7,4 +8,5 @@ const server = Bun.serve({
   maxRequestBodySize: 1_500_000,
   fetch: createApp(config),
 });
+startSharedLexiconPrefetch(config);
 console.info("YDS Atlas API: " + server.url.origin);

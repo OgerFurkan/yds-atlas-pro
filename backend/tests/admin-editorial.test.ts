@@ -44,11 +44,13 @@ function mockDb(opt: MockOptions = {}) {
     const chain = {
       select(columns: string) { calls.push({ kind: "select", name: table, args: { columns } }); return this; },
       eq(key: string, value: unknown) { filters[key] = value; return this; },
+      neq(key: string, value: unknown) { filters["!"+key] = value; return this; },
       order(_key: string, _options: unknown) { return this; },
       range(from: number, to: number) {
         calls.push({kind: "range", name: table, args: { from, to }});
         const matched = rows.filter(x => (!filters.status || x.status === filters.status) &&
-          (!filters.word_key || x.word_key === filters.word_key));
+          (!filters.word_key || x.word_key === filters.word_key) &&
+          (!filters["!part_of_speech"] || x.part_of_speech !== filters["!part_of_speech"]));
         return Promise.resolve({data: matched.slice(from, to + 1), error: null});
       },
       maybeSingle() { calls.push({kind: "maybeSingle", name: table}); return Promise.resolve({data: row, error: null}); },
@@ -95,6 +97,20 @@ describe("F3 Feedback Admin Editorial (no remote DB)", () => {
     expect(result.entries[0]?.word).toBe("obtain");
     await expect(listEditorialEntries(ctx(),config,{status:"all",word:"",offset:0,limit:31},s.client))
       .rejects.toMatchObject({code:"ADMIN_FILTER_INVALID"});
+  });
+  test("tooltip-only shared glossary never enters YDS editorial list or review", async () => {
+    const tooltip = {...baseRow, id: "44444444-4444-4444-8444-444444444444",
+      word_key:"climate", part_of_speech:"Tooltip", content:{kind:"atlas_tooltip_gloss_v1",
+        meanings:["iklim"],examples:[]}};
+    const s = mockDb({row:tooltip,rows:[tooltip,baseRow]});
+    const result = await listEditorialEntries(ctx(),config,{status:"all",word:"",offset:0,limit:10},s.client);
+    expect(result.entries.map(x=>x.word)).toEqual(["obtain"]);
+    await expect(readEditorialEntry(ctx(),config,tooltip.id,s.client))
+      .rejects.toMatchObject({code:"LEXICON_ENTRY_NOT_FOUND"});
+    await expect(reviewEditorialEntry(ctx(),config,tooltip.id,
+      {expectedRevision:3,nextStatus:"human_reviewed",reasonCode:"editorial_approved"},s.client))
+      .rejects.toMatchObject({code:"EDITORIAL_TRANSITION_BLOCKED"});
+    expect(s.calls.some(x=>x.kind==="rpc")).toBe(false);
   });
   test("revision detail is capped and redacts raw provenance", async () => {
     const s = mockDb({revisions:Array.from({length:21},(_,i)=>({revision:21-i,action:"generated",status:"machine_validated"}))});

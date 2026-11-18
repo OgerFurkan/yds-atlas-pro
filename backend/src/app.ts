@@ -27,12 +27,15 @@ import { setDailyGoalWithPrivilegedWriter } from "./features/learning/goal-write
 import { readDailyPlan, saveDailyPlan } from "./features/learning/daily-plan-service";
 import { readReviewSchedules } from "./features/learning/review-schedule-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
+import {enqueueWordExamples,lookupSharedGloss,tooltipWriteEnabled,drainSharedLexiconQueue} from "./features/lexicon/sentence-lexicon-prefetch";
 import { recommendLexiconWords } from "./features/lexicon/lexicon-recommendations";
 import { replyUsingLexiconOrAi } from "./features/lexicon/lexicon-chat";
 import { assertAtlasAdmin, adminOverview } from "./features/admin/admin-service";
 import { resolveTieredLexiconRequest, completeTieredLexiconWords, listTieredLexiconCandidates } from "./features/lexicon/lexicon-http";
 import { verifyUserWordLexiconBinding } from "./features/lexicon/lexicon-binding";
 import { tryFeedbackRoute } from "./features/feedback/feedback-routes";
+import { lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
+import { rejectInspectorDuringSavedAssessment } from "./features/lexicon/lexicon-inspector";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, dailyPlanWriterClient, goalWriterClient, quotaClient, reviewWriterClient, sessionSaveWriterClient, type RequestContext } from "./shared/supabase";
@@ -108,6 +111,20 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         consumeQuota: dependencies.consumeQuota,
       });
       if (feedback.handled) result = feedback.value;
+      else if (path === "/api/dictionary/turkish" && request.method === "GET") {
+        if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) throw new HttpError(404,"Sözlük etkin değil.","DICTIONARY_DISABLED");
+        await rejectInspectorDuringSavedAssessment(ctx);
+        const term=new URL(request.url).searchParams.get("word")??"";
+        // Cache errors or missing service credentials must not break licensed fallback.
+        let cached=null;
+        try{cached=await lookupSharedGloss(quotaClient(config),term);}
+        catch{/* Non-destructive fallback to source-checked public dictionary. */}
+        result=cached?{status:"ready" as const,word:term,
+         entries:[{partOfSpeech:cached.partOfSpeech,meanings:cached.meanings}],
+         source:{provider:"FreeDictionaryAPI.com / Wiktionary" as const,url:cached.url,
+          license:"CC BY-SA 4.0" as const,licenseUrl:"https://creativecommons.org/licenses/by-sa/4.0/"}}:
+          await lookupPublicTurkish(term,ctx.userId);
+      }
       else if (path === "/api/lexicon/candidates" && request.method === "GET") {
         result=await listTieredLexiconCandidates(config,new URL(request.url).searchParams.get("word")??"");
       } else if (path === "/api/lexicon/resolve" && request.method === "POST")
@@ -133,11 +150,13 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         const input=wordInputSchema.parse(await readJson(request));
         await verifyUserWordLexiconBinding(config,input);
         result=await saveWord(ctx,input);
+        if(tooltipWriteEnabled(config)){enqueueWordExamples([input]);void drainSharedLexiconQueue(config).catch(()=>{});}
       }
       else if (path === "/api/words/import" && request.method === "POST") {
         const inputs=bulk.parse(await readJson(request));
         for(const input of inputs)if(input.lexicon)await verifyUserWordLexiconBinding(config,input);
         result = await importWords(ctx,inputs);
+        if(tooltipWriteEnabled(config)){enqueueWordExamples(inputs);void drainSharedLexiconQueue(config).catch(()=>{});}
       }
       else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
@@ -179,6 +198,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           const input=wordInputSchema.parse(await readJson(request));
           await verifyUserWordLexiconBinding(config,input);
           result=await saveWord(ctx,input,id);
+          if(tooltipWriteEnabled(config)){enqueueWordExamples([input]);void drainSharedLexiconQueue(config).catch(()=>{});}
         }
         else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");

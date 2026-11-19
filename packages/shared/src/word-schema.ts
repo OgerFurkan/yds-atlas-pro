@@ -8,7 +8,16 @@ export const wordExampleSchema = z.object({
   translation: z.string().trim().default(""),
   translationFocus: z.array(z.string().trim().min(1)).optional(),
   source: z.string().trim().optional(),
+  difficulty: z.enum(["easy", "medium", "yds"]).optional(),
 });
+
+export const lexiconRevisionSchema = z
+  .object({
+    entryId: z.uuid(),
+    revision: z.number().int().min(1),
+    contractVersion: z.literal(1),
+  })
+  .strict();
 
 export const wordInputSchema = z.object({
   word: z.string().trim().min(1, "İngilizce kelime alanı zorunludur.").max(120),
@@ -22,6 +31,7 @@ export const wordInputSchema = z.object({
   pronunciationUk: z.string().trim().default(""),
   pronunciationUs: z.string().trim().default(""),
   sourceUrl: z.string().trim().default(""),
+  lexicon: lexiconRevisionSchema.optional(),
 });
 
 export const wordCheckSchema = z.object({

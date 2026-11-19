@@ -4,6 +4,7 @@ import {
   Headphones,
   Home,
   LibraryBig,
+  BookMarked,
   LogIn,
   Menu,
   Settings2,
@@ -16,7 +17,7 @@ import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { LearningMenu } from "./learning-menu";
 
-export type AppScreen = "home" | "library" | "game" | "login";
+export type AppScreen = "home" | "library" | "game" | "login" | "inspector";
 interface AppHeaderProps {
   screen: AppScreen;
   onNavigate: (screen: AppScreen) => void;
@@ -24,6 +25,7 @@ interface AppHeaderProps {
   onOpenAccount: () => void;
   onOpenSettings: () => void;
   signedIn?: boolean;
+  showInspector?: boolean;
 }
 export function AppHeader({
   screen,
@@ -32,6 +34,7 @@ export function AppHeader({
   onOpenAccount,
   onOpenSettings,
   signedIn,
+  showInspector = false,
 }: AppHeaderProps) {
   const { t } = useTranslation();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -137,6 +140,16 @@ export function AppHeader({
             <LibraryBig size={18} />
             {t("nav.library")}
           </Button>
+          {showInspector && (
+            <Button
+              variant="ghost"
+              aria-current={screen === "inspector" ? "page" : undefined}
+              className="justify-start"
+              onClick={() => go("inspector")}
+            >
+              <BookMarked size={18} /> Word Inspector
+            </Button>
+          )}
           <Button
             variant="ghost"
             className="justify-start sm:hidden"

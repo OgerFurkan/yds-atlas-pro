@@ -1,4 +1,4 @@
-﻿import { beforeAll, beforeEach, afterAll, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, afterAll, describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 const db = new PGlite();
@@ -93,11 +93,61 @@ describe("Postgres ownership, atomicity and quotas", () => {
     });
   });
   test("all application tables have RLS, and no SECURITY DEFINER function is exposed", async () => {
-    const result = await db.query<{ relrowsecurity: boolean }>(
-      "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r'",
+    const result = await db.query<{ relname: string; relrowsecurity: boolean }>(
+      "select relname,relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r' order by relname",
     );
-    expect(result.rows).toHaveLength(7);
+    const baselineTables = [
+      "ai_usage",
+      "completed_goal_days",
+      "daily_word_completions",
+      "learning_results",
+      "learning_sessions",
+      "profiles",
+      "words",
+    ];
+    // Strict schema allowlist: a new public table must be reviewed, not silently ignored.
+    expect(result.rows.map((row) => row.relname)).toEqual(
+      [...baselineTables, "atlas_lexicon_entries"].sort(),
+    );
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
+    const acl = await db.query<{
+      anon_read: boolean;
+      user_read: boolean;
+      service_read: boolean;
+      service_insert: boolean;
+      service_update: boolean;
+      service_delete: boolean;
+    }>(
+      "select has_table_privilege('anon','public.atlas_lexicon_entries','SELECT') as anon_read, " +
+      "has_table_privilege('authenticated','public.atlas_lexicon_entries','SELECT') as user_read, " +
+      "has_table_privilege('service_role','public.atlas_lexicon_entries','SELECT') as service_read, " +
+      "has_table_privilege('service_role','public.atlas_lexicon_entries','INSERT') as service_insert, " +
+      "has_table_privilege('service_role','public.atlas_lexicon_entries','UPDATE') as service_update, " +
+      "has_table_privilege('service_role','public.atlas_lexicon_entries','DELETE') as service_delete",
+    );
+    expect(acl.rows).toEqual([
+      {
+        anon_read: false,
+        user_read: false,
+        service_read: true,
+        service_insert: false,
+        service_update: false,
+        service_delete: false,
+      },
+    ]);
+    const policies = await db.query<{ count: number }>(
+      "select count(*)::integer as count from pg_policies " +
+      "where schemaname='public' and tablename='atlas_lexicon_entries'",
+    );
+    expect(policies.rows[0].count).toBe(0);
+    for (const role of ["anon", "authenticated"] as const) {
+      for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"] as const) {
+        const privileges = await db.query<{ allowed: boolean }>(
+          `select has_table_privilege('${role}','public.atlas_lexicon_entries','${operation}') as allowed`,
+        );
+        expect(privileges.rows[0].allowed).toBe(false);
+      }
+    }
     const functions = await db.query(
       "select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and prosecdef",
     );
@@ -107,11 +157,23 @@ describe("Postgres ownership, atomicity and quotas", () => {
     await db.exec("set role anon");
     try {
       await expect(db.query("select * from public.words")).rejects.toThrow();
+      await expect(db.query("select * from public.atlas_lexicon_entries")).rejects.toThrow();
       await expect(db.query("select public.import_words('[]')")).rejects.toThrow();
       await expect(db.query("select public.consume_ai_quota($1)", [alice])).rejects.toThrow();
     } finally {
       await db.exec("reset role");
     }
+  });
+  test("authenticated users cannot read or write the private shared Lexicon table", async () => {
+    await asUser(alice, async () => {
+      await expect(db.query("select * from public.atlas_lexicon_entries")).rejects.toThrow();
+      await expect(
+        db.query(
+          "insert into public.atlas_lexicon_entries(word_key,part_of_speech,sense_key,content,digest) values('x','Noun',$1,'{}',$1)",
+          ["a".repeat(64)],
+        ),
+      ).rejects.toThrow();
+    });
   });
   test("another user's words cannot be selected, updated, deleted or reassigned", async () => {
     await asUser(bob, async () => {

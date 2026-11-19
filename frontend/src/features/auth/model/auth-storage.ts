@@ -1,26 +1,38 @@
 const preferenceKey = "yds-atlas-remember-session";
 
+// Browser credentials remain in the configured browser storage. SSR and Bun unit
+// tests have no browser storage: never create a shared in-memory token fallback.
+function sessionStore(): Storage | null {
+  return typeof sessionStorage === "undefined" ? null : sessionStorage;
+}
+function persistentStore(): Storage | null {
+  return typeof localStorage === "undefined" ? null : localStorage;
+}
+
 export function setRememberSession(remember: boolean) {
-  sessionStorage.setItem(preferenceKey, remember ? "true" : "false");
+  sessionStore()?.setItem(preferenceKey, remember ? "true" : "false");
 }
 
 export const authStorage = {
   getItem(key: string) {
-    return sessionStorage.getItem(key) ?? localStorage.getItem(key);
+    return sessionStore()?.getItem(key) ?? persistentStore()?.getItem(key) ?? null;
   },
   setItem(key: string, value: string) {
-    const preference = sessionStorage.getItem(preferenceKey);
+    const session = sessionStore();
+    const local = persistentStore();
+    if (!session || !local) return; // No credential storage outside a browser.
+    const preference = session.getItem(preferenceKey);
     const remember =
       preference === null
-        ? localStorage.getItem(key) !== null || sessionStorage.getItem(key) === null
+        ? local.getItem(key) !== null || session.getItem(key) === null
         : preference === "true";
-    const target = remember ? localStorage : sessionStorage;
-    const other = remember ? sessionStorage : localStorage;
+    const target = remember ? local : session;
+    const other = remember ? session : local;
     target.setItem(key, value);
     other.removeItem(key);
   },
   removeItem(key: string) {
-    sessionStorage.removeItem(key);
-    localStorage.removeItem(key);
+    sessionStore()?.removeItem(key);
+    persistentStore()?.removeItem(key);
   },
 };

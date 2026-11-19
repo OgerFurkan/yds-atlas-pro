@@ -1,4 +1,4 @@
-﻿import {
+import {
   aiChatRequestSchema,
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
@@ -19,6 +19,10 @@ import {
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
+import { inspectFeedback, assertFeedbackWordBinding, assertNoActiveAssessment } from "./features/feedback/inspector-service";
+import { draftWord, generateTieredSentences } from "./features/feedback/tiered-sentence-generation";
+import { dictionaryWord, lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
+import { readSharedTooltipGloss, queueSentenceWords, sentencePrefetchEnabled } from "./features/lexicon/sentence-lexicon-prefetch";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, quotaClient, type RequestContext } from "./shared/supabase";
@@ -30,6 +34,7 @@ type Dependencies = {
   generateNamed?: typeof generateNamedWords;
   generateChat?: typeof generateChatReply;
   consumeQuota?: (userId: string) => Promise<boolean>;
+  generateTiered?: typeof generateTieredSentences;
 };
 const uuid = z.uuid();
 const bulk = z.array(wordInputSchema).min(1).max(500);
@@ -82,12 +87,63 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       if (!path.startsWith("/api/")) throw new HttpError(404, "İstek bulunamadı.", "NOT_FOUND");
       const ctx = await (dependencies.authenticate?.(request) ?? authenticate(request, config));
       let result: unknown;
-      if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
-      else if (path === "/api/words" && request.method === "POST")
-        result = await saveWord(ctx, wordInputSchema.parse(await readJson(request)));
-      else if (path === "/api/words/import" && request.method === "POST")
-        result = await importWords(ctx, bulk.parse(await readJson(request)));
-      else if (path === "/api/words/bulk" && request.method === "DELETE")
+      if (path === "/api/lexicon/inspect" && request.method === "GET") {
+        result = await inspectFeedback(ctx, config, new URL(request.url).searchParams);
+        if (sentencePrefetchEnabled(config) &&
+            result.status === "ready") queueSentenceWords(result.entry.examples.map((item) => item.sentence));
+      } else if (path === "/api/dictionary/turkish" && request.method === "GET") {
+        if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
+          throw new HttpError(404, "Sözlük etkin değil.", "DICTIONARY_DISABLED");
+        await assertNoActiveAssessment(ctx);
+        const parameters = new URL(request.url).searchParams;
+        if ([...parameters.keys()].some((key) => key !== "word") || parameters.getAll("word").length !== 1)
+          throw new HttpError(400, "Sözlük sorgusu geçersiz.", "DICTIONARY_INVALID_QUERY");
+        const word = dictionaryWord(parameters.get("word") ?? "");
+        let cached: Awaited<ReturnType<typeof readSharedTooltipGloss>> = null;
+        try {
+          // This optional, read-only shared lookup may be unavailable before a migration.
+          cached = await readSharedTooltipGloss(quotaClient(config), word);
+        } catch {
+          // A missing shared cache does not justify unsafe or fabricated meanings.
+          // The licensed provider is independently bounded and validated.
+        }
+        result = cached ? {
+          status: "ready" as const, word,
+          entries: [{ partOfSpeech: cached.partOfSpeech, meanings: cached.meanings }],
+          source: { provider: "FreeDictionaryAPI.com / Wiktionary" as const,
+            url: cached.url, license: "CC BY-SA 4.0" as const,
+            licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" as const },
+        } : await lookupPublicTurkish(word, ctx.userId);
+      } else if (path === "/api/lexicon/examples/draft" && request.method === "POST") {
+        if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
+          throw new HttpError(404, "Cümle üretimi etkin değil.", "SENTENCE_DISABLED");
+        await assertNoActiveAssessment(ctx);
+        const { word: inputWord } = z.object({ word: z.string().min(1).max(45) }).strict()
+          .parse(await readJson(request, 2048));
+        const word = draftWord(inputWord);
+        if (!config.GEMINI_KEYS.length)
+          throw new HttpError(503, "Cümle üretimi henüz kullanılamıyor.", "AI_NOT_CONFIGURED");
+        const allowed = dependencies.consumeQuota
+          ? await dependencies.consumeQuota(ctx.userId)
+          : await (async () => {
+              const quota = await quotaClient(config).rpc("consume_ai_quota", { p_user_id: ctx.userId });
+              databaseError(quota.error);
+              return quota.data === true;
+            })();
+        if (!allowed) throw new HttpError(429, "AI kullanım sınırına ulaşıldı.", "AI_QUOTA_EXCEEDED");
+        const draft = await (dependencies.generateTiered ?? generateTieredSentences)(word, config, request.signal);
+        if (sentencePrefetchEnabled(config)) queueSentenceWords(draft.examples.map((item) => item.sentence));
+        result = { status: "draft", ...draft };
+      } else if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
+      else if (path === "/api/words" && request.method === "POST") {
+        const input = wordInputSchema.parse(await readJson(request));
+        await assertFeedbackWordBinding(config, input, true);
+        result = await saveWord(ctx, input);
+      } else if (path === "/api/words/import" && request.method === "POST") {
+        const inputs = bulk.parse(await readJson(request));
+        for (const input of inputs) await assertFeedbackWordBinding(config, input, true);
+        result = await importWords(ctx, inputs);
+      } else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
           ctx,
           z
@@ -108,9 +164,11 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         result = { updated: true };
       } else if (/^\/api\/words\/[^/]+$/.test(path)) {
         const id = uuid.parse(path.split("/").at(-1));
-        if (request.method === "PUT")
-          result = await saveWord(ctx, wordInputSchema.parse(await readJson(request)), id);
-        else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
+        if (request.method === "PUT") {
+          const input = wordInputSchema.parse(await readJson(request));
+          await assertFeedbackWordBinding(config, input);
+          result = await saveWord(ctx, input, id);
+        } else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");
       } else if (path === "/api/account" && request.method === "GET")
         result = await accountState(ctx);

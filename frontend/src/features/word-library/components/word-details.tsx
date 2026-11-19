@@ -1,4 +1,4 @@
-﻿import type { WordEntry } from "@yds-atlas/shared";
+import type { WordEntry } from "@yds-atlas/shared";
 import { ArrowUpRight, BookOpen, Languages } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -14,6 +14,7 @@ import {
 import { formatWordType } from "../model/word-normalization";
 import { PronunciationButtons } from "./pronunciation-buttons";
 import { WordExample } from "./word-example";
+import { TieredSentencePreview } from "@/features/word-inspector/components/tiered-sentence-preview";
 import { WordStatus } from "./word-status";
 
 export function WordDetails({ word }: { word: WordEntry }) {
@@ -92,6 +93,7 @@ export function WordDetails({ word }: { word: WordEntry }) {
             ) : (
               <p className="text-sm text-slate-500">{t("library.noExamples")}</p>
             )}
+            <TieredSentencePreview word={word.word} />
           </div>
         </DialogContent>
       </Dialog>

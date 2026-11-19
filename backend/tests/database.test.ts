@@ -92,7 +92,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
       expect((await db.query("select * from public.completed_goal_days")).rows).toHaveLength(0);
     });
   });
-  test("all application tables have RLS, and no SECURITY DEFINER function is exposed", async () => {
+  test("all application tables have RLS and only two audited Lexicon definer functions exist", async () => {
     const result = await db.query<{ relname: string; relrowsecurity: boolean }>(
       "select relname,relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r' order by relname",
     );
@@ -107,51 +107,57 @@ describe("Postgres ownership, atomicity and quotas", () => {
     ];
     // Strict schema allowlist: a new public table must be reviewed, not silently ignored.
     expect(result.rows.map((row) => row.relname)).toEqual(
-      [...baselineTables, "atlas_lexicon_entries"].sort(),
+      [...baselineTables, "atlas_lexicon_entries", "atlas_lexicon_jobs", "atlas_lexicon_entry_revisions"].sort(),
     );
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
-    const acl = await db.query<{
-      anon_read: boolean;
-      user_read: boolean;
-      service_read: boolean;
-      service_insert: boolean;
-      service_update: boolean;
-      service_delete: boolean;
-    }>(
-      "select has_table_privilege('anon','public.atlas_lexicon_entries','SELECT') as anon_read, " +
-      "has_table_privilege('authenticated','public.atlas_lexicon_entries','SELECT') as user_read, " +
-      "has_table_privilege('service_role','public.atlas_lexicon_entries','SELECT') as service_read, " +
-      "has_table_privilege('service_role','public.atlas_lexicon_entries','INSERT') as service_insert, " +
-      "has_table_privilege('service_role','public.atlas_lexicon_entries','UPDATE') as service_update, " +
-      "has_table_privilege('service_role','public.atlas_lexicon_entries','DELETE') as service_delete",
-    );
-    expect(acl.rows).toEqual([
-      {
-        anon_read: false,
-        user_read: false,
-        service_read: true,
-        service_insert: false,
-        service_update: false,
-        service_delete: false,
-      },
-    ]);
-    const policies = await db.query<{ count: number }>(
-      "select count(*)::integer as count from pg_policies " +
-      "where schemaname='public' and tablename='atlas_lexicon_entries'",
-    );
-    expect(policies.rows[0].count).toBe(0);
-    for (const role of ["anon", "authenticated"] as const) {
-      for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"] as const) {
-        const privileges = await db.query<{ allowed: boolean }>(
-          `select has_table_privilege('${role}','public.atlas_lexicon_entries','${operation}') as allowed`,
-        );
-        expect(privileges.rows[0].allowed).toBe(false);
+    // The exact reviewed three-table ledger keeps RLS and denies all public-role access.
+    const servicePermissions: Record<string, string[]> = {
+      atlas_lexicon_entries: ["SELECT", "INSERT", "UPDATE"],
+      atlas_lexicon_jobs: ["SELECT", "INSERT", "UPDATE"],
+      atlas_lexicon_entry_revisions: ["SELECT", "INSERT"],
+    };
+    for (const [table, allowed] of Object.entries(servicePermissions)) {
+      const policies = await db.query<{ count: number }>(
+        "select count(*)::integer as count from pg_policies where schemaname='public' and tablename=$1",
+        [table],
+      );
+      expect(policies.rows[0].count).toBe(0);
+      for (const role of ["anon", "authenticated", "service_role"] as const) {
+        for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"] as const) {
+          const privilege = await db.query<{ allowed: boolean }>(
+            `select has_table_privilege('${role}','public.${table}','${operation}') as allowed`,
+          );
+          expect(privilege.rows[0].allowed).toBe(
+            role === "service_role" && allowed.includes(operation),
+          );
+        }
       }
     }
-    const functions = await db.query(
-      "select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and prosecdef",
+    // Strict exception: only the two reviewed, locked-down Lexicon RPCs may be definer.
+    const functions = await db.query<{
+      proname: string; pronargs: number; proconfig: string[] | null;
+    }>(
+      "select p.proname, p.pronargs, p.proconfig from pg_proc p " +
+        "join pg_namespace n on n.oid=p.pronamespace " +
+        "where n.nspname='public' and p.prosecdef order by p.proname",
     );
-    expect(functions.rows).toHaveLength(0);
+    expect(functions.rows.map((row) => [row.proname, row.pronargs])).toEqual([
+      ["atlas_lexicon_claim_v1", 4],
+      ["atlas_lexicon_publish_v1", 10],
+    ]);
+    for (const fn of functions.rows) {
+      expect(fn.proconfig).toContain("search_path=\"\"");
+      const identity = fn.proname === "atlas_lexicon_claim_v1"
+        ? "public.atlas_lexicon_claim_v1(text,text,text,uuid)"
+        : "public.atlas_lexicon_publish_v1(text,text,text,uuid,text,text,text,jsonb,jsonb,text)";
+      for (const role of ["anon", "authenticated", "service_role"] as const) {
+        const privilege = await db.query<{ allowed: boolean }>(
+          "select has_function_privilege($1, $2, 'EXECUTE') as allowed",
+          [role, identity],
+        );
+        expect(privilege.rows[0].allowed).toBe(role === "service_role");
+      }
+    }
   });
   test("anonymous callers cannot read tables or execute app functions", async () => {
     await db.exec("set role anon");

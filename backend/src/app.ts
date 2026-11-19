@@ -88,9 +88,10 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       const ctx = await (dependencies.authenticate?.(request) ?? authenticate(request, config));
       let result: unknown;
       if (path === "/api/lexicon/inspect" && request.method === "GET") {
-        result = await inspectFeedback(ctx, config, new URL(request.url).searchParams);
-        if (sentencePrefetchEnabled(config) &&
-            result.status === "ready") queueSentenceWords(result.entry.examples.map((item) => item.sentence));
+        const inspected = await inspectFeedback(ctx, config, new URL(request.url).searchParams);
+        result = inspected;
+        if (sentencePrefetchEnabled(config) && inspected.status === "ready")
+          queueSentenceWords(inspected.entry.examples.map((item) => item.sentence));
       } else if (path === "/api/dictionary/turkish" && request.method === "GET") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
           throw new HttpError(404, "Sözlük etkin değil.", "DICTIONARY_DISABLED");

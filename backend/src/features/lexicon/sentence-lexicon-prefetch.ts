@@ -182,10 +182,12 @@ export async function drainSentenceQueue(config: ServerConfig, options: {
         if (fullError) throw fullError;
         const completed = (full ?? []).some((row: { content?: { examples?: unknown[] } }) => {
           const examples = row.content?.examples;
-          return Array.isArray(examples) && examples.length === 5 &&
-            examples.filter((example: { difficulty?: string }) => example.difficulty === "easy").length === 2 &&
-            examples.filter((example: { difficulty?: string }) => example.difficulty === "medium").length === 1 &&
-            examples.filter((example: { difficulty?: string }) => example.difficulty === "yds").length === 2;
+          if (!Array.isArray(examples) || examples.length !== 5) return false;
+          const count = (difficulty: string) => examples.filter(
+            (example) => typeof example === "object" && example !== null &&
+              "difficulty" in example && example.difficulty === difficulty,
+          ).length;
+          return count("easy") === 2 && count("medium") === 1 && count("yds") === 2;
         });
         if (!completed && !(await readSharedTooltipGloss(db, word))) {
           const dictionary = await (options.dictionary ?? lookupPublicTurkish)(word, "atlas-tooltip-worker");

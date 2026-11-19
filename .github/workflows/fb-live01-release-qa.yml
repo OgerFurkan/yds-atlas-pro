@@ -152,19 +152,43 @@ jobs:
       - name: Install isolated Chromium for Playwright
         id: chromium
         continue-on-error: true
-        run: bunx playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          if [ -x frontend/node_modules/.bin/playwright ]; then
+            frontend/node_modules/.bin/playwright install --with-deps chromium
+          elif [ -x node_modules/.bin/playwright ]; then
+            node_modules/.bin/playwright install --with-deps chromium
+          else
+            echo "STOP: frozen installed Playwright binary is missing"; exit 1
+          fi
 
       - name: Playwright Inspector desktop (tooltip, 2/1/2, game block)
         id: inspector
         continue-on-error: true
         working-directory: frontend
-        run: bunx playwright test --config playwright.inspector.config.ts --project desktop
+        run: |
+          set -euo pipefail
+          if [ -x node_modules/.bin/playwright ]; then
+            node_modules/.bin/playwright test --config playwright.inspector.config.ts --project desktop
+          elif [ -x ../node_modules/.bin/playwright ]; then
+            ../node_modules/.bin/playwright test --config playwright.inspector.config.ts --project desktop
+          else
+            echo "STOP: frozen installed Playwright binary is missing"; exit 1
+          fi
 
       - name: Playwright general mock desktop
         id: general
         continue-on-error: true
         working-directory: frontend
-        run: bunx playwright test --config playwright.cloud.config.ts --project desktop
+        run: |
+          set -euo pipefail
+          if [ -x node_modules/.bin/playwright ]; then
+            node_modules/.bin/playwright test --config playwright.cloud.config.ts --project desktop
+          elif [ -x ../node_modules/.bin/playwright ]; then
+            ../node_modules/.bin/playwright test --config playwright.cloud.config.ts --project desktop
+          else
+            echo "STOP: frozen installed Playwright binary is missing"; exit 1
+          fi
 
       - name: Enforce real QA gate outcomes
         if: always()

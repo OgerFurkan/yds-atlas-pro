@@ -1,5 +1,9 @@
 import { describe, expect, test } from "bun:test";
 import type { LeveledExample } from "@yds-atlas/shared";
+import { createApp } from "../src/app";
+import { readConfig } from "../src/config/env";
+import { createClient } from "@supabase/supabase-js";
+import { accountState } from "../src/features/learning/learning-service";
 import { createHash } from "node:crypto";
 import { inspectCachedLexicon, validateInspectorQuery, rejectInspectorDuringSavedAssessment } from "../src/features/lexicon/lexicon-inspector";
 import type { LexicalContent, LexiconEntry, LexiconStore } from "../src/features/lexicon/lexicon-resolver";
@@ -135,26 +139,62 @@ describe("F4a Word Inspector cache-only boundary (no remote DB)",()=>{
 
 
 describe("Feedback staging: server-side saved-assessment Inspector gate",()=>{
-  const ctx=(data: unknown,error: unknown=null)=>({db:{from(table:string){
-    if(table!=="learning_sessions") throw Error("Unexpected table");
-    return {select(columns:string){
-      if(columns!=="id") throw Error("Unexpected projection");
-      return {is(column:string,value:unknown){
-        if(column!=="completed_at"||value!==null) throw Error("Unexpected filter");
-        return {gte(field:string,since:string){
-          if(field!=="updated_at"||Number.isNaN(Date.parse(since))||
-             Math.abs(Date.now()-Date.parse(since)-15*60_000)>2000) throw Error("Unexpected recency gate");
-          return {limit(n:number){if(n!==1)throw Error("Unexpected limit");return Promise.resolve({data,error})}};
+  const ctx = (data: unknown, error: unknown = null) => ({
+    userId: "alice",
+    db: { from(table: string) {
+      expect(table).toBe("learning_sessions");
+      return { select(columns: string) {
+        expect(columns).toBe("id");
+        return { eq(field: string, owner: string) {
+          expect([field, owner]).toEqual(["user_id", "alice"]);
+          return { is(column: string, value: unknown) {
+            expect([column, value]).toEqual(["completed_at", null]);
+            return { limit(n: number) {
+              expect(n).toBe(1);
+              return Promise.resolve({data, error});
+            }};
+          }};
         }};
       }};
-    }};
-  }}}) as never;
+    }}
+  }) as never;
   test("uncompleted cloud game blocks Inspector even if the UI route is bypassed",async()=>{
     await expect(rejectInspectorDuringSavedAssessment(ctx([{id:"game-session"}])))
       .rejects.toMatchObject({status:409,code:"INSPECTOR_ACTIVE_ASSESSMENT"});
   });
-  test("paused or stale unfinished games are excluded by the 15 minute database filter",async()=>{
-    await expect(rejectInspectorDuringSavedAssessment(ctx([]))).resolves.toBeUndefined();
+  test("all Feedback learning aids deny an unfinished game regardless of age", async () => {
+    const app = createApp(readConfig({ATLAS_FEEDBACK_LEXICON_ENABLED:"true"}), {
+      authenticate: async () => ctx([{id:"old-unfinished"}]),
+    });
+    for (const [method,path] of [
+      ["GET","lexicon/inspect"], ["GET","dictionary/turkish"], ["GET","lexicon/candidates"],
+      ["POST","lexicon/resolve"], ["POST","lexicon/complete"], ["POST","lexicon/suggest"],
+      ["POST","ai/chat"], ["POST","ai/words/enrich"], ["POST","ai/words/complete"], ["POST","ai/words/suggest"],
+    ]) {
+      const response = await app(new Request("http://localhost/api/" + path, {method}));
+      expect(response.status).toBe(409);
+      expect((await response.json()).code).toBe("INSPECTOR_ACTIVE_ASSESSMENT");
+    }
+  });
+  test("account restore prioritizes the same user's unfinished games before completed history", async () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const requests: URL[] = [];
+    const db = createClient("http://127.0.0.1:1", "fixture", {
+      auth: {persistSession:false, autoRefreshToken:false},
+      global: {fetch: Object.assign(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const url = new URL(String(input));
+        requests.push(url);
+        if (url.pathname.endsWith("/profiles") && init?.method === "GET")
+          return Response.json({daily_goal:20});
+        return Response.json([]);
+      }, {preconnect: () => {}})},
+    });
+    const state = await accountState({userId:owner, db});
+    const query = requests.find(url => url.pathname.endsWith("/learning_sessions"))!.searchParams;
+    expect(query.get("user_id")).toBe("eq." + owner);
+    expect(query.get("order")).toBe("completed_at.desc.nullsfirst,updated_at.desc");
+    expect(query.get("limit")).toBe("1");
+    expect(state.session).toBeNull();
   });
   test("no unfinished session allows cache-only Inspector lookup",async()=>{
     await expect(rejectInspectorDuringSavedAssessment(ctx([]))).resolves.toBeUndefined();

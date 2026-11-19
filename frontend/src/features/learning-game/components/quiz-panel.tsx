@@ -37,9 +37,19 @@ export function QuizPanel({
               : "font-display text-4xl sm:text-5xl",
           )}
         >
-          {question.context ? (feedback ? (
-            <SentenceWordTooltips text={question.sentence ?? ""} focusWord={question.word} allowDuringGame />
-          ) : question.sentence) : question.word.word}
+          {question.context ? (
+            feedback ? (
+              <SentenceWordTooltips
+                text={question.sentence ?? ""}
+                focusWord={question.word}
+                allowDuringGame
+              />
+            ) : (
+              question.sentence
+            )
+          ) : (
+            question.word.word
+          )}
         </h2>
       </div>
       <div id="question-choices" className="grid gap-3 sm:grid-cols-2">
@@ -49,9 +59,9 @@ export function QuizPanel({
           return (
             <button
               id={
-                choice === question.correct
+                session.tutorial && choice === question.correct
                   ? "choice-correct"
-                  : choice === wrongChoice
+                  : session.tutorial && choice === wrongChoice
                     ? "choice-wrong"
                     : undefined
               }

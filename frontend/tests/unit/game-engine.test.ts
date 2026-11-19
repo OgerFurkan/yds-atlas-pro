@@ -40,6 +40,12 @@ function finishMatching(session: GameSession) {
 }
 
 describe("learning loop", () => {
+  test("a cloze hides every occurrence including alternative forms", () => {
+    const word = { ...deck(1)[0], word: "obtain", alternatives: ["obtained"] };
+    word.examples = word.examples.map(e => ({ ...e, sentence: "Obtain what others obtained." }));
+    const session = { ...createSession([word], 5), phase: "final-context" as const };
+    expect(makeQuestion(session)?.sentence).toBe("________ what others ________.");
+  });
   test("regular sessions match each study group while the single-word tutorial follows its guide", () => {
     expect(createSession(deck(5), 5).groupMatching).toBe(true);
     expect(createSession(deck(1), 5, true).groupMatching).toBe(false);

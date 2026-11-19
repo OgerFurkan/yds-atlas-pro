@@ -12,13 +12,17 @@ export class SessionSync {
     this.api = api;
     if (initial) this.revisions.set(initial.snapshot.id, initial.revision);
   }
-  save(snapshot: GameSession) {
+  save(snapshot: GameSession, onlyIfNew = false) {
     const work = this.tail.then(async () => {
+      if (onlyIfNew && this.revisions.has(snapshot.id)) return;
       if (this.failure) throw this.failure;
       const { revision } = await this.api.saveSession(
         snapshot,
         this.revisions.get(snapshot.id) ?? 0,
       );
+      if (!Number.isSafeInteger(revision) || revision <= (this.revisions.get(snapshot.id) ?? 0)) {
+        throw new Error("Oturum kaydı doğrulanamadı.");
+      }
       this.revisions.set(snapshot.id, revision);
     });
     this.tail = work.catch((error) => {

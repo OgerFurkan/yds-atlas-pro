@@ -41,6 +41,11 @@ export async function tryFeedbackRoute(
   if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) return { handled: false };
   const url = new URL(request.url);
   const key = `${request.method} ${url.pathname}`;
+  // Authorize learning aids before any provider, privileged store or quota access.
+  if (url.pathname.startsWith("/api/lexicon/") || url.pathname.startsWith("/api/ai/") ||
+      key === "GET /api/dictionary/turkish") {
+    await rejectInspectorDuringSavedAssessment(ctx);
+  }
   const editorial = await tryEditorialAdminRoute(request, ctx, config);
   if (editorial.handled) return editorial;
   switch (key) {
@@ -50,7 +55,6 @@ export async function tryFeedbackRoute(
           ["word", "partOfSpeech", "meaning"].some(k => url.searchParams.getAll(k).length > 1)) {
         throw new HttpError(400, "Kelime inceleme parametreleri geçersiz.", "INSPECTOR_INVALID_QUERY");
       }
-      await rejectInspectorDuringSavedAssessment(ctx);
       return { handled: true, value: await inspectTieredLexicon(config, {
         word: url.searchParams.get("word") ?? "",
         partOfSpeech: url.searchParams.get("partOfSpeech") ?? undefined,

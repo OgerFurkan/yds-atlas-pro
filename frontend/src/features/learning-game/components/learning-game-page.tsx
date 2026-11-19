@@ -40,7 +40,7 @@ interface LearningGamePageProps {
   listWords: () => WordEntry[];
   preset?: DailyGroupPreset | null;
   onPresetHandled?: () => void;
-  onPersistSession?: (session: GameSession) => Promise<void>;
+  onPersistSession?: (session: GameSession, onlyIfNew?: boolean) => Promise<void>;
   onCompleteSession?: (session: GameSession) => Promise<void>;
 }
 export function LearningGamePage({
@@ -63,9 +63,7 @@ export function LearningGamePage({
   }, [preset, words]);
   const [startedDay] = useState(preset?.day ?? null);
   const [startedLabel] = useState(preset?.label ?? null);
-  const [session, setSession] = useState<GameSession | null>(() =>
-    presetWords.length ? createSession(presetWords, 5) : null,
-  );
+  const [session, setSession] = useState<GameSession | null>(null);
   const [saved, setSaved] = useState(readSession);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -76,28 +74,46 @@ export function LearningGamePage({
   const alive = useRef(true);
   const storageOwner = useRef(getStorageScope());
   const presetHandled = useRef(false);
-  // A day-based session must be saved as soon as it starts, not only after the
-  // first answer. Otherwise reload/close loses the selected day's progress.
-  const initialDaySession = useRef(presetWords.length ? session : null);
+  const [opening, setOpening] = useState<GameSession | null>(() =>
+    presetWords.length ? createSession(presetWords, 5) : null,
+  );
+  const [openError, setOpenError] = useState("");
+  // Reuse the initial save across StrictMode effect replays and rerenders.
+  const openingRequest = useRef<{ session: GameSession; promise: Promise<void> } | null>(null);
   useEffect(() => {
-    const first = initialDaySession.current;
-    if (!first) return;
-    initialDaySession.current = null;
-    try {
-      persistSession(first);
-      setSaved(first);
-    } catch (reason) {
-      onNotify.error(reason instanceof Error ? reason.message : "Çalışma oturumu kaydedilemedi.");
+    if (!opening) return;
+    let active = true;
+    const previous = readSession();
+    if (onPersistSession && previous && !previous.saved && previous.id !== opening.id) {
+      setSaved(previous);
+      setOpening(null);
+      onNotify.error("Yeni göreve başlamadan önce kayıtlı görevini tamamla.");
       return;
     }
-    if (onPersistSession) {
-      void onPersistSession(first).catch((reason) => {
-        if (!alive.current || getStorageScope() !== storageOwner.current) return;
-        setSyncError(true);
-        onNotify.error(reason instanceof Error ? reason.message : "Oturum buluta kaydedilemedi.");
-      });
+    if (openingRequest.current?.session !== opening) {
+      const begin = async () => {
+        persistSession(opening);
+        if (!opening.saved) await onPersistSession?.(opening, true);
+      };
+      openingRequest.current = { session: opening, promise: begin() };
     }
-  }, [onNotify, onPersistSession]);
+    const isCurrent = () => active && getStorageScope() === storageOwner.current;
+    void openingRequest.current.promise
+      .then(() => {
+        if (!isCurrent()) return;
+        setSaved(opening);
+        setSession(opening);
+        setOpening(null);
+        openingRequest.current = null;
+      })
+      .catch((reason) => {
+        if (isCurrent())
+          setOpenError(reason instanceof Error ? reason.message : "Görev kaydedilemedi.");
+      });
+    return () => {
+      active = false;
+    };
+  }, [opening, onNotify, onPersistSession]);
   useEffect(() => {
     alive.current = true;
     return () => {
@@ -218,15 +234,36 @@ export function LearningGamePage({
     }, 0);
     return () => clearTimeout(timer);
   }, [phase, saveResults]);
+  if (opening)
+    return (
+      <section className="mx-auto max-w-lg space-y-4 py-8">
+        {openError ? (
+          <>
+            <p role="alert">{openError}</p>
+            <Button
+              onClick={() => {
+                openingRequest.current = null;
+                setOpenError("");
+                setOpening({ ...opening });
+              }}
+            >
+              Kaydı yeniden dene
+            </Button>
+          </>
+        ) : (
+          <p role="status">Görev kaydediliyor…</p>
+        )}
+      </section>
+    );
   if (!session)
     return (
       <GameSetup
         words={words}
         saved={saved}
         listWords={listWords}
-        onStart={(chosen, batch) => commit(createSession(chosen, batch))}
+        onStart={(chosen, batch) => setOpening(createSession(chosen, batch))}
         onResume={() => {
-          if (saved) setSession(saved);
+          if (saved) setOpening(saved);
         }}
         onTutorial={tutorial}
         onAddMany={onAddMany}

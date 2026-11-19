@@ -18,7 +18,12 @@ export function sentenceTokens(sentences:readonly string[]):string[]{
  const result=new Set<string>();
  for(const sentence of sentences){
   if(!sentence||sentence.length>1200)continue;
-  for(const match of sentence.matchAll(TOKEN)){
+  // Keep addresses and identifiers out of external requests and shared glossary keys.
+  const publicText = sentence
+    .replace(/(?:https?:\/\/|www\.)\S+|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
+    .replace(/(?:^|\s)[@#][\w.-]+/g, " ");
+  for(const match of publicText.matchAll(TOKEN)){
+   if (/[A-Z]/.test(match[0])) continue;
    const token=match[0].normalize("NFKC").toLocaleLowerCase("en").replaceAll("’","'");
    if(/^[a-z]+(?:'[a-z]+)?(?:-[a-z]+)?$/.test(token) && token.length<=45 && !COMMON.has(token))
     result.add(token);

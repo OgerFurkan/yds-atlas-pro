@@ -334,6 +334,7 @@ export function getStarterWord(word: string) {
 }
 
 export function enrichWordInput(input: WordInput): WordInput {
+  if (input.lexicon) return input;
   const seed = getStarterWord(input.word);
   if (!seed) return input;
   return {

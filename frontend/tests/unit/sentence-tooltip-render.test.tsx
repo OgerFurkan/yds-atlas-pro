@@ -73,6 +73,8 @@ describe("answered game context can reveal words without leaking pre-answer hint
       </SentenceVocabularyProvider>,
     );
     expect(panel(false)).not.toContain('data-testid="english-sentence-tooltips"');
+    expect(panel(false)).not.toContain("choice-correct");
+    expect(panel(false)).not.toContain("choice-wrong");
     const answered = panel(true);
     expect(answered).toContain('data-testid="english-sentence-tooltips"');
     expect(answered).toContain('data-testid="sentence-word"');

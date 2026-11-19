@@ -1,7 +1,7 @@
 import {describe,expect,test} from "bun:test";
 import {
  sentenceTokens,lemmaCandidates,glossaryRecord,publishSharedGlossViaLedger,processSharedLexiconWords,
- lookupSharedGloss,existingFullEntry,queueSentenceLexicon,pendingLexiconCount,
+ lookupSharedGloss,existingFullEntry,pendingLexiconCount,
  tooltipWriteEnabled,scanSavedSentences
 } from "../src/features/lexicon/sentence-lexicon-prefetch";
 const source={provider:"FreeDictionaryAPI.com / Wiktionary" as const,
@@ -14,8 +14,13 @@ describe("single shared Lexicon sentence vocabulary automation",()=>{
   expect(sentenceTokens(["The effects and EFFECTS of climate change.","Climate policies reduce risks."]))
    .toEqual(["effects","climate","change","policies","reduce","risks"]);
  });
+ test("private addresses, handles and capitalized names never enter the shared queue",()=>{
+  expect(sentenceTokens(["Alice sends Bob notes at user.name@example.org or https://host.example/private.",
+   "See www.private.example/files @internal.user #project and OpenAI."]))
+   .toEqual(["sends","notes"]);
+ });
  test("large batch scanning does not truncate after 2000 sentences",()=>{
-  const sentences=Array.from({length:2201},(_,i)=>i===2200?"Finalword emerges.":"The climate changes.");
+  const sentences=Array.from({length:2201},(_,i)=>i===2200?"finalword emerges.":"The climate changes.");
   expect(sentenceTokens(sentences)).toContain("finalword");
  });
  test("morphological guesses never displace original surface form",()=>{

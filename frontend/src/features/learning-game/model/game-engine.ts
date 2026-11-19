@@ -20,7 +20,7 @@ function wordPattern(word: Pick<WordEntry, "word" | "alternatives">) {
     .filter(Boolean)
     .sort((a, b) => b.length - a.length)
     .map(escapeRegExp);
-  return new RegExp(`(^|[^a-z])(${alternatives.join("|")})(?=$|[^a-z])`, "i");
+  return new RegExp(`(^|[^a-z])(${alternatives.join("|")})(?=$|[^a-z])`, "gi");
 }
 
 type StudyContent = Pick<WordEntry, "word" | "alternatives" | "meanings" | "examples">;

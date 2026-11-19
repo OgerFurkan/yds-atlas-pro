@@ -67,7 +67,6 @@ export function MatchingPanel({
                   key={side}
                   id={index === 0 ? `matching-${side}` : undefined}
                   data-matching-side={side}
-                  data-word-id={id}
                   type="button"
                   aria-pressed={selected}
                   aria-label={`${t(side === "left" ? "game.leftWord" : "game.rightWord")}: ${side === "left" ? word.word : word.meanings[0]}${matched ? `, ${t("game.paired")}` : ""}`}

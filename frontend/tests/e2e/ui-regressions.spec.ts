@@ -309,11 +309,19 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
     JSON.parse(localStorage.getItem("yds-atlas-learning-session-v2") ?? "null"),
   );
   for (const id of session.matching.left as string[]) {
-    await page.locator(`[data-matching-side="left"][data-word-id="${id}"]`).click();
-    await page.locator(`[data-matching-side="right"][data-word-id="${id}"]`).click();
+    const pairIndex = session.matching.left.indexOf(id);
+        await page.locator('[data-matching-side="left"]').nth(pairIndex).click();
+    await page.locator('[data-matching-side="right"]').nth(session.matching.right.indexOf(id)).click();
   }
   await page.locator("#matching-next").click();
-  await page.locator("#choice-wrong").click();
+  async function currentMeaning() {
+    return page.evaluate(() => {
+      const game = JSON.parse(localStorage.getItem("yds-atlas-learning-session-v2")!);
+      return game.words.find((w: {id:string}) => w.id === game.queue[0]).meanings[0] as string;
+    });
+  }
+  const choices = page.locator("#question-choices button");
+  await choices.filter({hasNot:page.getByText(await currentMeaning(), {exact:true})}).first().click();
   const feedback = page.locator("#answer-feedback");
   await expect(feedback).toBeVisible();
   expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
@@ -332,7 +340,7 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
       .evaluate((element) => getComputedStyle(element).color),
   ).toBe("rgb(167, 181, 188)");
   await page.locator("#question-next").click();
-  await page.locator("#choice-correct").click();
+  await page.locator("#question-choices").getByText(await currentMeaning(), {exact:true}).click();
   expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
     "rgb(29, 56, 46)",
   );

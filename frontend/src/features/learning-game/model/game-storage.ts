@@ -40,4 +40,5 @@ export function readSession(): GameSession | null {
 export function persistSession(session: GameSession | null) {
   if (session) writeStorage(gameStorageKey, session);
   else removeStorage(gameStorageKey);
+  if (typeof window !== "undefined") window.dispatchEvent(new Event("atlas:game-session-changed"));
 }

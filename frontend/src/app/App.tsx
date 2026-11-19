@@ -44,16 +44,18 @@ const AdminControlCenterPage = lazy(() =>
 /** Read from the existing account-scoped game store; do not clear or mutate progress. */
 function hasActiveSavedGame(): boolean {
   const session = readSession();
-  return session !== null && !session.tutorial && session.phase !== "complete";
+  return session !== null && !session.tutorial && (!session.saved || session.phase !== "complete");
 }
 
 /** Hash/back-forward and cross-tab storage changes must both invalidate Inspector access. */
 function subscribeToGameSessionChanges(notify: () => void) {
+  window.addEventListener("atlas:game-session-changed", notify);
   window.addEventListener("hashchange", notify);
   window.addEventListener("storage", notify);
   window.addEventListener("focus", notify);
   window.addEventListener("pageshow", notify);
   return () => {
+    window.removeEventListener("atlas:game-session-changed", notify);
     window.removeEventListener("hashchange", notify);
     window.removeEventListener("storage", notify);
     window.removeEventListener("focus", notify);
@@ -228,7 +230,7 @@ function AppWorkspace({
 
   return (
     <SentenceVocabularyProvider words={library.words} userId={auth.user?.id}
-      enabled={screen !== "game"} allowPoolLookup={INSPECTOR_UI_ENABLED && !inspectorBlockedByGame && screen !== "game"}>
+      enabled={screen !== "game" && !inspectorBlockedByGame} allowPoolLookup={INSPECTOR_UI_ENABLED && !inspectorBlockedByGame && screen !== "game"}>
     <div className="flex min-h-screen flex-col bg-atlas-canvas">
       <AppHeader
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
@@ -375,7 +377,7 @@ function AppWorkspace({
         />
       )}
       <PreferencesDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <AiChatWidget onLogin={onLogin} />
+      {screen !== "game" && !inspectorBlockedByGame && <AiChatWidget onLogin={onLogin} />}
       <ToastContainer
         position="top-right"
         autoClose={3500}

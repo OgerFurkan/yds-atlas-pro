@@ -33,10 +33,10 @@ export function useAccountData(
     [userId],
   );
   const persist = useCallback(
-    async (snapshot: GameSession) => {
+    async (snapshot: GameSession, onlyIfNew = false) => {
       if (sync) {
         sync.retry();
-        await sync.save(snapshot);
+        await sync.save(snapshot, onlyIfNew);
       }
     },
     [sync],

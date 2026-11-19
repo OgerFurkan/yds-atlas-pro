@@ -56,6 +56,9 @@ export async function accountState(ctx: RequestContext) {
     ctx.db
       .from("learning_sessions")
       .select("snapshot,revision")
+      .eq("user_id", ctx.userId)
+      // Restore a resumable assessment even if a newer game already finished.
+      .order("completed_at", { ascending: false, nullsFirst: true })
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),

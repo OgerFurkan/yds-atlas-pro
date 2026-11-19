@@ -108,13 +108,16 @@ test("daily task survives reload, shows translated cards and automatically saves
       for (const id of ids) {
         const pairIndex = session.matching.left.indexOf(id);
         await page.locator('[data-matching-side="left"]').nth(pairIndex).click();
-        await page.locator('[data-matching-side="right"]').nth(session.matching.right.indexOf(id)).click();
+        await page
+          .locator('[data-matching-side="right"]')
+          .nth(session.matching.right.indexOf(id))
+          .click();
       }
       await page.locator("#matching-next").click();
     } else {
       const word = session.words.find((item: { id: string }) => item.id === session.queue[0]);
       const answer = session.phase.endsWith("context") ? word.word : word.meanings[0];
-      await page.locator("#question-choices").getByText(answer, {exact:true}).click();
+      await page.locator("#question-choices").getByText(answer, { exact: true }).click();
       if (!reloaded) {
         const answered = await sessionState(page);
         await page.reload();

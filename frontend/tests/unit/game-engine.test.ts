@@ -42,7 +42,7 @@ function finishMatching(session: GameSession) {
 describe("learning loop", () => {
   test("a cloze hides every occurrence including alternative forms", () => {
     const word = { ...deck(1)[0], word: "obtain", alternatives: ["obtained"] };
-    word.examples = word.examples.map(e => ({ ...e, sentence: "Obtain what others obtained." }));
+    word.examples = word.examples.map((e) => ({ ...e, sentence: "Obtain what others obtained." }));
     const session = { ...createSession([word], 5), phase: "final-context" as const };
     expect(makeQuestion(session)?.sentence).toBe("________ what others ________.");
   });

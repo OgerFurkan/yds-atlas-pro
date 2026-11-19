@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { stripTypeScriptTypes } from "node:module";
+import * as nodeModule from "node:module";
 import { resolve } from "node:path";
 
 // Source-under-test: the actual backend createApp router, evaluated without
@@ -9,9 +9,12 @@ import { resolve } from "node:path";
 // explicitly substituted with offline, synthetic dependencies.
 function source(path, bindings) {
   const text = readFileSync(resolve(import.meta.dirname, path), "utf8");
-  const body = stripTypeScriptTypes(text
+  const local = text
     .replace(/^import\b[\s\S]*?;\s*/gm, "")
-    .replace(/\bexport\s+(?=(?:async\s+)?(?:function|const)\b)/g, ""), { mode: "transform" });
+    .replace(/\bexport\s+(?=(?:async\s+)?(?:function|const)\b)/g, "");
+  const body = typeof Bun === "undefined"
+    ? nodeModule.stripTypeScriptTypes(local, { mode: "transform" })
+    : new Bun.Transpiler({ loader: "ts", target: "bun" }).transformSync(local);
   return new Function(...Object.keys(bindings), `${body}\nreturn {createApp};`)(...Object.values(bindings));
 }
 class HttpError extends Error {

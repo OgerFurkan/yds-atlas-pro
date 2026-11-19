@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
-import { stripTypeScriptTypes } from "node:module";
+import * as nodeModule from "node:module";
 import { resolve } from "node:path";
 
 /** Real repo TypeScript is executed through the native Node / Bun TS loader.
@@ -16,7 +16,7 @@ function source(path, stubs = {}) {
   const local = raw.replace(/^import\b[\s\S]*?;\s*/gm, "")
     .replace(/\bexport\s+(?=(?:async\s+)?(?:function|const)\b)/g, "");
   const transformed = typeof Bun === "undefined"
-    ? stripTypeScriptTypes(local, { mode: "transform" })
+    ? nodeModule.stripTypeScriptTypes(local, { mode: "transform" })
     : new Bun.Transpiler({ loader: "ts", target: "bun" }).transformSync(local);
   assert.doesNotMatch(transformed, /(?:^|\n)\s*(?:import|export)\s/m);
   const aliases = Object.keys(stubs);

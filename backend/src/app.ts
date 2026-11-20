@@ -124,7 +124,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         result = cached ? {
           status: "ready" as const, word,
           entries: [{ partOfSpeech: cached.partOfSpeech, meanings: cached.meanings }],
-          source: { provider: "FreeDictionaryAPI.com / Wiktionary" as const,
+          source: { provider: cached.provider,
             url: cached.url, license: "CC BY-SA 4.0" as const,
             licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" as const },
         } : await lookupPublicTurkish(word, ctx.userId);

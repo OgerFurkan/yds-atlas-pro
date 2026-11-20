@@ -85,7 +85,7 @@ test("primary model missing (404) cannot be disguised as successful fallback",as
   const response=await request(async url=>{
     visited.push(String(url));
     return new Response("{}",{status:404});
-  },"gemini-word-list");
+  },"gemini-word-list",["missing-model-key-a","missing-model-key-b"]);
   expect(response.status).toBe(404);
   expect(visited).toHaveLength(1);
   resetGeminiModelCapacity();

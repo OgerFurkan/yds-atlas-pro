@@ -14,10 +14,15 @@ export function parseTurkishWiktionaryGloss(word:string, input:unknown):PublicTu
     throw new HttpError(502,"Türkçe sözlük kelime doğrulaması başarısız.", "DICTIONARY_WORD_MISMATCH");
   const rows=new Map<string,string[]>();
   for(const entry of raw.entries.slice(0,24)){
+    // Wiktapi's ?lang=en endpoint may omit redundant language, word and POS
+    // fields in its compact response. A PRESENT mismatch is never accepted.
     if(!entry || typeof entry!=="object" ||
-      entry.lang_code!=="en" || entry.word!==word ||
-      typeof entry.pos!=="string" || !Array.isArray(entry.senses))continue;
-    const pos=entry.pos.trim().toLocaleLowerCase("en");
+      (entry.lang_code!==undefined && entry.lang_code!=="en") ||
+      (entry.word!==undefined && entry.word!==word) ||
+      (entry.pos!==undefined && typeof entry.pos!=="string") ||
+      !Array.isArray(entry.senses))continue;
+    // A missing POS is unknown, not an invented noun or verb.
+    const pos=typeof entry.pos==="string" ? entry.pos.trim().toLocaleLowerCase("en") : "word";
     if(!/^[a-z -]{1,35}$/.test(pos))continue;
     const meanings=rows.get(pos)??[];
     for(const sense of entry.senses.slice(0,20)){

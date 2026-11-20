@@ -83,3 +83,22 @@ test("cached Turkish Wiktionary gloss requires correct source domain and licensi
  const rejected=await readSharedTooltipGloss(fakeDatabase(hostile) as never,"climate");
  expect(rejected).toBeNull();
 });
+
+test("real Wiktapi compact Turkish edition response gives a sourced tooltip",()=>{
+  // Confirmed directly against the public provider during branch QA.
+  const compact={word:"climate",edition:"tr",entries:[{
+    senses:[{glosses:["iklim, abuhava"]}],sounds:[],translations:[],forms:[],
+  }]};
+  const r=parseTurkishWiktionaryGloss("climate",compact);
+  expect(r.status).toBe("ready");
+  expect(r.entries[0].partOfSpeech).toBe("word"); // Unknown, never guessed
+  expect(r.entries[0].meanings).toEqual(["iklim, abuhava"]);
+  expect(buildTooltipRecord("climate",r)?.provenance.url)
+    .toBe("https://tr.wiktionary.org/wiki/climate");
+});
+test("explicit wrong-language compact entry is excluded",()=>{
+  const compact={word:"house",edition:"tr",entries:[{
+    lang_code:"de",senses:[{glosses:["falsch"]}],
+  }]};
+  expect(parseTurkishWiktionaryGloss("house",compact).status).toBe("missing");
+});

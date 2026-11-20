@@ -21,19 +21,22 @@ jobs:
         run: bun test backend/tests frontend/tests/unit
       - name: Repository audit
         run: node scripts/quality/repository-audit.mjs
-      - name: External Turkish Wiktionary source smoke (temporary branch-only)
+      - name: Compare real Wiktionary edition coverage (temporary branch-only)
         if: github.head_ref == 'fix/fb-live01-turkish-source-20261120'
         run: |
           python3 - <<'PY'
           import json, urllib.request
-          url='https://api.wiktapi.dev/v1/tr/word/climate?lang=en'
-          req=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'YDSAtlasPro/1.0-QA'})
-          with urllib.request.urlopen(req,timeout=12) as resp:
-              body=json.loads(resp.read(500000))
-          filtered=[x for x in body.get('entries',[]) if x.get('word')=='climate' and x.get('lang_code')=='en']
-          meanings=[g for x in filtered for y in x.get('senses',[]) for g in y.get('glosses',[]) if isinstance(g,str) and g.strip()]
-          print('tr edition:',body.get('edition'),'english entries:',len(filtered),'Turkish glosses:',len(meanings))
-          assert body.get('edition')=='tr' and body.get('word')=='climate' and meanings
+          words=['climate','house','water','approach','evidence','research']
+          for edition in ['tr','en']:
+              for word in words:
+                  url=f'https://api.wiktapi.dev/v1/{edition}/word/{word}?lang=en'
+                  req=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'YDSAtlasPro-QA'})
+                  with urllib.request.urlopen(req,timeout=12) as resp:
+                      body=json.loads(resp.read(500000))
+                  english=[e for e in body.get('entries',[]) if e.get('lang_code')=='en']
+                  glosses=sum(len(s.get('glosses',[])) for e in english for s in e.get('senses',[]))
+                  turkish_trans=sum(1 for e in english for t in e.get('translations',[]) if t.get('code')=='tr' or t.get('lang_code')=='tr')
+                  print(f'{edition}:{word}: entries={len(english)}, glosses={glosses}, turkish_translations={turkish_trans}')
           PY
       - name: Install browser
         run: cd frontend && bunx playwright install --with-deps chromium

@@ -1,6 +1,7 @@
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { BookOpen, LoaderCircle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { WordImportReview } from "@/features/word-library/components/word-import-review";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { Badge } from "@/shared/ui/badge";
@@ -90,7 +91,7 @@ export function SetupSourcePicker({
               <div className="flex flex-wrap gap-2">
                 {candidates.slice(0, 8).map((word) => (
                   <Badge className="px-2.5 py-1 text-xs" variant="outline" key={word.word}>
-                    {word.word}
+                    <SentenceWordTooltips text={word.word} focusWord={word} />
                   </Badge>
                 ))}
                 {candidates.length > 8 && (
@@ -116,7 +117,7 @@ export function SetupSourcePicker({
               <div className="flex flex-wrap gap-2">
                 {ready.slice(0, 12).map((word) => (
                   <Badge key={word.id} variant="outline">
-                    {word.word}
+                    <SentenceWordTooltips text={word.word} focusWord={word} />
                   </Badge>
                 ))}
               </div>
@@ -160,7 +161,7 @@ export function SetupSourcePicker({
                     <ol className="mt-2 space-y-2 text-xs text-slate-600">
                       {word.examples?.map((example) => (
                         <li key={example.sentence}>
-                          <p>{example.sentence}</p>
+                          <p><SentenceWordTooltips text={example.sentence} focusWord={word} /></p>
                           <p>{example.translation}</p>
                         </li>
                       ))}

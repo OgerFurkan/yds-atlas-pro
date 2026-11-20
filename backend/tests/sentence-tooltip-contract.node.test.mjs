@@ -86,12 +86,15 @@ test("licensed single-POS Turkish fallback is accepted with source attribution",
   assert.equal(result.entries[0].meanings[0],"elde etmek");
   assert.equal(result.source.license,"CC BY-SA 4.0");
 });
-test("ambiguous noun/verb translations stay choices, not a fabricated single sense", () => {
+test("ambiguous noun/verb senses remain source-labelled without inventing one context meaning", () => {
   const result=dict.parsePublicTurkish("approach",payload("approach",[
     english("noun",["yaklaşım"]),english("verb",["yaklaşmak"]) ]));
   assert.equal(result.status,"choices");
   assert.equal(result.entries.length,2);
-  assert.equal(prefetch.buildTooltipRecord("approach",result),null);
+  const record=prefetch.buildTooltipRecord("approach",result);
+  assert.equal(record.content.originalPartOfSpeech,"Multiple licensed senses");
+  assert.deepEqual(record.content.meanings,["noun: yaklaşım","verb: yaklaşmak"]);
+  assert.equal(record.provenance.validation,"dictionary_verified_not_context_certified");
 });
 test("provider source spoofing and license mismatch are rejected", () => {
   const value=payload("obtain",[english("verb",["elde etmek"])]);

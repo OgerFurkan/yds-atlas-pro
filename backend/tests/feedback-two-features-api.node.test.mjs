@@ -152,3 +152,22 @@ test("active game allows safe context translations but protects answers and AI d
   assert.equal(values.draft,before.draft);
   assert.equal(values.quota,before.quota);
 });
+
+test("authenticated legacy backfill is explicit and blocked during an active game",async()=>{
+  const noGame=await createApp(config,deps())(new Request(url+"/api/lexicon/tooltip/backfill",{
+    method:"POST",headers:authHeaders(),
+  }));
+  assert.equal(noGame.status,200);
+  const queued=await noGame.json();
+  assert.equal(queued.status,"queued");
+  assert.equal(queued.scannedWords,1);
+  const scoped={...bindings,assertNoActiveAssessment:async()=>{
+    throw new HttpError(409,"Oyun sürüyor.","INSPECTOR_DURING_ASSESSMENT");
+  }};
+  const during=source("../src/app.ts",scoped).createApp(config,deps());
+  const response=await during(new Request(url+"/api/lexicon/tooltip/backfill",{
+    method:"POST",headers:authHeaders(),
+  }));
+  assert.equal(response.status,409);
+  assert.equal((await response.json()).code,"INSPECTOR_DURING_ASSESSMENT");
+});

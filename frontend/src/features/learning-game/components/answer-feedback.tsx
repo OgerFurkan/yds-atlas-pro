@@ -73,7 +73,7 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
             <p className="mt-2 text-sm leading-7 text-slate-600">{word.usageNote}</p>
           )}
         </div>
-        {example && <WordExample word={word} example={example} compact />}
+        {example && <WordExample word={word} example={example} compact allowDuringGame />}
         {hasAtlasTiers(word.examples) ? (
           <details className="rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
             <summary className="cursor-pointer font-semibold">5 seviyeli örneği gör · 2 kolay / 1 orta / 2 YDS</summary>
@@ -81,7 +81,7 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
               {word.examples.slice(0, 5).map((item, index) => (
                 <li key={index} className="border-t border-slate-100 pt-3">
                   <span className="mb-2 block text-xs font-bold uppercase text-atlas-blue">{index + 1}. {ATLAS_TIER_ORDER[index]}</span>
-                  <WordExample word={word} example={item} compact />
+                  <WordExample word={word} example={item} compact allowDuringGame />
                 </li>
               ))}
             </ol>

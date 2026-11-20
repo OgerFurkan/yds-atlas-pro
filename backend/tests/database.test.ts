@@ -1,4 +1,4 @@
-﻿import { beforeAll, beforeEach, afterAll, describe, expect, test } from "bun:test";
+import { beforeAll, beforeEach, afterAll, describe, expect, test } from "bun:test";
 import { readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 const db = new PGlite();
@@ -92,26 +92,94 @@ describe("Postgres ownership, atomicity and quotas", () => {
       expect((await db.query("select * from public.completed_goal_days")).rows).toHaveLength(0);
     });
   });
-  test("all application tables have RLS, and no SECURITY DEFINER function is exposed", async () => {
-    const result = await db.query<{ relrowsecurity: boolean }>(
-      "select relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r'",
+  test("all application tables have RLS and only two audited Lexicon definer functions exist", async () => {
+    const result = await db.query<{ relname: string; relrowsecurity: boolean }>(
+      "select relname,relrowsecurity from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and relkind='r' order by relname",
     );
-    expect(result.rows).toHaveLength(7);
+    const baselineTables = [
+      "ai_usage",
+      "completed_goal_days",
+      "daily_word_completions",
+      "learning_results",
+      "learning_sessions",
+      "profiles",
+      "words",
+    ];
+    // Strict schema allowlist: a new public table must be reviewed, not silently ignored.
+    expect(result.rows.map((row) => row.relname)).toEqual(
+      [...baselineTables, "atlas_lexicon_entries", "atlas_lexicon_jobs", "atlas_lexicon_entry_revisions"].sort(),
+    );
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
-    const functions = await db.query(
-      "select proname from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and prosecdef",
+    // The exact reviewed three-table ledger keeps RLS and denies all public-role access.
+    const servicePermissions: Record<string, string[]> = {
+      atlas_lexicon_entries: ["SELECT", "INSERT", "UPDATE"],
+      atlas_lexicon_jobs: ["SELECT", "INSERT", "UPDATE"],
+      atlas_lexicon_entry_revisions: ["SELECT", "INSERT"],
+    };
+    for (const [table, allowed] of Object.entries(servicePermissions)) {
+      const policies = await db.query<{ count: number }>(
+        "select count(*)::integer as count from pg_policies where schemaname='public' and tablename=$1",
+        [table],
+      );
+      expect(policies.rows[0].count).toBe(0);
+      for (const role of ["anon", "authenticated", "service_role"] as const) {
+        for (const operation of ["SELECT", "INSERT", "UPDATE", "DELETE"] as const) {
+          const privilege = await db.query<{ allowed: boolean }>(
+            `select has_table_privilege('${role}','public.${table}','${operation}') as allowed`,
+          );
+          expect(privilege.rows[0].allowed).toBe(
+            role === "service_role" && allowed.includes(operation),
+          );
+        }
+      }
+    }
+    // Strict exception: only the two reviewed, locked-down Lexicon RPCs may be definer.
+    const functions = await db.query<{
+      proname: string; pronargs: number; proconfig: string[] | null;
+    }>(
+      "select p.proname, p.pronargs, p.proconfig from pg_proc p " +
+        "join pg_namespace n on n.oid=p.pronamespace " +
+        "where n.nspname='public' and p.prosecdef order by p.proname",
     );
-    expect(functions.rows).toHaveLength(0);
+    expect(functions.rows.map((row) => [row.proname, row.pronargs])).toEqual([
+      ["atlas_lexicon_claim_v1", 4],
+      ["atlas_lexicon_publish_v1", 10],
+    ]);
+    for (const fn of functions.rows) {
+      expect(fn.proconfig).toContain("search_path=\"\"");
+      const identity = fn.proname === "atlas_lexicon_claim_v1"
+        ? "public.atlas_lexicon_claim_v1(text,text,text,uuid)"
+        : "public.atlas_lexicon_publish_v1(text,text,text,uuid,text,text,text,jsonb,jsonb,text)";
+      for (const role of ["anon", "authenticated", "service_role"] as const) {
+        const privilege = await db.query<{ allowed: boolean }>(
+          "select has_function_privilege($1, $2, 'EXECUTE') as allowed",
+          [role, identity],
+        );
+        expect(privilege.rows[0].allowed).toBe(role === "service_role");
+      }
+    }
   });
   test("anonymous callers cannot read tables or execute app functions", async () => {
     await db.exec("set role anon");
     try {
       await expect(db.query("select * from public.words")).rejects.toThrow();
+      await expect(db.query("select * from public.atlas_lexicon_entries")).rejects.toThrow();
       await expect(db.query("select public.import_words('[]')")).rejects.toThrow();
       await expect(db.query("select public.consume_ai_quota($1)", [alice])).rejects.toThrow();
     } finally {
       await db.exec("reset role");
     }
+  });
+  test("authenticated users cannot read or write the private shared Lexicon table", async () => {
+    await asUser(alice, async () => {
+      await expect(db.query("select * from public.atlas_lexicon_entries")).rejects.toThrow();
+      await expect(
+        db.query(
+          "insert into public.atlas_lexicon_entries(word_key,part_of_speech,sense_key,content,digest) values('x','Noun',$1,'{}',$1)",
+          ["a".repeat(64)],
+        ),
+      ).rejects.toThrow();
+    });
   });
   test("another user's words cannot be selected, updated, deleted or reassigned", async () => {
     await asUser(bob, async () => {

@@ -1,4 +1,4 @@
-﻿import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import type { GameSession } from "@yds-atlas/shared";
 
 const alice = "11111111-1111-4111-8111-111111111111";
@@ -279,18 +279,18 @@ test("chat menu cancels pending requests and restores the previous conversation"
     await login(page);
     await page.getByRole("button", { name: "Atlas'a sor" }).click();
     const chat = page.getByRole("dialog", { name: "YDS Atlas Pro Asistanı" });
-    await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+    await chat.getByRole("button", { name: "Indicate ne demek?", exact: true }).click();
     await expect(chat.getByRole("status")).toBeVisible();
     await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
     await chat.getByRole("button", { name: "Yeni sohbet" }).click();
     await expect(
-      chat.getByRole("heading", { name: "Merhaba, nasıl yardımcı olabilirim?" }),
+      chat.getByRole("heading", { name: "Merhaba Ben Atlas, sana nasıl yardımcı olabilirim?", exact: true }),
     ).toBeVisible();
     releaseResponse();
     await expect(chat.getByText("Late reply")).toHaveCount(0);
     await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
     await chat.getByRole("button", { name: "Sohbet geçmişi" }).click();
-    await chat.getByRole("button", { name: "Indicate ne demek?" }).click();
+    await chat.getByRole("button", { name: "Indicate ne demek?", exact: true }).click();
     await expect(chat.getByText("Indicate ne demek?", { exact: true })).toBeVisible();
   } finally {
     releaseResponse();

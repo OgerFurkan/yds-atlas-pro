@@ -15,6 +15,11 @@ import type { createAccountApi } from "@/features/account/api/account-api";
 import { AccountWorkspace } from "@/features/account/components/account-workspace";
 import { useAccountData } from "@/features/account/hooks/use-account-data";
 import { AiChatWidget } from "@/features/ai-chat/components/ai-chat-widget";
+import { INSPECTOR_UI_ENABLED } from "@/features/word-inspector/api/word-inspector-api";
+import { SentenceVocabularyProvider } from "@/features/word-library/components/sentence-word-tooltips";
+import { readSession } from "@/features/learning-game/model/game-storage";
+import { gameStorageKey } from "@/features/learning-game/model/game-session";
+import { readRawStorage } from "@/shared/lib/storage";
 import { AccountDialog } from "@/features/auth/components/account-dialog";
 import { LoginPage } from "@/features/auth/components/login-page";
 import { useAuth } from "@/features/auth/hooks/use-auth";
@@ -24,6 +29,21 @@ import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
+
+const WordInspectorPage = lazy(() =>
+  import("@/features/word-inspector/components/word-inspector-page").then((module) => ({
+    default: module.WordInspectorPage,
+  })),
+);
+
+function hasActiveLocalGame() {
+  const raw = readRawStorage(gameStorageKey);
+  if (raw === null) return false;
+  const current = readSession();
+  // A corrupt/unknown saved session cannot be interpreted as permission to show answers.
+  if (!current) return true;
+  return !current.tutorial && (!current.saved || current.phase !== "complete");
+}
 
 const WordLibraryPage = lazy(() =>
   import("@/features/word-library/components/word-library-page").then((module) => ({
@@ -88,6 +108,7 @@ function AppWorkspace({
   const notify = useNotify();
   const account = useAccountData(auth.user?.id, api, initial, notify);
   const library = account.library;
+  const inspectorBlocked = hasActiveLocalGame();
   const [accountOpen, setAccountOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const { screen, navigate } = useHashScreen();
@@ -161,11 +182,15 @@ function AppWorkspace({
   }
 
   return (
+    <SentenceVocabularyProvider words={library.words} userId={auth.user?.id}
+      enabled={screen !== "game" && !inspectorBlocked}
+      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}>
     <div className="flex min-h-screen flex-col bg-atlas-canvas">
       <AppHeader
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
         onOpenSettings={() => setSettingsOpen(true)}
         signedIn={!!auth.user}
+        showInspector={!!auth.user && INSPECTOR_UI_ENABLED && screen !== "game" && !inspectorBlocked}
         screen={screen}
         onNavigate={(nextScreen) => {
           setOpenCreateOnLibrary(false);
@@ -211,6 +236,24 @@ function AppWorkspace({
             onOpenLibrary={navigateLibrary}
             onStartLearning={() => navigate("game")}
           />
+        ) : screen === "inspector" ? (
+          !auth.user || !INSPECTOR_UI_ENABLED ? (
+            <p role="alert">Word Inspector şu an erişime açık değil.</p>
+          ) : inspectorBlocked ? (
+            <div role="alert" className="rounded-xl border bg-white p-6">
+              Devam eden oyunun sırasında Word Inspector kapalı. İlerlemen korunuyor.
+              <button type="button" className="ml-4 underline" onClick={() => navigate("game")}>
+                Oyuna dön
+              </button>
+            </div>
+          ) : (
+            <Suspense fallback={<p role="status">Kelime inceleme açılıyor…</p>}>
+              <WordInspectorPage
+                userId={auth.user.id}
+                onAddToLibrary={(word) => library.addMany([word])}
+              />
+            </Suspense>
+          )
         ) : screen === "game" ? (
           <Suspense
             fallback={
@@ -283,5 +326,6 @@ function AppWorkspace({
         closeButton={AtlasToastClose}
       />
     </div>
+    </SentenceVocabularyProvider>
   );
 }

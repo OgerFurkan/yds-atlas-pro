@@ -35,12 +35,13 @@ export function sentenceTokens(sentences: readonly string[]): string[] {
       // Lowercase vocabulary (including ordinary function words) is queued.
       if (/[A-Z]/.test(item[0])) continue; // Conservative PII / proper-name protection.
       const token = item[0].normalize("NFKC").toLocaleLowerCase("en").replaceAll("’", "'");
-      if (token.length > 45 || (COMMON.has(token) && token.length < 3) ||
-          !/^[a-z]+(?:'[a-z]+)?(?:-[a-z]+)?$/.test(token)) continue;
+      if (token.length > 45 || !/^[a-z]+(?:'[a-z]+)?(?:-[a-z]+)?$/.test(token)) continue;
       unique.add(token);
     }
   }
-  return [...unique];
+  // Meaningful vocabulary is indexed first; articles and short function words
+  // remain eligible, but do not starve content words in the bounded worker.
+  return [...unique].sort((a, b) => Number(COMMON.has(a)) - Number(COMMON.has(b)));
 }
 
 export function queueSentenceWords(sentences: readonly string[]): number {

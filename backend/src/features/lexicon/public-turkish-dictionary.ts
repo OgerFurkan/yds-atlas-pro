@@ -82,8 +82,14 @@ export async function lookupPublicTurkish(wordInput:string,userId:string,fetcher
       method:"GET",headers:{Accept:"application/json","User-Agent":"YDSAtlasPro/1.0"},
       signal:AbortSignal.timeout(6500),
     });}
-    catch{throw new HttpError(503,"Sözlük geçici olarak kullanılamıyor.","DICTIONARY_UPSTREAM_UNAVAILABLE");}
-    if(resp.status===404)return lookupTurkishWiktionaryGloss(word,fetcher);
+    catch{
+      // The first public provider may time out while the independent Turkish
+      // Wiktionary edition remains healthy. Both are licensed and validated.
+      // This fallback is still behind the existing per-user/hourly rate guard.
+      return lookupTurkishWiktionaryGloss(word,fetcher);
+    }
+    if(resp.status===404 || resp.status===429 || [500,502,503,504].includes(resp.status))
+      return lookupTurkishWiktionaryGloss(word,fetcher);
     if(!resp.ok)throw new HttpError(503,"Sözlük sağlayıcısı şu anda yanıt veremiyor.","DICTIONARY_UPSTREAM_ERROR");
     if(Number(resp.headers.get("content-length"))>1_000_000)
       throw new HttpError(502,"Sözlük yanıtı çok büyük.","DICTIONARY_RESPONSE_TOO_LARGE");

@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
 import { WordExample } from "@/features/word-library/components/word-example";
 import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
-import { TieredSentencePreview } from "@/features/word-inspector/components/tiered-sentence-preview";
+
 import { hasAtlasTiers, ATLAS_TIER_ORDER } from "@/features/word-library/model/tiered-examples";
 import { formatWordType } from "@/features/word-library/model/word-normalization";
 import { cn } from "@/shared/lib/utils";
@@ -86,7 +86,11 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
               ))}
             </ol>
           </details>
-        ) : <TieredSentencePreview word={word.word} />}
+        ) : <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+          Bu kelime eski cümle düzeninde. Oyun sırasında AI ile cümle oluşturulmaz.
+          2 kolay · 1 orta · 2 YDS örneklerini görev sonrası Kütüphane bölümünden
+          “Eksik cümleleri 2/1/2 tamamla” seçeneğiyle, eski örneklerini silmeden ekleyebilirsin.
+        </div>}
         <PronunciationButtons
           word={word.word}
           uk={word.pronunciationUk}

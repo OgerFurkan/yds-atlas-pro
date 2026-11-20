@@ -178,7 +178,7 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
       await route.fulfill({ json: entry });
       return;
     }
-    const updateId = /^\\/api\\/words\\/([^/]+)$/.exec(path)?.[1];
+    const updateId = new RegExp("^/api/words/([^/]+)$").exec(path)?.[1];
     if (updateId && request.method() === "PUT") {
       const index = libraries[id].findIndex((entry) => entry.id === updateId);
       if (index < 0) {
@@ -451,7 +451,7 @@ test("six confirmed legacy words upgrade in one session without losing examples 
       source: "Kullanıcı",
     }],
   }));
-  cloud.libraries[alice] = initial as unknown as typeof cloud.libraries[typeof alice];
+  cloud.libraries[alice] = initial as unknown as ReturnType<typeof word>[];
   await page.goto("/");
   await login(page);
   await page.goto("/#library");
@@ -474,10 +474,13 @@ test("six confirmed legacy words upgrade in one session without losing examples 
     expect(actual).toBeDefined();
     expect(actual!.score).toBe(old.score);
     expect(actual!.meanings).toEqual(old.meanings);
-    expect(actual!.examples.slice(0,5).map(e => e.difficulty))
+    const savedExamples = actual!.examples as Array<{
+      sentence: string; source?: string; difficulty?: string;
+    }>;
+    expect(savedExamples.slice(0,5).map(e => e.difficulty))
       .toEqual(["easy", "easy", "medium", "yds", "yds"]);
-    expect(actual!.examples[5].sentence).toBe(old.examples[0].sentence);
-    expect(actual!.examples[5].source).toBe("Kullanıcı");
+    expect(savedExamples[5].sentence).toBe(old.examples[0].sentence);
+    expect(savedExamples[5].source).toBe("Kullanıcı");
   }
 });
 

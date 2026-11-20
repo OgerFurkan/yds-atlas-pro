@@ -40,7 +40,11 @@ export function QuizPanel({
           {feedback
             ? <SentenceWordTooltips text={question.context ? question.sentence : question.word.word}
                 focusWord={question.word} allowDuringGame />
-            : question.context ? question.sentence : question.word.word}
+            : question.context
+              // The cloze itself is already blanked by game-engine; let learners
+              // inspect surrounding English without exposing the answer word.
+              ? <SentenceWordTooltips text={question.sentence} allowDuringGame />
+              : question.word.word}
         </h2>
       </div>
       <div id="question-choices" className="grid gap-3 sm:grid-cols-2">

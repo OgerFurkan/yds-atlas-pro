@@ -88,6 +88,14 @@ test("daily task survives reload, shows translated cards and automatically saves
   // Revealed card examples expose local Turkish word tooltips without spoiling
   // the unflipped front; this exercises real desktop and mobile browsers.
   await expect(page.locator('#word-example [data-testid="sentence-word"]').first()).toBeVisible();
+  await page.locator('#word-example [data-testid="sentence-word"]').first().click();
+  const tooltip = page.getByTestId("sentence-word-definition");
+  await expect(tooltip).toBeVisible();
+  const bounds = await tooltip.boundingBox();
+  expect(bounds).not.toBeNull();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(1440);
+  await page.locator('#word-example [data-testid="sentence-word"]').first().click();
   await expect(page.getByRole("button", { name: "UK telaffuzunu dinle" })).toBeVisible();
   await page.screenshot({
     path: `test-results/card-${test.info().project.name}.png`,
@@ -114,8 +122,13 @@ test("daily task survives reload, shows translated cards and automatically saves
       }
       await page.locator("#matching-next").click();
     } else {
-      // Pre-answer quiz text is not tappable: never disclose the answer key.
-      await expect(page.locator('#question-sentence [data-testid="sentence-word"]')).toHaveCount(0);
+      // The hidden target in a cloze never becomes a tooltip, but surrounding
+      // vocabulary can be inspected without revealing the correct answer.
+      if (session.phase.includes("context")) {
+        await expect(page.locator('#question-sentence [data-testid="sentence-word"]').first()).toBeVisible();
+      } else {
+        await expect(page.locator('#question-sentence [data-testid="sentence-word"]')).toHaveCount(0);
+      }
       await page.locator("#choice-correct").click();
       // After feedback, every displayed English token can expose a tooltip.
       await expect(page.locator('#question-sentence [data-testid="sentence-word"]').first()).toBeVisible();

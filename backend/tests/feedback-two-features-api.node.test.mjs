@@ -64,6 +64,8 @@ const bindings = {
     return word;
   },
   queueSentenceWords:()=>{ values.lexicon++;return 3; },
+  enqueueLegacyGlosses:async()=>({status:"queued",scannedWords:1,scannedSentences:5,queuedCandidates:12}),
+  enqueueSentenceGlosses:async()=>({queued:3,distinct:3,capped:false}),
   sentencePrefetchEnabled:()=>false,
   readJson:async request=>request.json(),
 };

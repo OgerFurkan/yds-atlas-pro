@@ -27,18 +27,17 @@ export async function enrichWithGemini(word: string, signal?: AbortSignal) {
     throw error;
   }
 }
-export async function completeWordsWithGemini(words: string[], signal?: AbortSignal) {
+export async function completeWordsWithGemini(words: string[]) {
   const request = aiNamedWordsRequestSchema.parse({ words });
   try {
     return aiWordListResponseSchema.parse(
       await apiRequest("/api/ai/words/complete", {
         method: "POST",
         body: JSON.stringify(request),
-        signal,
       }),
     );
   } catch (error) {
-    if (!signal?.aborted) recordAiIssue(error);
+    recordAiIssue(error);
     throw error;
   }
 }

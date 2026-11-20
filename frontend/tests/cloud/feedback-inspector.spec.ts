@@ -33,9 +33,7 @@ const entry = {
   alternatives: [], usageNote: "", cefr: "B1", examples,
   pronunciationUk: null, pronunciationUs: null
 };
-async function mockInspectorCloud(page: Page, savedAccountSession: unknown = null,
-  provider: "FreeDictionaryAPI.com / Wiktionary" | "Wiktapi / Turkish Wiktionary" = "FreeDictionaryAPI.com / Wiktionary",
-  libraryWords: unknown[] = []) {
+async function mockInspectorCloud(page: Page, savedAccountSession: unknown = null) {
   const seen: { path: string; method: string; body: unknown; authenticated: boolean }[] = [];
   const currentSession = session();
   await page.route("http://127.0.0.1:54321/auth/v1/**", async (route) => {
@@ -63,7 +61,7 @@ async function mockInspectorCloud(page: Page, savedAccountSession: unknown = nul
     if (url.pathname === "/api/account") {
       await route.fulfill({ json: { dailyGoal: 20, session: savedAccountSession, progress: [], completedDays: [] } });
     } else if (url.pathname === "/api/words" && request.method() === "GET") {
-      await route.fulfill({ json: libraryWords });
+      await route.fulfill({ json: [] });
     } else if (url.pathname === "/api/lexicon/inspect") {
       expect(request.method()).toBe("GET");
       const word = url.searchParams.get("word");
@@ -84,8 +82,8 @@ async function mockInspectorCloud(page: Page, savedAccountSession: unknown = nul
       await route.fulfill({ json: {
         status: "ready", word: "evidence",
         entries: [{ partOfSpeech: "noun", meanings: ["kanıt"] }],
-        source: { provider,
-          url: provider === "Wiktapi / Turkish Wiktionary" ? "https://tr.wiktionary.org/wiki/evidence" : "https://en.wiktionary.org/wiki/evidence", license: "CC BY-SA 4.0",
+        source: { provider: "FreeDictionaryAPI.com / Wiktionary",
+          url: "https://en.wiktionary.org/wiki/evidence", license: "CC BY-SA 4.0",
           licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" }
       } });
     } else if (url.pathname === "/api/lexicon/examples/draft") {
@@ -158,7 +156,7 @@ test("sentence tap shows licensed Turkish meaning for a missing word, and five t
   const unknownWord = examplesList.getByRole("listitem").first()
     .getByTestId("sentence-word").filter({ hasText: "evidence" }).first();
   await unknownWord.click();
-  await expect(page.getByRole("tooltip")).toContainText("kanıt");
+  await expect(examplesList.getByRole("listitem").first().getByRole("tooltip")).toContainText("kanıt");
   expect(seen.filter(x => x.path === "/api/dictionary/turkish" && x.authenticated)).toHaveLength(1);
   expect(seen.filter(x => x.path === "/api/words/import")).toHaveLength(0);
   // The model is called only after the user explicitly asks for draft sentences.
@@ -209,44 +207,5 @@ test("active saved game denies Inspector without deleting progress or contacting
   expect(gameAfterInspector).not.toBeNull();
   expect(gameAfterInspector).toEqual(savedGame);
   expect(seen.filter(x => x.path === "/api/lexicon/inspect")).toHaveLength(0);
-  expect(seen.filter(x => x.path === "/api/words/import")).toHaveLength(0);
-});
-
-test("Turkish Wiktionary fallback is accepted by the client and attributed correctly", async ({ page }) => {
-  const seen = await mockInspectorCloud(page, null, "Wiktapi / Turkish Wiktionary");
-  await page.goto("/#inspector");
-  await login(page);
-  await page.getByRole("searchbox", { name: "İngilizce kelime veya ifade" }).fill("obtain");
-  await page.getByRole("button", { name: "Havuzda incele" }).click();
-  await page.getByRole("button", { name: /Verb.*elde etmek/ }).click();
-  const word = page.getByRole("list", { name: "Inspector örnekleri" }).getByRole("listitem").first()
-    .getByTestId("sentence-word").filter({ hasText: "evidence" }).first();
-  await word.click();
-  const tooltip = page.getByRole("tooltip");
-  await expect(tooltip).toContainText("kanıt");
-  await expect(tooltip.getByRole("link", { name: "Wiktapi" })).toHaveAttribute("href", "https://api.wiktapi.dev");
-  expect(seen.filter(x => x.path === "/api/dictionary/turkish" && x.authenticated)).toHaveLength(1);
-  expect(seen.filter(x => x.path === "/api/words/import")).toHaveLength(0);
-});
-
-test("a library word with no Turkish meanings still looks up the licensed dictionary", async ({ page }) => {
-  const timestamp = new Date().toISOString();
-  const emptyGlossWord = {
-    id: wordId, word: "evidence", meanings: [], alternatives: [],
-    usageNote: "", partOfSpeech: "Noun", cefr: "B1", score: 0, examples: [],
-    pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
-    createdAt: timestamp, updatedAt: timestamp,
-  };
-  const seen = await mockInspectorCloud(page, null, "Wiktapi / Turkish Wiktionary", [emptyGlossWord]);
-  await page.goto("/#inspector");
-  await login(page);
-  await page.getByRole("searchbox", { name: "İngilizce kelime veya ifade" }).fill("obtain");
-  await page.getByRole("button", { name: "Havuzda incele" }).click();
-  await page.getByRole("button", { name: /Verb.*elde etmek/ }).click();
-  const word = page.getByRole("list", { name: "Inspector örnekleri" }).getByRole("listitem").first()
-    .getByTestId("sentence-word").filter({ hasText: "evidence" }).first();
-  await word.click();
-  await expect(page.getByRole("tooltip")).toContainText("kanıt");
-  expect(seen.filter(x => x.path === "/api/dictionary/turkish" && x.authenticated)).toHaveLength(1);
   expect(seen.filter(x => x.path === "/api/words/import")).toHaveLength(0);
 });

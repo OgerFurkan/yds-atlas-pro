@@ -357,18 +357,8 @@ export function WordLibraryPage({
         <>
           <div id="library-word-controls" className="mt-4">
             <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
-            {!loading && !loadError && words.length > 0 && (
-              <details className="mt-3 rounded-lg border border-slate-300 bg-white text-slate-800">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue">
-                  Eksik öğrenme materyallerini tamamla
-                  <span className="ml-2 font-normal text-slate-600">İsteğe bağlı · Kayıtların korunur</span>
-                </summary>
-                <div className="px-3 pb-3">
-                  <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} />
-                  <TooltipBackfill onNotify={onNotify} />
-                </div>
-              </details>
-            )}
+            <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} />
+             <TooltipBackfill onNotify={onNotify} />
           </div>
 
           <section

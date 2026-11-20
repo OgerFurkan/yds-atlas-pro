@@ -34,28 +34,6 @@ test("permanent errors and daily quota waits longer than 90 seconds are not retr
   expect(calls).toBe(1);
 });
 
-test("cancelled legacy recovery stops before a second quota attempt", async () => {
-  const controller = new AbortController();
-  let calls = 0;
-  await expect(withAiRecovery(async () => {
-    calls++;
-    throw { status: 429, retryAfterSeconds: 60 };
-  }, undefined, async () => { controller.abort(new Error("Durduruldu")); }, controller.signal))
-    .rejects.toThrow("Durduruldu");
-  expect(calls).toBe(1);
-});
-
-test("already cancelled requests never start an AI operation", async () => {
-  const controller = new AbortController();
-  controller.abort(new Error("Durduruldu"));
-  let calls = 0;
-  await expect(withAiRecovery(async () => {
-    calls++;
-    return 1;
-  }, undefined, async () => undefined, controller.signal)).rejects.toThrow("Durduruldu");
-  expect(calls).toBe(0);
-});
-
 test("repeated 429 cannot create an unbounded retry loop", async () => {
   let calls = 0;
   await expect(withAiRecovery(async () => {

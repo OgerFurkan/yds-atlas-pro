@@ -26,23 +26,6 @@ export function geminiCapacityStatus() {
   return { primaryModelCooling: (modelCapacityByTransport.get(fetch) ?? 0) > Date.now() };
 }
 
-// If plain JSON succeeds after a structured-schema HTTP 400, keep that proven
-// transport/model combination on the validated plain path briefly. Real requests
-// share fetch; injected test transports remain isolated and never share state.
-const JSON_SCHEMA_COOLDOWN_MS = 15 * 60_000;
-let jsonSchemaCooldowns = new WeakMap<typeof fetch, Map<string, number>>();
-export function resetGeminiJsonSchemaCooldown() {
-  jsonSchemaCooldowns = new WeakMap();
-}
-function schemaCooling(fetcher: typeof fetch, model: string): boolean {
-  return (jsonSchemaCooldowns.get(fetcher)?.get(model) ?? 0) > Date.now();
-}
-function coolUnsupportedSchema(fetcher: typeof fetch, model: string) {
-  let models = jsonSchemaCooldowns.get(fetcher);
-  if (!models) { models = new Map(); jsonSchemaCooldowns.set(fetcher, models); }
-  models.set(model, Date.now() + JSON_SCHEMA_COOLDOWN_MS);
-}
-
 // Uses the same combined signal as fetch, so both user cancellation and the
 // request-wide timeout interrupt the backoff immediately.
 function waitForRetry(milliseconds: number, signal: AbortSignal): Promise<void> {
@@ -285,14 +268,6 @@ export async function requestGeminiJson(request: JsonRequest): Promise<Response>
     });
   }
 
-  // Skip a repeatedly rejected schema only after a prior plain JSON success.
-  // Callers still validate the returned object with their existing Zod schema.
-  if (schemaCooling(request.fetcher, request.model)) {
-    const plain = await send(false);
-    await assertGeminiResponse(plain, request.service);
-    return plain;
-  }
-
   const response = await send(true);
   try {
     await assertGeminiResponse(response, request.service);
@@ -311,7 +286,6 @@ export async function requestGeminiJson(request: JsonRequest): Promise<Response>
     });
     const fallback = await send(false);
     await assertGeminiResponse(fallback, request.service);
-    coolUnsupportedSchema(request.fetcher, request.model);
     return fallback;
   }
 }

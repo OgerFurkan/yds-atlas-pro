@@ -110,8 +110,7 @@ export function inspectorToWordInput(entry: InspectorEntry): WordInput {
 export const openTurkishDictionarySchema=z.object({
  status:z.enum(["ready","choices","missing"]),word:z.string().min(1).max(45),
  entries:z.array(z.object({partOfSpeech:z.string().min(1).max(35),meanings:z.array(z.string().min(1).max(85)).min(1).max(8)}).strict()).max(8),
- // Keep this in sync with the backend PublicTurkishResult provider union.
- source:z.object({provider:z.enum(["FreeDictionaryAPI.com / Wiktionary","Wiktapi / Turkish Wiktionary"]),url:z.string().url(),license:z.literal("CC BY-SA 4.0"),licenseUrl:z.literal("https://creativecommons.org/licenses/by-sa/4.0/")}).strict().optional(),
+ source:z.object({provider:z.literal("FreeDictionaryAPI.com / Wiktionary"),url:z.string().url(),license:z.literal("CC BY-SA 4.0"),licenseUrl:z.literal("https://creativecommons.org/licenses/by-sa/4.0/")}).strict().optional(),
 }).strict();
 export type OpenTurkishDictionary=z.infer<typeof openTurkishDictionarySchema>;
 export async function lookupOpenTurkishDictionary(word:string,userId:string,signal?:AbortSignal){

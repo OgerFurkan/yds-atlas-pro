@@ -25,16 +25,13 @@ export async function withAiRecovery<T>(
   operation: () => Promise<T>,
   onWait?: (notice: AiRetryNotice) => void,
   wait: (milliseconds: number) => Promise<void> = sleep,
-  signal?: AbortSignal,
 ): Promise<T> {
   let rateLimitRetried = false;
   let upstreamRetried = false;
   for (;;) {
-    if (signal?.aborted) throw signal.reason ?? new Error("İstek durduruldu.");
     try {
       return await operation();
     } catch (error) {
-      if (signal?.aborted) throw signal.reason ?? error;
       const { status, retryAfterSeconds } = asRetryableError(error);
       let reason: AiRetryNotice["reason"];
       let seconds: number;
@@ -52,11 +49,9 @@ export async function withAiRecovery<T>(
         throw error;
       }
       for (let remaining = seconds; remaining > 0; remaining--) {
-        if (signal?.aborted) throw signal.reason ?? new Error("İstek durduruldu.");
         onWait?.({ reason, secondsRemaining: remaining });
         await wait(1000);
       }
-      if (signal?.aborted) throw signal.reason ?? new Error("İstek durduruldu.");
       onWait?.({ reason, secondsRemaining: 0 });
     }
   }

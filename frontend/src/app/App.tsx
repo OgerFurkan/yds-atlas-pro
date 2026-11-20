@@ -184,8 +184,7 @@ function AppWorkspace({
   return (
     <SentenceVocabularyProvider words={library.words} userId={auth.user?.id}
       enabled={true}
-      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}
-      allowDictionaryLookup={!!auth.user && screen !== "game" && !inspectorBlocked}>
+      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}>
     <div className="flex min-h-screen flex-col bg-atlas-canvas">
       <AppHeader
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}

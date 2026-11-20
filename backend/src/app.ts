@@ -128,7 +128,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             url: cached.url, license: "CC BY-SA 4.0" as const,
             licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" as const },
         } : await lookupPublicTurkish(word, ctx.userId);
-        if (result && typeof result === "object" && "status" in result && result.status === "ready")
+        if (result && typeof result === "object" && "status" in result && (result.status === "ready" || result.status === "choices"))
           await persistExampleTokens(config, [word]);
       } else if (path === "/api/lexicon/examples/draft" && request.method === "POST") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)

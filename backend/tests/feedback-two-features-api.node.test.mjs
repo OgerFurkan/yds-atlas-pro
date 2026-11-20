@@ -58,6 +58,7 @@ const bindings = {
         licenseUrl:"https://creativecommons.org/licenses/by-sa/4.0/"}};
   },
   readSharedTooltipGloss:async()=>{throw new Error("No cache");},
+  geminiCapacityStatus:()=>({primaryModelCooling:false}),
   draftWord:raw=>{
     const word=raw.trim().toLowerCase();
     if(!/^[a-z]{2,45}$/.test(word))throw new HttpError(400,"Invalid", "SENTENCE_INVALID_WORD");
@@ -170,4 +171,29 @@ test("authenticated legacy backfill is explicit and blocked during an active gam
   }));
   assert.equal(response.status,409);
   assert.equal((await response.json()).code,"INSPECTOR_DURING_ASSESSMENT");
+});
+
+
+test("multiple licensed Turkish senses are queued instead of permanently skipped",async()=>{
+  const before={...values};
+  const scoped={...bindings,
+    sentencePrefetchEnabled:()=>true,
+    enqueueSentenceGlosses:async (_cfg,sentences)=>{
+      assert.deepEqual(sentences,["approach"]);
+      values.lexicon++;
+      return {queued:1,distinct:1,capped:false};
+    },
+    lookupPublicTurkish:async()=>({
+      status:"choices",word:"approach",
+      entries:[{partOfSpeech:"noun",meanings:["yaklaşım"]},
+        {partOfSpeech:"verb",meanings:["yaklaşmak"]}],
+    }),
+  };
+  const app=source("../src/app.ts",scoped).createApp(config,deps());
+  const response=await app(new Request(url+"/api/dictionary/turkish?word=approach",{
+    headers:authHeaders(),
+  }));
+  assert.equal(response.status,200);
+  assert.equal((await response.json()).status,"choices");
+  assert.equal(values.lexicon,before.lexicon+1);
 });

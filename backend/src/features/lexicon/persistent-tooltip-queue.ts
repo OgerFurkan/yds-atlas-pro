@@ -101,7 +101,7 @@ export async function processGlossQueue(
     const db = options.db ?? quotaClient(config);
     const token = randomUUID();
     const { data, error } = await db.rpc("atlas_tooltip_claim_v1", {
-      p_limit: Math.min(5, Math.max(1, options.maxBatch ?? 5)), p_token: token,
+      p_limit: Math.min(5, Math.max(1, options.maxBatch ?? 2)), p_token: token,
     });
     if (error) throw new Error("TOOLTIP_QUEUE_CLAIM_FAILED");
     if (!Array.isArray(data)) throw new Error("TOOLTIP_QUEUE_CLAIM_INVALID");
@@ -123,7 +123,7 @@ export async function processGlossQueue(
               throw new Error("TOOLTIP_PUBLISH_LEASE_BUSY");
             outcome = "ready"; published++;
           } else {
-            // No single licensed Turkish sense: remain explicitly NOT ready.
+            // No licensed Turkish sense: remain explicitly NOT ready.
             outcome = "missing";
           }
         }
@@ -145,9 +145,10 @@ export function startPersistentTooltipWorker(config: ServerConfig) {
     void processGlossQueue(config).catch(() =>
       console.error({ code: "TOOLTIP_QUEUE_WORKER_FAILED" }));
   };
-  // A sleeping free Render instance resumes from the durable DB queue on wake.
+  // At most 120 dictionary lookups per awake hour, below the worker 150/h cap.
+  // A sleeping Free Render instance resumes from the durable DB queue on wake.
   run();
-  const timer = setInterval(run, 60_000); // <= 300 provider lookups per awake hour.
+  const timer = setInterval(run, 60_000); // <= 120 provider lookups per awake hour.
   timer.unref?.();
   return () => clearInterval(timer);
 }

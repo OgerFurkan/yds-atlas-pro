@@ -69,7 +69,10 @@ export async function lookupPublicTurkish(wordInput:string,userId:string,fetcher
   if(sharedBudget.count>=650)throw new HttpError(429,"Sözlük kullanım sınırı doldu.","DICTIONARY_RATE_LIMIT");
   let budget=userBudgets.get(userId);
   if(!budget||budget.expires<now)budget={expires:now+3_600_000,count:0};
-  if(budget.count>=60)throw new HttpError(429,"Saatlik sözlük sınırına ulaşıldı.","DICTIONARY_RATE_LIMIT");
+  // The backend-only worker has its own bounded allowance. Personal users keep
+  // their existing 60/hour limit; the shared global 650/hour guard still applies.
+  const hourlyLimit=userId==="atlas-tooltip-worker" ? 150 : 60;
+  if(budget.count>=hourlyLimit)throw new HttpError(429,"Saatlik sözlük sınırına ulaşıldı.","DICTIONARY_RATE_LIMIT");
   budget.count++;sharedBudget.count++;userBudgets.set(userId,budget);
   if(userBudgets.size>1500)for(const [id,b] of userBudgets)if(b.expires<now)userBudgets.delete(id);
   const task=(async()=>{

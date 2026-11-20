@@ -186,7 +186,7 @@ test("primary rate limit plus missing secondary remains a rate-limit error",asyn
     calls++;
     return new Response("{}",{status:calls===1?429:404});
   };
-  await expect(lookupPublicTurkish(word,"transient-quota-guard",fetcher as typeof fetch))
+  await expect(lookupPublicTurkish(word,"transient-quota-guard",fetcher as unknown as typeof fetch))
     .rejects.toMatchObject({status:429,code:"DICTIONARY_RATE_LIMIT"});
   expect(calls).toBe(2);
 });

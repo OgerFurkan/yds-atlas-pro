@@ -77,19 +77,28 @@ export async function lookupPublicTurkish(wordInput:string,userId:string,fetcher
   budget.count++;sharedBudget.count++;userBudgets.set(userId,budget);
   if(userBudgets.size>1500)for(const [id,b] of userBudgets)if(b.expires<now)userBudgets.delete(id);
   const task=(async()=>{
+    // A transient failure of the primary must never be silently cached as a
+    // definitive "missing" merely because the independent provider has no gloss.
+    const alternateAfterFailure = async (rateLimited=false) => {
+      const fallback = await lookupTurkishWiktionaryGloss(word,fetcher);
+      if (fallback.status !== "missing") return fallback;
+      throw rateLimited
+        ? new HttpError(429,"Sözlük kullanım sınırına ulaşıldı.","DICTIONARY_RATE_LIMIT")
+        : new HttpError(503,"Sözlük kaynakları geçici olarak kullanılamıyor.","DICTIONARY_UPSTREAM_ERROR");
+    };
     let resp:Response;
     try{resp=await fetcher(ROOT+"/api/v1/entries/en/"+encodeURIComponent(word)+"?translations=true",{
       method:"GET",headers:{Accept:"application/json","User-Agent":"YDSAtlasPro/1.0"},
       signal:AbortSignal.timeout(6500),
     });}
     catch{
-      // The first public provider may time out while the independent Turkish
-      // Wiktionary edition remains healthy. Both are licensed and validated.
-      // This fallback is still behind the existing per-user/hourly rate guard.
-      return lookupTurkishWiktionaryGloss(word,fetcher);
+      // The first public provider may time out while the independently licensed
+      // Turkish Wiktionary edition remains healthy; keep the same rate guard.
+      return alternateAfterFailure();
     }
-    if(resp.status===404 || resp.status===429 || [500,502,503,504].includes(resp.status))
-      return lookupTurkishWiktionaryGloss(word,fetcher);
+    if(resp.status===404)return lookupTurkishWiktionaryGloss(word,fetcher);
+    if(resp.status===429)return alternateAfterFailure(true);
+    if([500,502,503,504].includes(resp.status))return alternateAfterFailure();
     if(!resp.ok)throw new HttpError(503,"Sözlük sağlayıcısı şu anda yanıt veremiyor.","DICTIONARY_UPSTREAM_ERROR");
     if(Number(resp.headers.get("content-length"))>1_000_000)
       throw new HttpError(502,"Sözlük yanıtı çok büyük.","DICTIONARY_RESPONSE_TOO_LARGE");

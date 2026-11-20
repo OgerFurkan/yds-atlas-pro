@@ -13,7 +13,7 @@ export function hasAtlasTiers(examples: readonly AtlasTierExample[] | undefined)
       typeof example.sentence === "string" && example.sentence.trim().length > 0 &&
       typeof example.translation === "string" && example.translation.trim().length > 0 &&
       Array.isArray(example.translationFocus) && example.translationFocus.length > 0 &&
-      example.translationFocus.every((part) => typeof part === "string" &&
+      example.translationFocus.every((part: string) => typeof part === "string" &&
         part.trim().length > 0 && example.translation!.includes(part))
     );
 }

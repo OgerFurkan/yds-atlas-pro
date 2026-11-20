@@ -158,7 +158,7 @@ test("sentence tap shows licensed Turkish meaning for a missing word, and five t
   const unknownWord = examplesList.getByRole("listitem").first()
     .getByTestId("sentence-word").filter({ hasText: "evidence" }).first();
   await unknownWord.click();
-  await expect(examplesList.getByRole("listitem").first().getByRole("tooltip")).toContainText("kanıt");
+  await expect(page.getByRole("tooltip")).toContainText("kanıt");
   expect(seen.filter(x => x.path === "/api/dictionary/turkish" && x.authenticated)).toHaveLength(1);
   expect(seen.filter(x => x.path === "/api/words/import")).toHaveLength(0);
   // The model is called only after the user explicitly asks for draft sentences.

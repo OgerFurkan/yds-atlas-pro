@@ -61,8 +61,8 @@ test("new sentences persist deduplicated single tokens to service queue, no pers
   const r=await exported.enqueueSentenceGlosses(config,[
     "obtain clear evidence.","obtain useful results.",
   ],db);
-  assert.equal(r.queued,4);
-  assert.deepEqual(calls[0].rows.map(x=>x.word_key),["obtain","clear","evidence","useful"]);
+  assert.equal(r.queued,5);
+  assert.deepEqual(calls[0].rows.map(x=>x.word_key),["obtain","clear","evidence","useful","results"]);
   assert.deepEqual(calls[0].options,{onConflict:"word_key",ignoreDuplicates:true});
   assert.equal(calls[0].rows.every(x=>Object.keys(x).join()==="word_key"),true);
 });

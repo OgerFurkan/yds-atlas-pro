@@ -70,9 +70,10 @@ test("a 503 opens a brief model-capacity gate for subsequent word requests", asy
     visited.push(String(url));
     return new Response("{}", {status:String(url).includes("3.1-flash-lite") ? 200 : 503});
   };
-  await request(fetcher,"gemini-word");
+  const keys=["capacity-probe-a","capacity-probe-b"];
+  await request(fetcher,"gemini-word",keys);
   visited.length=0;
-  const response=await request(fetcher,"gemini-tiered-sentence");
+  const response=await request(fetcher,"gemini-tiered-sentence",keys);
   expect(response.status).toBe(200);
   expect(visited).toHaveLength(1);
   expect(visited[0]).toContain("gemini-3.1-flash-lite");

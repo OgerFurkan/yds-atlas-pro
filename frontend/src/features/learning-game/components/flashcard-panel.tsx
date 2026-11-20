@@ -77,7 +77,7 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
               <p className="mb-2 text-xs font-semibold tracking-wide text-slate-500">
                 {t("game.context")}
               </p>
-              <WordExample word={word} example={example} />
+              <WordExample word={word} example={example} allowDuringGame />
             </div>
           )}
           {hasAtlasTiers(word.examples) && (
@@ -87,7 +87,7 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
                 {word.examples.slice(0, 5).map((item, index) => (
                   <li key={index} className="border-t pt-3">
                     <span className="mb-1 block text-xs font-semibold uppercase text-atlas-blue">{ATLAS_TIER_ORDER[index]}</span>
-                    <WordExample word={word} example={item} compact />
+                    <WordExample word={word} example={item} compact allowDuringGame />
                   </li>
                 ))}
               </ol>

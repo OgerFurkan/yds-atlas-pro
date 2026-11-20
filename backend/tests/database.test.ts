@@ -107,7 +107,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
     ];
     // Strict schema allowlist: a new public table must be reviewed, not silently ignored.
     expect(result.rows.map((row) => row.relname)).toEqual(
-      [...baselineTables, "atlas_lexicon_entries", "atlas_lexicon_jobs", "atlas_lexicon_entry_revisions"].sort(),
+      [...baselineTables, "atlas_lexicon_entries", "atlas_lexicon_jobs", "atlas_lexicon_entry_revisions", "atlas_tooltip_queue"].sort(),
     );
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
     // The exact reviewed three-table ledger keeps RLS and denies all public-role access.
@@ -115,6 +115,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
       atlas_lexicon_entries: ["SELECT", "INSERT", "UPDATE"],
       atlas_lexicon_jobs: ["SELECT", "INSERT", "UPDATE"],
       atlas_lexicon_entry_revisions: ["SELECT", "INSERT"],
+      atlas_tooltip_queue: ["SELECT", "INSERT", "UPDATE"],
     };
     for (const [table, allowed] of Object.entries(servicePermissions)) {
       const policies = await db.query<{ count: number }>(
@@ -158,6 +159,42 @@ describe("Postgres ownership, atomicity and quotas", () => {
         expect(privilege.rows[0].allowed).toBe(role === "service_role");
       }
     }
+  });
+  test("durable tooltip SQL is service-only, atomic and fencing-token protected",async()=>{
+    const token="dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const stale="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    await db.query("insert into public.atlas_tooltip_queue(word_key) values('evidence'),('climate')");
+    await asUser(alice,async()=>{
+      await expect(db.query("select * from public.atlas_tooltip_queue")).rejects.toThrow();
+      await expect(db.query("select * from public.atlas_tooltip_claim_v1(1,$1::uuid)",[token]))
+        .rejects.toThrow();
+    });
+    await db.exec("set role service_role");
+    try {
+      const first=await db.query<{word_key:string,lease_token:string}>(
+        "select * from public.atlas_tooltip_claim_v1(1,$1::uuid)",[token]);
+      expect(first.rows).toHaveLength(1);
+      expect(first.rows[0].lease_token).toBe(token);
+      const key=first.rows[0].word_key;
+      const wrong=await db.query<{finished:boolean}>(
+        "select public.atlas_tooltip_finish_v1($1,$2::uuid,'ready',null) as finished",
+        [key,stale]);
+      expect(wrong.rows[0].finished).toBe(false);
+      const done=await db.query<{finished:boolean}>(
+        "select public.atlas_tooltip_finish_v1($1,$2::uuid,'ready',null) as finished",
+        [key,token]);
+      expect(done.rows[0].finished).toBe(true);
+      const second=await db.query<{word_key:string}>(
+        "select * from public.atlas_tooltip_claim_v1(2,$1::uuid)",[stale]);
+      expect(second.rows.map(row=>row.word_key)).not.toContain(key);
+      const retry=await db.query<{finished:boolean}>(
+        "select public.atlas_tooltip_finish_v1($1,$2::uuid,'retry','LOOKUP_FAILED') as finished",
+        [second.rows[0].word_key,stale]);
+      expect(retry.rows[0].finished).toBe(true);
+      const next=await db.query<{word_key:string}>(
+        "select * from public.atlas_tooltip_claim_v1(10,$1::uuid)",[token]);
+      expect(next.rows).toHaveLength(0); // delayed backoff; no duplicate claim
+    } finally { await db.exec("reset role"); }
   });
   test("anonymous callers cannot read tables or execute app functions", async () => {
     await db.exec("set role anon");

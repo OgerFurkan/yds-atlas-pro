@@ -21,20 +21,6 @@ jobs:
         run: bun test backend/tests frontend/tests/unit
       - name: Repository audit
         run: node scripts/quality/repository-audit.mjs
-      - name: Real Turkish Wiktionary compact payload smoke (temporary branch-only)
-        if: github.head_ref == 'fix/fb-live01-turkish-source-20261120'
-        run: |
-          python3 - <<'PY'
-          import json, urllib.request
-          url="https://api.wiktapi.dev/v1/tr/word/climate?lang=en"
-          request=urllib.request.Request(url,headers={'Accept':'application/json','User-Agent':'YDSAtlasPro-QA'})
-          with urllib.request.urlopen(request,timeout=12) as response:
-              result=json.loads(response.read(500000))
-          entries=result.get('entries',[])
-          glosses=[g for e in entries for s in e.get('senses',[]) for g in s.get('glosses',[]) if isinstance(g,str) and g.strip()]
-          print('edition:',result.get('edition'),'word:',result.get('word'),'gloss count:',len(glosses))
-          assert result.get('edition')=='tr' and result.get('word')=='climate' and glosses
-          PY
       - name: Install browser
         run: cd frontend && bunx playwright install --with-deps chromium
       - name: Browser tests

@@ -33,6 +33,7 @@ export const aiWordSchema = z
           sentence: z.string().min(1).max(1000),
           translation: z.string().min(1).max(1000),
           translationFocus: z.array(z.string().min(1).max(200)).min(1).max(4),
+          difficulty: z.enum(["easy", "medium", "yds"]).optional(),
         }),
       )
       .length(5),

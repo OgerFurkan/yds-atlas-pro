@@ -2,6 +2,7 @@ import { ArrowRight, Check, CheckCheck, Languages, Link2, RotateCcw, X } from "l
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { Button } from "@/shared/ui/button";
 import type { GameSession } from "../model/game-session";
 
@@ -121,7 +122,7 @@ export function MatchingPanel({
           <>
             <Check size={21} />
             <span>
-              <strong>{leftWord?.word}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
+              <strong>{leftWord && <SentenceWordTooltips text={leftWord.word} focusWord={leftWord} allowDuringGame />}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
               {t("game.pairMatched")}
             </span>
           </>

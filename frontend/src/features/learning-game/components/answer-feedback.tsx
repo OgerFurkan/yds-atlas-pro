@@ -2,6 +2,9 @@
 import { useTranslation } from "react-i18next";
 import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
 import { WordExample } from "@/features/word-library/components/word-example";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
+import { TieredSentencePreview } from "@/features/word-inspector/components/tiered-sentence-preview";
+import { hasAtlasTiers, ATLAS_TIER_ORDER } from "@/features/word-library/model/tiered-examples";
 import { formatWordType } from "@/features/word-library/model/word-normalization";
 import { cn } from "@/shared/lib/utils";
 import { makeQuestion } from "../model/game-engine";
@@ -60,7 +63,7 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
         )}
         <div>
           <p className="text-lg font-semibold text-atlas-navy">
-            {word.word}{" "}
+            <SentenceWordTooltips text={word.word} focusWord={word} allowDuringGame />{" "}
             <span className="text-sm font-normal capitalize text-slate-500">
               · {formatWordType(word.partOfSpeech)}
             </span>
@@ -71,6 +74,19 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
           )}
         </div>
         {example && <WordExample word={word} example={example} compact />}
+        {hasAtlasTiers(word.examples) ? (
+          <details className="rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
+            <summary className="cursor-pointer font-semibold">5 seviyeli örneği gör · 2 kolay / 1 orta / 2 YDS</summary>
+            <ol className="mt-3 space-y-4">
+              {word.examples.map((item, index) => (
+                <li key={index} className="border-t border-slate-100 pt-3">
+                  <span className="mb-2 block text-xs font-bold uppercase text-atlas-blue">{index + 1}. {ATLAS_TIER_ORDER[index]}</span>
+                  <WordExample word={word} example={item} compact />
+                </li>
+              ))}
+            </ol>
+          </details>
+        ) : <TieredSentencePreview word={word.word} />}
         <PronunciationButtons
           word={word.word}
           uk={word.pronunciationUk}

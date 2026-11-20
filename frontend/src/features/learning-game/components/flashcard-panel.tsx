@@ -5,6 +5,7 @@ import { FlashcardBack, FlashcardFront } from "@/features/learning-game/componen
 import { useCardFlip } from "@/features/learning-game/hooks/use-card-flip";
 import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
 import { WordExample } from "@/features/word-library/components/word-example";
+import { hasAtlasTiers, ATLAS_TIER_ORDER } from "@/features/word-library/model/tiered-examples";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
 
@@ -78,6 +79,19 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
               </p>
               <WordExample word={word} example={example} />
             </div>
+          )}
+          {hasAtlasTiers(word.examples) && (
+            <details className="rounded-xl border border-slate-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-semibold text-atlas-navy">Tüm 5 seviyeli cümleyi gör</summary>
+              <ol className="mt-3 space-y-4">
+                {word.examples.map((item, index) => (
+                  <li key={index} className="border-t pt-3">
+                    <span className="mb-1 block text-xs font-semibold uppercase text-atlas-blue">{ATLAS_TIER_ORDER[index]}</span>
+                    <WordExample word={word} example={item} compact />
+                  </li>
+                ))}
+              </ol>
+            </details>
           )}
         </div>
       )}

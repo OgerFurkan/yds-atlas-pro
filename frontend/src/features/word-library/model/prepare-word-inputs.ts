@@ -4,6 +4,7 @@ import { withAiRecovery, type AiRetryNotice } from "./ai-retry";
 import { aiSuggestionToWordInput } from "../api/ai-word-api";
 import { enrichWordInput } from "../data/starter-vocabulary";
 import { wordKey } from "./word-normalization";
+import { hasAtlasTiers } from "./tiered-examples";
 
 export type WordFillProgress = {
   /** Words already returned by Gemini. */
@@ -36,8 +37,8 @@ export async function prepareWordInputs(
         !word.partOfSpeech ||
         word.cefr === "Belirtilmedi" ||
         !word.usageNote ||
-        word.examples.filter((example) => example.translation && pattern.test(example.sentence))
-          .length < 5)
+        !hasAtlasTiers(word.examples) ||
+        word.examples.some((example) => !pattern.test(example.sentence)))
     )
       missing.set(key, word.word);
   }
@@ -106,9 +107,6 @@ export async function prepareWordInputs(
   return safePrepared.map((input) => {
     const generated = results.get(wordKey(input.word));
     if (!generated) return input;
-    const sentences = new Set(
-      input.examples.map((example) => example.sentence.trim().toLocaleLowerCase("en")),
-    );
     return {
       ...input,
       sourceUrl: input.sourceUrl || generated.sourceUrl,
@@ -117,12 +115,9 @@ export async function prepareWordInputs(
       partOfSpeech: input.partOfSpeech || generated.partOfSpeech,
       cefr: input.cefr === "Belirtilmedi" ? generated.cefr : input.cefr,
       alternatives: [...new Set([...input.alternatives, ...generated.alternatives])],
-      examples: [
-        ...input.examples,
-        ...generated.examples.filter(
-          (example) => !sentences.has(example.sentence.trim().toLocaleLowerCase("en")),
-        ),
-      ],
+      // A newly added word gets one auditable, canonical 2/1/2 set. Existing user
+      // entries are untouched (they bypass this preparation path).
+      examples: generated.examples,
     };
   });
 }

@@ -3,6 +3,7 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { WordDetails } from "@/features/word-library/components/word-details";
+import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { WordStatus } from "@/features/word-library/components/word-status";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
@@ -77,7 +78,7 @@ function WordTableRow({
       </td>
       <td className="px-2.5 py-3 align-middle">
         <div className="flex min-w-[120px] flex-col gap-0.5">
-          <strong className="text-base text-slate-800">{word.word}</strong>
+          <strong className="text-base text-slate-800"><SentenceWordTooltips text={word.word} focusWord={word}/></strong>
           {word.alternatives.length > 0 && (
             <small className="text-sm text-slate-400">{word.alternatives.join(", ")}</small>
           )}

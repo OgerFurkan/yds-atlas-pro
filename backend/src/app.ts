@@ -140,10 +140,12 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         const input = wordInputSchema.parse(await readJson(request));
         await assertFeedbackWordBinding(config, input, true);
         result = await saveWord(ctx, input);
+        if (sentencePrefetchEnabled(config)) queueSentenceWords(input.examples.map((e) => e.sentence));
       } else if (path === "/api/words/import" && request.method === "POST") {
         const inputs = bulk.parse(await readJson(request));
         for (const input of inputs) await assertFeedbackWordBinding(config, input, true);
         result = await importWords(ctx, inputs);
+        if (sentencePrefetchEnabled(config)) queueSentenceWords(inputs.flatMap((input) => input.examples.map((e) => e.sentence)));
       } else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
           ctx,

@@ -72,8 +72,9 @@ export function aiSuggestionToWordInput(
   return wordInputSchema.parse({
     ...suggestion,
     sourceUrl: dictionarySource?.sourceUrl,
-    examples: suggestion.examples.map((example) => ({
+    examples: suggestion.examples.map((example, index) => ({
       ...example,
+      difficulty: example.difficulty ?? (["easy", "easy", "medium", "yds", "yds"] as const)[index],
       source: dictionarySentences.has(example.sentence.trim())
         ? `DictionaryAPI.dev / Wiktionary (${dictionarySource!.licenseName}): ${dictionarySource!.sourceUrl}`
         : "Gemini · " + model,

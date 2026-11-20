@@ -1,6 +1,7 @@
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { useEffect, useRef, useState } from "react";
 import { aiSuggestionToWordInput, completeWordsWithGemini } from "@/features/word-library/api/ai-word-api";
+import { curatedLegacyExamples } from "@/features/word-library/data/legacy-curated-examples";
 import { mergeLegacyTieredExamples } from "@/features/word-library/model/merge-legacy-tiered-examples";
 import { hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
 import { wordKey } from "@/features/word-library/model/word-normalization";
@@ -37,14 +38,16 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
       // Small requests and per-word authenticated saves: partial progress is kept.
       for (let offset = 0; offset < candidates.length && !cancel.current; offset += 5) {
         const batch = candidates.slice(offset, offset + 5);
-        let response: Awaited<ReturnType<typeof completeWordsWithGemini>>;
-        try {
-          response = await completeWordsWithGemini(batch.map(word => word.word));
-        } catch (error) {
-          reason = error instanceof Error ? error.message : "AI geçici olarak kullanılamıyor.";
-          break;
+        const aiBatch = batch.filter(word => !curatedLegacyExamples(word.word));
+        let response: Awaited<ReturnType<typeof completeWordsWithGemini>> | null = null;
+        if (aiBatch.length) {
+          try {
+            response = await completeWordsWithGemini(aiBatch.map(word => word.word));
+          } catch (error) {
+            reason = error instanceof Error ? error.message : "AI geçici olarak kullanılamıyor.";
+          }
         }
-        const proposals = new Map(response.suggestions.map(suggestion => [wordKey(suggestion.word), suggestion]));
+        const proposals = new Map(response?.suggestions.map(suggestion => [wordKey(suggestion.word), suggestion]) ?? []);
         for (const word of batch) {
           if (cancel.current) break;
           const fresh = latest.current.find(entry => entry.id === word.id);
@@ -52,10 +55,13 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
           if (!fresh || fresh.updatedAt !== word.updatedAt || fresh.lexicon || hasAtlasTiers(fresh.examples)) {
             skipped++; setDone(completed + skipped); continue;
           }
+          const curated = curatedLegacyExamples(word.word);
           const suggestion = proposals.get(wordKey(word.word));
-          if (!suggestion) { skipped++; setDone(completed + skipped); continue; }
+          if (!curated && (!response || !suggestion)) {
+            skipped++; setDone(completed + skipped); continue;
+          }
           try {
-            const generated = aiSuggestionToWordInput(suggestion, response.model);
+            const generated = curated ?? aiSuggestionToWordInput(suggestion!, response!.model);
             const input = mergeLegacyTieredExamples(fresh, generated);
             await onSave(input, fresh.id);
             completed++;
@@ -65,6 +71,7 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
           }
           setDone(completed + skipped);
         }
+        if (reason) break;
       }
     } finally {
       setBusy(false);

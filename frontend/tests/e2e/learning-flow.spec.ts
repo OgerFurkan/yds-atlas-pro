@@ -85,6 +85,9 @@ test("daily task survives reload, shows translated cards and automatically saves
   await page.getByRole("button", { name: "Kartı çevir ve anlamı göster" }).click();
   await expect(page.locator("#word-example p")).toHaveCount(3);
   await expect(page.locator("#word-example strong.italic").first()).toBeVisible();
+  // Revealed card examples expose local Turkish word tooltips without spoiling
+  // the unflipped front; this exercises real desktop and mobile browsers.
+  await expect(page.locator('#word-example [data-testid="sentence-word"]').first()).toBeVisible();
   await expect(page.getByRole("button", { name: "UK telaffuzunu dinle" })).toBeVisible();
   await page.screenshot({
     path: `test-results/card-${test.info().project.name}.png`,
@@ -111,7 +114,12 @@ test("daily task survives reload, shows translated cards and automatically saves
       }
       await page.locator("#matching-next").click();
     } else {
+      // Pre-answer quiz text is not tappable: never disclose the answer key.
+      await expect(page.locator('#question-sentence [data-testid="sentence-word"]')).toHaveCount(0);
       await page.locator("#choice-correct").click();
+      // After feedback, every displayed English token can expose a tooltip.
+      await expect(page.locator('#question-sentence [data-testid="sentence-word"]').first()).toBeVisible();
+      await expect(page.locator('#answer-feedback [data-testid="sentence-word"]').first()).toBeVisible();
       if (!reloaded) {
         const answered = await sessionState(page);
         await page.reload();

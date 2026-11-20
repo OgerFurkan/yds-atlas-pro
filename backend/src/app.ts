@@ -22,7 +22,8 @@ import { deleteWords, importWords, listWords, saveWord } from "./features/words/
 import { inspectFeedback, assertFeedbackWordBinding, assertNoActiveAssessment, assertGameSafeDictionaryWord } from "./features/feedback/inspector-service";
 import { draftWord, generateTieredSentences } from "./features/feedback/tiered-sentence-generation";
 import { dictionaryWord, lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
-import { readSharedTooltipGloss, queueSentenceWords, sentencePrefetchEnabled } from "./features/lexicon/sentence-lexicon-prefetch";
+import { readSharedTooltipGloss, sentencePrefetchEnabled } from "./features/lexicon/sentence-lexicon-prefetch";
+import { enqueueLegacyGlosses, enqueueSentenceGlosses } from "./features/lexicon/persistent-tooltip-queue";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, quotaClient, type RequestContext } from "./shared/supabase";
@@ -38,6 +39,11 @@ type Dependencies = {
 };
 const uuid = z.uuid();
 const bulk = z.array(wordInputSchema).min(1).max(500);
+async function persistExampleTokens(config: ServerConfig, sentences: readonly string[]) {
+  if (!sentencePrefetchEnabled(config)) return;
+  try { await enqueueSentenceGlosses(config, sentences); }
+  catch { console.error({ code: "TOOLTIP_QUEUE_ENQUEUE_FAILED" }); }
+}
 const sessionBody = z
   .object({ snapshot: gameSessionSchema, revision: z.number().int().min(0) })
   .strict();
@@ -87,11 +93,14 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       if (!path.startsWith("/api/")) throw new HttpError(404, "İstek bulunamadı.", "NOT_FOUND");
       const ctx = await (dependencies.authenticate?.(request) ?? authenticate(request, config));
       let result: unknown;
-      if (path === "/api/lexicon/inspect" && request.method === "GET") {
+      if (path === "/api/lexicon/tooltip/backfill" && request.method === "POST") {
+        await assertNoActiveAssessment(ctx);
+        result = await enqueueLegacyGlosses(ctx, config);
+      } else if (path === "/api/lexicon/inspect" && request.method === "GET") {
         const inspected = await inspectFeedback(ctx, config, new URL(request.url).searchParams);
         result = inspected;
         if (sentencePrefetchEnabled(config) && inspected.status === "ready")
-          queueSentenceWords(inspected.entry.examples.map((item) => item.sentence));
+          await persistExampleTokens(config, inspected.entry.examples.map((item) => item.sentence));
       } else if (path === "/api/dictionary/turkish" && request.method === "GET") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
           throw new HttpError(404, "Sözlük etkin değil.", "DICTIONARY_DISABLED");
@@ -115,6 +124,8 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             url: cached.url, license: "CC BY-SA 4.0" as const,
             licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" as const },
         } : await lookupPublicTurkish(word, ctx.userId);
+        if (result && typeof result === "object" && "status" in result && result.status === "ready")
+          await persistExampleTokens(config, [word]);
       } else if (path === "/api/lexicon/examples/draft" && request.method === "POST") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
           throw new HttpError(404, "Cümle üretimi etkin değil.", "SENTENCE_DISABLED");
@@ -133,19 +144,19 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             })();
         if (!allowed) throw new HttpError(429, "AI kullanım sınırına ulaşıldı.", "AI_QUOTA_EXCEEDED");
         const draft = await (dependencies.generateTiered ?? generateTieredSentences)(word, config, request.signal);
-        if (sentencePrefetchEnabled(config)) queueSentenceWords(draft.examples.map((item) => item.sentence));
+        await persistExampleTokens(config, draft.examples.map((item) => item.sentence));
         result = { status: "draft", ...draft };
       } else if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
       else if (path === "/api/words" && request.method === "POST") {
         const input = wordInputSchema.parse(await readJson(request));
         await assertFeedbackWordBinding(config, input, true);
         result = await saveWord(ctx, input);
-        if (sentencePrefetchEnabled(config)) queueSentenceWords(input.examples.map((e) => e.sentence));
+        await persistExampleTokens(config, input.examples.map((e) => e.sentence));
       } else if (path === "/api/words/import" && request.method === "POST") {
         const inputs = bulk.parse(await readJson(request));
         for (const input of inputs) await assertFeedbackWordBinding(config, input, true);
         result = await importWords(ctx, inputs);
-        if (sentencePrefetchEnabled(config)) queueSentenceWords(inputs.flatMap((input) => input.examples.map((e) => e.sentence)));
+        await persistExampleTokens(config, inputs.flatMap((input) => input.examples.map((e) => e.sentence)));
       } else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
           ctx,
@@ -171,7 +182,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           const input = wordInputSchema.parse(await readJson(request));
           await assertFeedbackWordBinding(config, input);
           result = await saveWord(ctx, input, id);
-          if (sentencePrefetchEnabled(config)) queueSentenceWords(input.examples.map(e => e.sentence));
+          await persistExampleTokens(config, input.examples.map(e => e.sentence));
         } else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");
       } else if (path === "/api/account" && request.method === "GET")

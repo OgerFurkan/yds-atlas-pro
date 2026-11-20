@@ -99,21 +99,30 @@ export async function readSharedTooltipGloss(db: Pick<SupabaseClient, "from">, i
 }
 
 export function buildTooltipRecord(word: string, dictionary: PublicTurkishResult) {
-  if (dictionary.status !== "ready" || dictionary.entries.length !== 1 ||
+  if (!["ready", "choices"].includes(dictionary.status) ||
+      dictionary.entries.length < 1 || dictionary.entries.length > 8 ||
       dictionary.word !== word || dictionary.source?.license !== "CC BY-SA 4.0" ||
       dictionary.source?.provider !== "FreeDictionaryAPI.com / Wiktionary" ||
       dictionary.source?.licenseUrl !== "https://creativecommons.org/licenses/by-sa/4.0/") return null;
   const source = dictionary.source;
-  const meaning = dictionary.entries[0];
-  if (!source || !meaning.meanings.length || meaning.meanings.length > 8) return null;
+  if (!source || dictionary.entries.some(e => !e.meanings.length || e.meanings.length > 8)) return null;
+  const ambiguous = dictionary.entries.length > 1;
+  // Retain each licensed POS label. Do not pretend an ambiguous token has one
+  // context-verified translation (e.g. "approach" as verb vs noun).
+  const glosses = ambiguous
+    ? dictionary.entries.flatMap(entry =>
+        entry.meanings.slice(0, 2).map(meaning => entry.partOfSpeech + ": " + meaning))
+    : dictionary.entries[0].meanings;
+  const meanings = glosses.filter(item => item.length > 0 && item.length <= 85).slice(0, 4);
+  if (!meanings.length) return null;
   const sourceUrl = new URL(source.url);
   if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== "en.wiktionary.org" ||
       !sourceUrl.pathname.startsWith("/wiki/")) return null;
   // Match PR #17's canonical short-gloss shape. A tooltip-only entry is NEVER a
   // verified five-example YDS entry; it must remain excluded from editorial use.
   const content = { kind: KIND, word, partOfSpeech: "Tooltip",
-    originalPartOfSpeech: meaning.partOfSpeech,
-    meanings: meaning.meanings.slice(0, 4), alternatives: [],
+    originalPartOfSpeech: ambiguous ? "Multiple licensed senses" : dictionary.entries[0].partOfSpeech,
+    meanings, alternatives: [],
     usageNote: "", cefr: "Belirtilmedi", examples: [] };
   const provenance = { kind: KIND, provider: source.provider, url: sourceUrl.href,
     license: source.license, licenseUrl: source.licenseUrl,

@@ -3,7 +3,7 @@ import type { AppScreen } from "@/app/components/app-header";
 
 export function readHashScreen(): AppScreen {
   const hash = window.location.hash.slice(1);
-  return hash === "game" || hash === "library" || hash === "login" ? hash : "home";
+  return hash === "game" || hash === "library" || hash === "login" || hash === "inspector" ? hash : "home";
 }
 
 /** Keeps the screen in sync with the URL hash so refreshes and back/forward work. */

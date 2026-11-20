@@ -31,6 +31,10 @@ const schema = z
     SUPABASE_URL: optional.pipe(z.url().optional()),
     SUPABASE_PUBLISHABLE_KEY: optional,
     SUPABASE_SECRET_KEY: optional,
+    ATLAS_FEEDBACK_LEXICON_ENABLED: z
+      .enum(["true", "false"])
+      .default("false")
+      .transform((value) => value === "true"),
     GEMINI_API_KEY: optional,
     GEMINI_API_KEYS: optional,
     GEMINI_MODEL_WORD: modelName.default("gemini-3.5-flash-lite"),

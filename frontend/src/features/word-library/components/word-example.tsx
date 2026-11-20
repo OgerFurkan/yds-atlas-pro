@@ -1,6 +1,7 @@
 import type { WordExample as Example, WordEntry } from "@yds-atlas/shared";
 import { escapeRegExp } from "@/shared/lib/regexp";
 import { getStarterWord } from "../data/starter-vocabulary";
+import { SentenceWordTooltips } from "./sentence-word-tooltips";
 
 function HighlightedText({ text, terms }: { text: string; terms: string[] }) {
   const escaped = terms
@@ -60,7 +61,7 @@ export function WordExample({
       }
     >
       <p className="text-sm leading-7 text-slate-700 sm:text-base">
-        <HighlightedText text={example.sentence} terms={[word.word, ...word.alternatives]} />
+        <SentenceWordTooltips text={example.sentence} focusWord={word} />
       </p>
       <p className="text-sm leading-7 text-slate-600">
         {translation ? (

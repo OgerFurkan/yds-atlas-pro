@@ -1,4 +1,5 @@
 import { HttpError } from "../../shared/errors";
+import { lookupTurkishWiktionaryGloss } from "./tr-wiktionary";
 const ROOT = "https://freedictionaryapi.com";
 const LICENSE = "https://creativecommons.org/licenses/by-sa/4.0/";
 const cache = new Map<string,{expires:number,result:PublicTurkishResult}>();
@@ -8,7 +9,7 @@ let sharedBudget = {expires:0,count:0};
 export type PublicTurkishResult = {
   status:"ready"|"choices"|"missing"; word:string;
   entries:{partOfSpeech:string;meanings:string[]}[];
-  source?:{provider:"FreeDictionaryAPI.com / Wiktionary";url:string;license:"CC BY-SA 4.0";licenseUrl:string};
+  source?:{provider:"FreeDictionaryAPI.com / Wiktionary"|"Wiktapi / Turkish Wiktionary";url:string;license:"CC BY-SA 4.0";licenseUrl:string};
 };
 export function dictionaryWord(raw:string) {
   const word=raw.normalize("NFKC").toLocaleLowerCase("en").trim();
@@ -82,7 +83,7 @@ export async function lookupPublicTurkish(wordInput:string,userId:string,fetcher
       signal:AbortSignal.timeout(6500),
     });}
     catch{throw new HttpError(503,"Sözlük geçici olarak kullanılamıyor.","DICTIONARY_UPSTREAM_UNAVAILABLE");}
-    if(resp.status===404)return {status:"missing",word,entries:[]} as PublicTurkishResult;
+    if(resp.status===404)return lookupTurkishWiktionaryGloss(word,fetcher);
     if(!resp.ok)throw new HttpError(503,"Sözlük sağlayıcısı şu anda yanıt veremiyor.","DICTIONARY_UPSTREAM_ERROR");
     if(Number(resp.headers.get("content-length"))>1_000_000)
       throw new HttpError(502,"Sözlük yanıtı çok büyük.","DICTIONARY_RESPONSE_TOO_LARGE");
@@ -90,7 +91,8 @@ export async function lookupPublicTurkish(wordInput:string,userId:string,fetcher
     if(txt.length>1_000_000)throw new HttpError(502,"Sözlük yanıtı çok büyük.","DICTIONARY_RESPONSE_TOO_LARGE");
     let parsed:unknown;
     try{parsed=JSON.parse(txt);}catch{throw new HttpError(502,"Sözlük yanıtı geçersiz.","DICTIONARY_INVALID_RESPONSE");}
-    return parsePublicTurkish(word,parsed);
+    const primary=parsePublicTurkish(word,parsed);
+    return primary.status==="missing" ? lookupTurkishWiktionaryGloss(word,fetcher) : primary;
   })();
   pending.set(word,task);
   try{const result=await task;

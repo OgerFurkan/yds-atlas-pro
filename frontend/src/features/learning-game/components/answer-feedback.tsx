@@ -78,7 +78,7 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
           <details className="rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
             <summary className="cursor-pointer font-semibold">5 seviyeli örneği gör · 2 kolay / 1 orta / 2 YDS</summary>
             <ol className="mt-3 space-y-4">
-              {word.examples.map((item, index) => (
+              {word.examples.slice(0, 5).map((item, index) => (
                 <li key={index} className="border-t border-slate-100 pt-3">
                   <span className="mb-2 block text-xs font-bold uppercase text-atlas-blue">{index + 1}. {ATLAS_TIER_ORDER[index]}</span>
                   <WordExample word={word} example={item} compact />

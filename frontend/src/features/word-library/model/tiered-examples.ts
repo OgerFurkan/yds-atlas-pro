@@ -7,8 +7,8 @@ export type AtlasTierExample = {
   difficulty?: string;
 };
 export function hasAtlasTiers(examples: readonly AtlasTierExample[] | undefined): boolean {
-  return Array.isArray(examples) && examples.length === ATLAS_TIER_ORDER.length &&
-    examples.every((example, index) =>
+  return Array.isArray(examples) && examples.length >= ATLAS_TIER_ORDER.length &&
+    examples.slice(0, ATLAS_TIER_ORDER.length).every((example, index) =>
       example.difficulty === ATLAS_TIER_ORDER[index] &&
       typeof example.sentence === "string" && example.sentence.trim().length > 0 &&
       typeof example.translation === "string" && example.translation.trim().length > 0 &&

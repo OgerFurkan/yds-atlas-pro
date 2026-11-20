@@ -119,9 +119,9 @@ test("new inputs are completed in batches without overwriting user data or exist
   expect(calls).toEqual([["QUANTIFY"]]);
   expect(result[0].meanings).toEqual(["ölçmek"]);
   expect(result[0].score).toBe(35);
-  expect(result[0].examples[0].source).toBe("Kullanıcı");
+  expect(result[0].examples[0].source).toBe("Gemini · test");
   expect(result[0].examples).toHaveLength(6);
-  expect(result[0].examples[1].source).toBe("Gemini · test");
+  expect(result[0].examples[5].source).toBe("Kullanıcı");
   expect(result[2].examples).toHaveLength(0);
 });
 

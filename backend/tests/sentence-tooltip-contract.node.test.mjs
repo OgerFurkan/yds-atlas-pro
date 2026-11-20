@@ -58,7 +58,7 @@ test("English sentence detection does not parse Turkish as English", () => {
 });
 test("sentence token discovery deduplicates without sending whole sentences", () => {
   assert.deepEqual(prefetch.sentenceTokens(["The climate changes.","climate effects on change."]),
-    ["climate","changes","effects","change"]);
+    ["climate","changes","effects","on","change"]);
 });
 test("sentence discovery strips email URLs, hashtags and proper names", () => {
   const t=prefetch.sentenceTokens(["Reports mention alice@example.com and https://test.example/path. #secret climate matters."]);

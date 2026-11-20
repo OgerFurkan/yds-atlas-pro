@@ -31,11 +31,9 @@ export function sentenceTokens(sentences: readonly string[]): string[] {
       .replace(/(?:https?:\/\/|www\.)\S+|\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi, " ")
       .replace(/(?:^|\s)[@#][\w.-]+/g, " ");
     for (const item of safe.matchAll(TOKEN)) {
-      // Sentence-initial capitalization is normal English, but skip possible
-      // proper names inside prose. No raw sentence or user identity leaves us.
-      const before = safe.slice(0, item.index ?? 0);
-      const sentenceInitial = !before.trim() || /[.!?]\s*$/.test(before);
-      if (/[A-Z]/.test(item[0]) && !sentenceInitial) continue;
+      // Possible proper names, including sentence-initial ones, are not exported.
+      // Lowercase vocabulary (including ordinary function words) is queued.
+      if (/[A-Z]/.test(item[0])) continue; // Conservative PII / proper-name protection.
       const token = item[0].normalize("NFKC").toLocaleLowerCase("en").replaceAll("’", "'");
       if (token.length > 45 || (COMMON.has(token) && token.length < 3) ||
           !/^[a-z]+(?:'[a-z]+)?(?:-[a-z]+)?$/.test(token)) continue;

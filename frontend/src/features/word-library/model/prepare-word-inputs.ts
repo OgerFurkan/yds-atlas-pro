@@ -117,7 +117,13 @@ export async function prepareWordInputs(
       alternatives: [...new Set([...input.alternatives, ...generated.alternatives])],
       // A newly added word gets one auditable, canonical 2/1/2 set. Existing user
       // entries are untouched (they bypass this preparation path).
-      examples: generated.examples,
+      examples: [
+        ...generated.examples,
+        // Preserve the user's original examples; the first five form the canonical
+        // ordered 2/1/2 set and hand-authored material remains available afterward.
+        ...input.examples.filter((example) => !generated.examples.some((next) =>
+          next.sentence.trim().toLocaleLowerCase("en") === example.sentence.trim().toLocaleLowerCase("en"))),
+      ],
     };
   });
 }

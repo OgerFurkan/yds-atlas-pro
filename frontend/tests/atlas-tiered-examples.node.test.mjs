@@ -21,6 +21,7 @@ test("new word 2/1/2 tiers and Turkish focus pass", () => {
 });
 test("missing, incorrect, reordered or untranslated tiers fail closed", () => {
   assert.equal(hasAtlasTiers(examples.slice(0,4)), false);
+  assert.equal(hasAtlasTiers([...examples, {sentence:"User note", translation:"Kullanıcı notu", difficulty:"easy", translationFocus:["notu"]}]), true);
   assert.equal(hasAtlasTiers(examples.map((e,i)=>i===3?{...e,difficulty:"easy"}:e)), false);
   assert.equal(hasAtlasTiers(examples.map((e,i)=>i===2?{...e,translationFocus:["uydurma"]}:e)), false);
   assert.equal(hasAtlasTiers(examples.map((e,i)=>i===0?{...e,translation:""}:e)), false);

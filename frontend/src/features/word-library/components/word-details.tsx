@@ -14,7 +14,7 @@ import {
 import { formatWordType } from "../model/word-normalization";
 import { PronunciationButtons } from "./pronunciation-buttons";
 import { WordExample } from "./word-example";
-import { TieredSentencePreview } from "@/features/word-inspector/components/tiered-sentence-preview";
+import { hasAtlasTiers } from "../model/tiered-examples";
 import { WordStatus } from "./word-status";
 
 export function WordDetails({ word }: { word: WordEntry }) {
@@ -93,7 +93,14 @@ export function WordDetails({ word }: { word: WordEntry }) {
             ) : (
               <p className="text-sm text-slate-500">{t("library.noExamples")}</p>
             )}
-            <TieredSentencePreview word={word.word} />
+            {hasAtlasTiers(word.examples) ? (
+              <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">2 kolay · 1 orta · 2 YDS örneğin kaydedilmiş.</p>
+            ) : (
+              <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-slate-700">
+                Eski cümlelerin korunuyor. Kütüphane sayfasındaki “Eksik cümleleri 2/1/2 tamamla”
+                seçeneğiyle yeni seviyeli örnekleri kelimene kaydedebilirsin.
+              </p>
+            )}
           </div>
         </DialogContent>
       </Dialog>

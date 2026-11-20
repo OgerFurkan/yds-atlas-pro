@@ -13,7 +13,17 @@ async function expectNoOverflow(page: Page) {
 }
 
 
-test("old sentence tooltip import is visible but cannot run without explicit consent", async ({ page }) => {
+test("old sentence tooltip import is collapsed and cannot run without explicit consent", async ({ page }) => {
+  // Keep a real guest-library row so the optional recovery control is present.
+  await page.addInitScript(() => {
+    const now = new Date().toISOString();
+    localStorage.setItem("yds-atlas-words-v1", JSON.stringify([{
+      id: "legacy-consent-word", word: "Abandon", meanings: ["terk etmek"],
+      alternatives: [], usageNote: "", partOfSpeech: "Verb", cefr: "B1",
+      score: 0, examples: [], pronunciationUk: "", pronunciationUs: "",
+      sourceUrl: "", createdAt: now, updatedAt: now,
+    }]));
+  });
   let posted = 0;
   await page.route("**/api/lexicon/tooltip/backfill", route => {
     posted++;
@@ -22,7 +32,12 @@ test("old sentence tooltip import is visible but cannot run without explicit con
         distinctCandidates:0,queuedCandidates:0,deduplicatedGlobally:true,mayBeIncomplete:false})});
   });
   await page.goto("/#library");
+  const recovery = page.locator("#library-word-controls details");
+  await expect(recovery.locator("summary")).toContainText("Eksik öğrenme materyallerini tamamla");
   const start = page.getByRole("button", {name:"Eski cümleleri sözlüğe ekle"});
+  await expect(start).not.toBeVisible();
+  expect(posted).toBe(0);
+  await recovery.locator("summary").click();
   await expect(start).toBeVisible();
   page.once("dialog", dialog => dialog.dismiss());
   await start.click();

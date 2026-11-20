@@ -178,6 +178,22 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
       await route.fulfill({ json: entry });
       return;
     }
+    const updateId = new RegExp("^/api/words/([^/]+)$").exec(path)?.[1];
+    if (updateId && request.method() === "PUT") {
+      const index = libraries[id].findIndex((entry) => entry.id === updateId);
+      if (index < 0) {
+        await route.fulfill({ status: 404, json: { error: "Word not found" } });
+        return;
+      }
+      const updated = {
+        ...libraries[id][index], ...body, id: updateId,
+        createdAt: libraries[id][index].createdAt,
+        updatedAt: new Date(Date.now() + 1000).toISOString(),
+      };
+      libraries[id][index] = updated;
+      await route.fulfill({ json: updated });
+      return;
+    }
     await route.fulfill({ status: 404, json: { error: "Unmocked endpoint", code: "NOT_FOUND" } });
   });
   return { libraries, requests, accounts };
@@ -397,7 +413,7 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   const saved = cloud.requests.find(
     (request) => request.path === "/api/words" && request.method === "POST",
   )!.body as { examples: { translationFocus: string[]; source: string }[]; score: number };
-  expect(saved.examples[0].translationFocus).toEqual(["Dayanıklı"]);
+  expect(saved.examples[0].translationFocus.map(focus => focus.toLocaleLowerCase("tr"))).toEqual(["dayanıklı"]);
   expect(saved.examples[0].source).toContain("Gemini");
   expect(saved.score).toBe(0);
 });
@@ -419,6 +435,56 @@ test("new account words are completed automatically before saving", async ({ pag
   )!.body as { examples: { source: string }[] };
   expect(saved.examples).toHaveLength(5);
   expect(saved.examples[0].source).toContain("Gemini");
+});
+
+test("six confirmed legacy words upgrade in one session without losing examples or scores", async ({ page }) => {
+  const cloud = await mockCloud(page);
+  const names = ["Evidence", "Obtain", "Adapt", "Analyze", "Maintain", "Clarify"];
+  const initial = names.map((name, index) => ({
+    ...word("00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0"), name),
+    score: 25 + index,
+    meanings: ["Kişisel anlam " + index],
+    examples: [{
+      sentence: "Learners use " + name.toLowerCase() + " in context.",
+      translation: "Önceki örnek " + index + ".",
+      translationFocus: ["Önceki"],
+      source: "Kullanıcı",
+    }],
+  }));
+  cloud.libraries[alice] = initial as unknown as ReturnType<typeof word>[];
+  await page.goto("/");
+  await login(page);
+  await page.goto("/#library");
+  const section = page.locator("#library-word-controls details");
+  await section.locator("summary").click();
+  const start = page.getByRole("button", { name: "Eksik cümleleri 2/1/2 tamamla" });
+  await expect(start).toBeVisible();
+  expect(cloud.requests.some(req => req.method === "PUT")).toBe(false);
+  page.once("dialog", dialog => void dialog.accept());
+  await start.click();
+  await expect.poll(() => cloud.requests.filter(req =>
+    req.path.startsWith("/api/words/") && req.method === "PUT").length,
+    { timeout: 30_000 }).toBe(6);
+  const completions = cloud.requests.filter(req => req.path === "/api/ai/words/complete");
+  expect(completions).toHaveLength(2);
+  expect((completions[0].body as {words:string[]}).words).toHaveLength(5);
+  expect((completions[1].body as {words:string[]}).words).toHaveLength(1);
+  for (const [index, name] of names.entries()) {
+    // The mock library intentionally replaces array entries after PUT; compare
+    // with immutable pre-operation fixtures, not aliased in-memory objects.
+    const originalId = "00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0");
+    const actual = cloud.libraries[alice].find(entry => entry.id === originalId);
+    expect(actual).toBeDefined();
+    expect(actual!.score).toBe(25 + index);
+    expect(actual!.meanings).toEqual(["Kişisel anlam " + index]);
+    const savedExamples = actual!.examples as Array<{
+      sentence: string; source?: string; difficulty?: string;
+    }>;
+    expect(savedExamples.slice(0,5).map(e => e.difficulty))
+      .toEqual(["easy", "easy", "medium", "yds", "yds"]);
+    expect(savedExamples[5].sentence).toBe("Learners use " + name.toLowerCase() + " in context.");
+    expect(savedExamples[5].source).toBe("Kullanıcı");
+  }
 });
 
 test("AI task list is previewed without saving", async ({ page }) => {

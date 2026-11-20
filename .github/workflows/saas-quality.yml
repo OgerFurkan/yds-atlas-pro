@@ -25,3 +25,5 @@ jobs:
         run: cd frontend && bunx playwright install --with-deps chromium
       - name: Browser tests
         run: bun run --cwd=frontend test:e2e
+      - name: Cloud contract tests
+        run: bun run --cwd=frontend test:cloud

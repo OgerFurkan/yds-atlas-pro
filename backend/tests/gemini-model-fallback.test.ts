@@ -24,7 +24,7 @@ test("chat switches to 3.1 Flash-Lite after primary 503 responses", async () => 
   });
   expect(response.status).toBe(200);
   expect(resolvedGeminiModel(response, "gemini-3.5-flash-lite")).toBe("gemini-3.1-flash-lite");
-  expect(visited.filter((url) => url.includes("gemini-3.5-flash-lite"))).toHaveLength(2);
+  expect(visited.filter((url) => url.includes("gemini-3.5-flash-lite"))).toHaveLength(1);
   expect(visited.filter((url) => url.includes("gemini-3.1-flash-lite"))).toHaveLength(1);
 });
 
@@ -36,7 +36,7 @@ test("word generation switches to cheaper Lite fallback after provider 503", asy
     return new Response("{}", { status: String(url).includes("gemini-3.1-flash-lite") ? 200 : 503 });
   }, "gemini-word");
   expect(response.status).toBe(200);
-  expect(visited).toHaveLength(3);
+  expect(visited).toHaveLength(2);
   expect(resolvedGeminiModel(response, "gemini-3.5-flash-lite")).toBe("gemini-3.1-flash-lite");
 });
 
@@ -59,7 +59,7 @@ test("both unavailable models stop after a bounded number of requests", async ()
     return new Response("{}", { status: 503 });
   }, "gemini-chat", ["isolated-key"]);
   expect(response.status).toBe(503);
-  expect(visited.filter((url) => url.includes("gemini-3.5-flash-lite"))).toHaveLength(3);
+  expect(visited.filter((url) => url.includes("gemini-3.5-flash-lite"))).toHaveLength(1);
   expect(visited.filter((url) => url.includes("gemini-3.1-flash-lite"))).toHaveLength(3);
 });
 
@@ -79,14 +79,48 @@ test("a 503 opens a brief model-capacity gate for subsequent word requests", asy
   expect(visited[0]).toContain("gemini-3.1-flash-lite");
   resetGeminiModelCapacity();
 });
-test("primary model missing (404) cannot be disguised as successful fallback",async()=>{
+test("primary 404 switches to supported low-cost Lite fallback and preserves real model",async()=>{
   resetGeminiModelCapacity();
   const visited:string[]=[];
   const response=await request(async url=>{
     visited.push(String(url));
-    return new Response("{}",{status:404});
+    return new Response("{}",{status:String(url).includes("gemini-3.1-flash-lite")?200:404});
   },"gemini-word-list",["missing-model-key-a","missing-model-key-b"]);
+  expect(response.status).toBe(200);
+  expect(resolvedGeminiModel(response, "gemini-3.5-flash-lite")).toBe("gemini-3.1-flash-lite");
+  expect(visited).toHaveLength(2);
+  resetGeminiModelCapacity();
+});
+
+
+test("all five 503-prone keys do not hammer the same overloaded primary model",async()=>{
+  resetGeminiModelCapacity();
+  const calls:string[]=[];
+  const response=await request(async url=>{
+    calls.push(String(url));
+    return new Response("{}",{status:String(url).includes("3.1-flash-lite")?200:503});
+  },"gemini-word",["capacity-key-1","capacity-key-2","capacity-key-3","capacity-key-4","capacity-key-5"]);
+  expect(response.status).toBe(200);
+  expect(calls.filter(url=>url.includes("3.5-flash-lite"))).toHaveLength(1);
+  expect(calls.filter(url=>url.includes("3.1-flash-lite"))).toHaveLength(1);
+  resetGeminiModelCapacity();
+});
+test.each([500,502,504,408])("retryable upstream %i switches to second Lite model",async status=>{
+  resetGeminiModelCapacity();
+  const response=await request(async url=>
+    new Response("{}",{status:String(url).includes("3.1-flash-lite")?200:status}),
+    "gemini-tiered-sentence",["secondary-"+status]);
+  expect(response.status).toBe(200);
+  expect(resolvedGeminiModel(response,"gemini-3.5-flash-lite")).toBe("gemini-3.1-flash-lite");
+  resetGeminiModelCapacity();
+});
+test("both retired models return 404 rather than claiming model success",async()=>{
+  resetGeminiModelCapacity();
+  const calls:string[]=[];
+  const response=await request(async url=>{
+    calls.push(String(url));return new Response("{}",{status:404});
+  },"gemini-word",["dead-a","dead-b"]);
   expect(response.status).toBe(404);
-  expect(visited).toHaveLength(1);
+  expect(calls).toHaveLength(2);
   resetGeminiModelCapacity();
 });

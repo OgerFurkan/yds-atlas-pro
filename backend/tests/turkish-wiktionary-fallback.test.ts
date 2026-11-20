@@ -61,9 +61,9 @@ test("missing English translations use Turkish edition through the same bounded 
  expect(visited[1]).toBe("https://api.wiktapi.dev/v1/tr/word/climate?lang=en");
 });
 test("Turkish edition 429 remains a real error, never cached as a missing sense",async()=>{
- await expect(lookupTurkishWiktionaryGloss("climate",async()=>{
+ await expect(lookupTurkishWiktionaryGloss("climate",(async()=>{
   return new Response(JSON.stringify({}),{status:429});
- } as typeof fetch)).rejects.toMatchObject({status:429,code:"DICTIONARY_RATE_LIMIT"});
+ }) as typeof fetch)).rejects.toMatchObject({status:429,code:"DICTIONARY_RATE_LIMIT"});
 });
 test("cached Turkish Wiktionary gloss requires correct source domain and licensing",async()=>{
  const source=parseTurkishWiktionaryGloss("climate",turkish("climate",[nouns("climate","iklim")]));

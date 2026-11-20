@@ -94,7 +94,9 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
       activeRequest.current = null;
       setRetry(null);
       setBusy(false);
+      const remaining = Math.max(0, candidates.length - completed - skipped);
       const summary = completed + " kelimeye 2/1/2 eklendi; " + skipped + " kelime değiştirilmedi." +
+        (remaining > 0 ? " " + remaining + " kelime henüz işlenmedi; tekrar deneyebilirsin." : "") +
         (reason ? " İşlem durdu: " + reason : cancel.current ? " Kullanıcı durdurdu." : "");
       setNotice(summary);
       if (completed) onNotify.success(summary);

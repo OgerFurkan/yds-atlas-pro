@@ -211,6 +211,7 @@ export function WordInspectorPage({ userId, onAddToLibrary }: WordInspectorPageP
                 </li>
               ))}
             </ol>
+            <TieredSentencePreview word={entry.word} />
           </section>
         </article>
       )}

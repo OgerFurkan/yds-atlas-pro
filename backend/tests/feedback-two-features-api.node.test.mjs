@@ -41,6 +41,7 @@ const bindings = {
     return {userId:"synthetic-user",db:{}};
   },
   quotaClient:()=>{ throw new Error("Real DB is forbidden in API smoke"); },
+  assertGameSafeDictionaryWord:async()=>{},
   assertNoActiveAssessment:async ctx=>{
     if (ctx.activeGame) throw new HttpError(409,"Oyun sürüyor.","INSPECTOR_DURING_ASSESSMENT");
   },

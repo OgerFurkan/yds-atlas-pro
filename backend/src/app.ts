@@ -19,7 +19,7 @@ import {
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
-import { inspectFeedback, assertFeedbackWordBinding, assertNoActiveAssessment } from "./features/feedback/inspector-service";
+import { inspectFeedback, assertFeedbackWordBinding, assertNoActiveAssessment, assertGameSafeDictionaryWord } from "./features/feedback/inspector-service";
 import { draftWord, generateTieredSentences } from "./features/feedback/tiered-sentence-generation";
 import { dictionaryWord, lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
 import { readSharedTooltipGloss, queueSentenceWords, sentencePrefetchEnabled } from "./features/lexicon/sentence-lexicon-prefetch";
@@ -95,11 +95,11 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
       } else if (path === "/api/dictionary/turkish" && request.method === "GET") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
           throw new HttpError(404, "Sözlük etkin değil.", "DICTIONARY_DISABLED");
-        await assertNoActiveAssessment(ctx);
         const parameters = new URL(request.url).searchParams;
         if ([...parameters.keys()].some((key) => key !== "word") || parameters.getAll("word").length !== 1)
           throw new HttpError(400, "Sözlük sorgusu geçersiz.", "DICTIONARY_INVALID_QUERY");
         const word = dictionaryWord(parameters.get("word") ?? "");
+        await assertGameSafeDictionaryWord(ctx, word);
         let cached: Awaited<ReturnType<typeof readSharedTooltipGloss>> = null;
         try {
           // This optional, read-only shared lookup may be unavailable before a migration.

@@ -22,6 +22,39 @@ export async function assertNoActiveAssessment(ctx: RequestContext) {
   }
 }
 
+
+/**
+ * A cloze may expose unrelated vocabulary, but never any word assigned to an
+ * unfinished assessment. Only this account's sessions are queried through RLS.
+ * Malformed snapshots and unavailable sessions fail closed.
+ */
+export async function assertGameSafeDictionaryWord(ctx: RequestContext, requested: string) {
+  const { data, error } = await ctx.db.from("learning_sessions")
+    .select("snapshot").eq("user_id", ctx.userId).is("completed_at", null).limit(20);
+  databaseError(error);
+  if (!Array.isArray(data) || data.length >= 20)
+    throw new HttpError(503, "Oyun sözlük güvenliği doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
+  for (const row of data) {
+    const snapshot = row?.snapshot;
+    if (!snapshot || !Array.isArray(snapshot.words))
+      throw new HttpError(503, "Oyun sözlüğü doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
+    for (const item of snapshot.words) {
+      if (!item || typeof item.word !== "string" || !Array.isArray(item.alternatives))
+        throw new HttpError(503, "Oyun kelimesi doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
+      const forms = [item.word, ...item.alternatives];
+      for (const value of forms) {
+        if (typeof value !== "string") continue;
+        const token = value.normalize("NFKC").toLocaleLowerCase("en").trim();
+        const protectedForms = [token, token + "s", token + "es", token + "ed", token + "ing"];
+        if (token.endsWith("e")) protectedForms.push(token + "d", token.slice(0, -1) + "ing");
+        if (token.endsWith("y")) protectedForms.push(token.slice(0, -1) + "ies");
+        if (protectedForms.includes(requested))
+          throw new HttpError(409, "Çalışılan kelimenin anlamı soru sırasında kapalı.", "DICTIONARY_ANSWER_PROTECTED");
+      }
+    }
+  }
+}
+
 function requireFlag(config: ServerConfig) {
   if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED) {
     throw new HttpError(404, "Word Inspector etkin değil.", "INSPECTOR_DISABLED");

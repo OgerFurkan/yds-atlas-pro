@@ -104,13 +104,15 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
     return () => activeRequest.current?.abort();
   }, [userId]);
   function loadFromPool(key: string) {
-    if (!userId || !allowPoolLookup || loadingWord || poolLookup[key]) return;
+    if (!userId || (!allowPoolLookup && !allowDuringGame) || loadingWord || poolLookup[key]) return;
     activeRequest.current?.abort();
     const controller = new AbortController(); activeRequest.current = controller; setLoadingWord(key);
     const load = async (): Promise<CachedTooltip> => {
       try {
-        const result = await inspectFromPool({word: key}, userId, controller.signal);
-        if (result.status !== "missing") return tooltipFromInspector(result);
+        if (allowPoolLookup) {
+          const result = await inspectFromPool({word: key}, userId, controller.signal);
+          if (result.status !== "missing") return tooltipFromInspector(result);
+        }
       } catch (error) {
         // The independent dictionary endpoint repeats auth and active-assessment checks.
         // Never fallback through an authorization failure or an explicit game denial.
@@ -183,7 +185,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           onClick={(event) => {
             if (show && pinned) { setActive(null); setPinned(false); }
             else { setActiveAnchor(event.currentTarget); setActive(part.offset); setPinned(true);
-              if (!matches.length && !cached && allowPoolLookup) loadFromPool(key);
+              if (!matches.length && !cached && (allowPoolLookup || allowDuringGame)) loadFromPool(key);
             }
           }}
           className="cursor-help rounded-sm border-b border-dotted border-current/50 bg-transparent p-0 text-inherit underline-offset-2 hover:border-atlas-blue hover:text-atlas-blue focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue"
@@ -202,8 +204,8 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
             <a href={cached.attribution.url} rel="noopener noreferrer" target="_blank" className="underline">Wiktionary</a> · <a href={cached.attribution.licenseUrl} rel="noopener noreferrer" target="_blank" className="underline">CC BY-SA 4.0</a> · <a href="https://freedictionaryapi.com" rel="noopener noreferrer" target="_blank" className="underline">FreeDictionaryAPI.com</a>
           </span>}
           {cached?.status === "choices" && <span className="block text-slate-300">Birden fazla anlam bulundu. Inspector'da uygun anlamı seç.</span>}
-          {!main && allowPoolLookup && !cached && <span className="block text-slate-300">Ortak sözlükte aramak için kelimeye tıkla.</span>}
-          {!main && (!allowPoolLookup || cached?.status === "missing") && <span className="block text-slate-300">Oyun bittikten sonra Inspector'da arayabilirsin.</span>}
+          {!main && (allowPoolLookup || allowDuringGame) && !cached && <span className="block text-slate-300">Ortak sözlükte aramak için kelimeye tıkla.</span>}
+          {!main && ((!allowPoolLookup && !allowDuringGame) || cached?.status === "missing") && <span className="block text-slate-300">Oyun bittikten sonra Inspector'da arayabilirsin.</span>}
         </ViewportTooltip>}
       </span>;
     })}

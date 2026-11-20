@@ -469,17 +469,20 @@ test("six confirmed legacy words upgrade in one session without losing examples 
   expect(completions).toHaveLength(2);
   expect((completions[0].body as {words:string[]}).words).toHaveLength(5);
   expect((completions[1].body as {words:string[]}).words).toHaveLength(1);
-  for (const [index, old] of initial.entries()) {
-    const actual = cloud.libraries[alice].find(entry => entry.id === old.id);
+  for (const [index, name] of names.entries()) {
+    // The mock library intentionally replaces array entries after PUT; compare
+    // with immutable pre-operation fixtures, not aliased in-memory objects.
+    const originalId = "00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0");
+    const actual = cloud.libraries[alice].find(entry => entry.id === originalId);
     expect(actual).toBeDefined();
-    expect(actual!.score).toBe(old.score);
-    expect(actual!.meanings).toEqual(old.meanings);
+    expect(actual!.score).toBe(25 + index);
+    expect(actual!.meanings).toEqual(["Kişisel anlam " + index]);
     const savedExamples = actual!.examples as Array<{
       sentence: string; source?: string; difficulty?: string;
     }>;
     expect(savedExamples.slice(0,5).map(e => e.difficulty))
       .toEqual(["easy", "easy", "medium", "yds", "yds"]);
-    expect(savedExamples[5].sentence).toBe(old.examples[0].sentence);
+    expect(savedExamples[5].sentence).toBe("Learners use " + name.toLowerCase() + " in context.");
     expect(savedExamples[5].source).toBe("Kullanıcı");
   }
 });

@@ -37,3 +37,43 @@ test("wrong word, incomplete tiers or shared-lexicon bound entry fail closed", (
   entryId:"550e8400-e29b-41d4-a716-446655440000", revision:1, contractVersion:1,
  } },generated)).toThrow();
 });
+
+test("85 independent legacy words retain their 425 original examples and all scores", () => {
+  // Synthetic records only: this test never reads or writes a personal account.
+  const rows = Array.from({ length: 85 }, (_, index): WordEntry => ({
+    ...existing,
+    id: "legacy-" + index,
+    word: "Atlasword" + index,
+    score: index,
+    examples: Array.from({ length: 5 }, (_, oldIndex) => ({
+      sentence: "The atlasword" + index + " was already in example " + oldIndex + ".",
+      translation: "Kullanıcı tarafından korunacak önceki örnek " + oldIndex + ".",
+      translationFocus: ["korunacak"],
+      source: "Kullanıcı",
+    })),
+  }));
+  const before = JSON.stringify(rows);
+  const updated = rows.map((row, index) => mergeLegacyTieredExamples(row, {
+    word: row.word,
+    examples: tiers.map((difficulty, tier) => ({
+      difficulty,
+      sentence: "Students study " + row.word.toLowerCase() + " in new context " + tier + ".",
+      translation: "Öğrenciler yeni bağlam " + tier + " içinde sözcüğü inceler.",
+      translationFocus: ["inceler"],
+      source: "Gemini test",
+    })),
+  }));
+  expect(updated).toHaveLength(85);
+  let preservedOriginalExamples = 0;
+  for (const [index, next] of updated.entries()) {
+    expect(hasAtlasTiers(next.examples)).toBe(true);
+    expect(next.score).toBe(index);
+    expect(next.meanings).toEqual(["kötüleşmek"]);
+    expect(next.examples).toHaveLength(10);
+    expect(next.examples?.slice(0, 5).map(example => example.difficulty)).toEqual(tiers);
+    expect(next.examples?.slice(5)).toEqual(rows[index].examples);
+    preservedOriginalExamples += next.examples!.slice(5).length;
+  }
+  expect(preservedOriginalExamples).toBe(425);
+  expect(JSON.stringify(rows)).toBe(before);
+});

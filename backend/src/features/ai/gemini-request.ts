@@ -14,14 +14,17 @@ const PRIMARY_LITE_MODEL = "gemini-3.5-flash-lite";
 const FALLBACK_LITE_MODEL = "gemini-3.1-flash-lite";
 const MIN_FALLBACK_BUDGET_MS = 4_000;
 const MODEL_CAPACITY_COOLDOWN_MS = 90_000;
-let modelCapacityUntil = 0;
+// Real requests share the process-wide fetch object; injected test fetchers stay isolated.
+let modelCapacityByTransport = new WeakMap<typeof fetch, number>();
 // Provider response metadata is private to the server; never forwarded as a key.
 const servedModels = new WeakMap<Response, string>();
 export function resolvedGeminiModel(response: Response, requested: string) {
   return servedModels.get(response) ?? requested;
 }
-export function resetGeminiModelCapacity() { modelCapacityUntil = 0; }
-export function geminiCapacityStatus() { return { primaryModelCooling: modelCapacityUntil > Date.now() }; }
+export function resetGeminiModelCapacity() { modelCapacityByTransport = new WeakMap(); }
+export function geminiCapacityStatus() {
+  return { primaryModelCooling: (modelCapacityByTransport.get(fetch) ?? 0) > Date.now() };
+}
 
 // Uses the same combined signal as fetch, so both user cancellation and the
 // request-wide timeout interrupt the backoff immediately.
@@ -68,7 +71,8 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
 
   // Do not repeatedly hammer an overloaded model on every incoming request.
   // All tasks (word, 2/1/2 sentence, batch and chat) share the fallback.
-  if (model === PRIMARY_LITE_MODEL && modelCapacityUntil > Date.now() &&
+  if (model === PRIMARY_LITE_MODEL &&
+      (modelCapacityByTransport.get(request.fetcher) ?? 0) > Date.now() &&
       request.timeoutMs >= MIN_FALLBACK_BUDGET_MS && !request.signal?.aborted) {
     const recovered = await requestGeminiContent({ ...request, model: FALLBACK_LITE_MODEL });
     servedModels.set(recovered, resolvedGeminiModel(recovered, FALLBACK_LITE_MODEL));
@@ -203,7 +207,7 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
     ) {
       // Retry on a different low-cost model; never mask auth/quota errors.
       // This capacity gate is process-local and resets on restart.
-      modelCapacityUntil = Date.now() + MODEL_CAPACITY_COOLDOWN_MS;
+      modelCapacityByTransport.set(request.fetcher, Date.now() + MODEL_CAPACITY_COOLDOWN_MS);
       console.warn({ service, stage: "model_fallback",
         fromModel: model, toModel: FALLBACK_LITE_MODEL, status: lastTransient.status });
       const recovered = await requestGeminiContent({

@@ -1,6 +1,6 @@
 import { createApp } from "./app";
 import { readConfig } from "./config/env";
-import { startSentencePrefetch } from "./features/lexicon/sentence-lexicon-prefetch";
+import { startPersistentTooltipWorker } from "./features/lexicon/persistent-tooltip-queue";
 const config = readConfig(Bun.env);
 const server = Bun.serve({
   port: config.PORT,
@@ -8,5 +8,5 @@ const server = Bun.serve({
   maxRequestBodySize: 1_500_000,
   fetch: createApp(config),
 });
-startSentencePrefetch(config); // OFF unless BOTH server-only flags and the existing audited RPCs are ready.
+startPersistentTooltipWorker(config); // OFF until explicitly authorized server-only flags and migration.
 console.info("YDS Atlas API: " + server.url.origin);

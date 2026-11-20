@@ -126,20 +126,27 @@ test("real createApp rejects disabled feature endpoints without generator",async
   assert.equal(response.status,404);
   assert.equal(values.draft,before);
 });
-test("real createApp does not leak dictionary or generator during active game",async()=>{
+test("active game allows safe context translations but protects answers and AI draft",async()=>{
   const before={...values};
-  const scoped={...bindings, assertNoActiveAssessment:async()=>{
-    throw new HttpError(409,"Oyun sürüyor.","INSPECTOR_DURING_ASSESSMENT");
-  }};
+  const scoped={...bindings,
+    assertNoActiveAssessment:async()=>{throw new HttpError(409,"Oyun sürüyor.","INSPECTOR_DURING_ASSESSMENT");},
+    assertGameSafeDictionaryWord:async(_ctx,word)=>{
+      if(word==="supplant")throw new HttpError(409,"Cevap kapalı.","DICTIONARY_ANSWER_PROTECTED");
+    },
+  };
   const gameApp=source("../src/app.ts",scoped).createApp(config,deps());
-  for (const path of ["/api/dictionary/turkish?word=evidence","/api/lexicon/examples/draft"]) {
-    const post=path.endsWith("draft");
-    const response=await gameApp(new Request(url+path,post?{
-      method:"POST",headers:{...authHeaders(),"content-type":"application/json"},
-      body:JSON.stringify({word:"obtain"}),
-    }:{headers:authHeaders()}));
-    assert.equal(response.status,409);
-    assert.equal((await response.json()).code,"INSPECTOR_DURING_ASSESSMENT");
-  }
-  assert.deepEqual(values,before);
+  const safe=await gameApp(new Request(url+"/api/dictionary/turkish?word=evidence",{headers:authHeaders()}));
+  assert.equal(safe.status,200);
+  const protectedResult=await gameApp(new Request(url+"/api/dictionary/turkish?word=supplant",{headers:authHeaders()}));
+  assert.equal(protectedResult.status,409);
+  assert.equal((await protectedResult.json()).code,"DICTIONARY_ANSWER_PROTECTED");
+  const generator=await gameApp(new Request(url+"/api/lexicon/examples/draft",{
+    method:"POST",headers:{...authHeaders(),"content-type":"application/json"},
+    body:JSON.stringify({word:"obtain"}),
+  }));
+  assert.equal(generator.status,409);
+  assert.equal((await generator.json()).code,"INSPECTOR_DURING_ASSESSMENT");
+  assert.equal(values.dictionary,before.dictionary+1);
+  assert.equal(values.draft,before.draft);
+  assert.equal(values.quota,before.quota);
 });

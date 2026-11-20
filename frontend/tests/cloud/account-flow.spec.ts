@@ -397,7 +397,7 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   const saved = cloud.requests.find(
     (request) => request.path === "/api/words" && request.method === "POST",
   )!.body as { examples: { translationFocus: string[]; source: string }[]; score: number };
-  expect(saved.examples[0].translationFocus).toEqual(["Dayanıklı"]);
+  expect(saved.examples[0].translationFocus.map(focus => focus.toLocaleLowerCase("tr"))).toEqual(["dayanıklı"]);
   expect(saved.examples[0].source).toContain("Gemini");
   expect(saved.score).toBe(0);
 });

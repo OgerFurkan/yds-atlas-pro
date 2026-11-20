@@ -19,6 +19,7 @@ import {
 } from "@/features/word-library/components/library-view-tabs";
 import { WordFormDialog } from "@/features/word-library/components/word-form-dialog";
 import { LegacyTierUpgrade } from "@/features/word-library/components/legacy-tier-upgrade";
+import { TooltipBackfill } from "@/features/word-library/components/tooltip-backfill";
 import { WordList } from "@/features/word-library/components/word-list";
 import { useDailyPlan } from "@/features/word-library/hooks/use-daily-plan";
 import { useWordLibraryView } from "@/features/word-library/hooks/use-word-library-view";
@@ -357,6 +358,7 @@ export function WordLibraryPage({
           <div id="library-word-controls" className="mt-4">
             <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
             <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} />
+             <TooltipBackfill onNotify={onNotify} />
           </div>
 
           <section

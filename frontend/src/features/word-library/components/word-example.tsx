@@ -35,10 +35,12 @@ export function WordExample({
   word,
   example,
   compact = false,
+  allowDuringGame = false,
 }: {
   word: WordEntry;
   example: Example;
   compact?: boolean;
+  allowDuringGame?: boolean;
 }) {
   const seed = getStarterWord(word.word)?.examples.find(
     (item) => item.sentence === example.sentence,
@@ -61,7 +63,7 @@ export function WordExample({
       }
     >
       <p className="text-sm leading-7 text-slate-700 sm:text-base">
-        <SentenceWordTooltips text={example.sentence} focusWord={word} />
+        <SentenceWordTooltips text={example.sentence} focusWord={word} allowDuringGame={allowDuringGame} />
       </p>
       <p className="text-sm leading-7 text-slate-600">
         {translation ? (

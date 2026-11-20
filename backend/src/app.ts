@@ -17,6 +17,7 @@ import {
   generateWordList,
 } from "./features/ai/gemini";
 import { geminiPoolStatus } from "./features/ai/gemini-keys";
+import { geminiCapacityStatus } from "./features/ai/gemini-request";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
 import { inspectFeedback, assertFeedbackWordBinding, assertNoActiveAssessment, assertGameSafeDictionaryWord } from "./features/feedback/inspector-service";
@@ -78,9 +79,12 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             status: "ok",
             databaseConfigured: !!(config.SUPABASE_URL && config.SUPABASE_PUBLISHABLE_KEY),
             aiConfigured: !!(config.GEMINI_KEYS.length && config.SUPABASE_SECRET_KEY),
+            tooltip: { enabled: sentencePrefetchEnabled(config) },
             ai: {
               configured: !!(config.GEMINI_KEYS.length && config.SUPABASE_SECRET_KEY),
               keyCount: config.GEMINI_KEYS.length,
+              projectGroupsConfigured: (config.GEMINI_KEY_GROUP_IDS?.length ?? 0) === config.GEMINI_KEYS.length && config.GEMINI_KEYS.length > 0,
+              ...geminiCapacityStatus(),
               quotaConfigured: !!config.SUPABASE_SECRET_KEY,
               modelWord: config.GEMINI_MODEL_WORD,
               modelChat: config.GEMINI_MODEL_CHAT,

@@ -7,7 +7,7 @@ import { thinkingConfigFor } from "./gemini-generation";
 const RATE_LIMIT_FALLBACK_SECONDS = 60;
 const AUTH_COOLDOWN_SECONDS = 600;
 
-const TRANSIENT_UPSTREAM_STATUSES = new Set([500, 502, 503, 504]);
+const TRANSIENT_UPSTREAM_STATUSES = new Set([408, 500, 502, 503, 504]);
 // Separate model capacity can fail independently of API key quotas.
 // Keep the secondary model in the Lite family: no higher-cost model escalation.
 const PRIMARY_LITE_MODEL = "gemini-3.5-flash-lite";
@@ -21,6 +21,7 @@ export function resolvedGeminiModel(response: Response, requested: string) {
   return servedModels.get(response) ?? requested;
 }
 export function resetGeminiModelCapacity() { modelCapacityUntil = 0; }
+export function geminiCapacityStatus() { return { primaryModelCooling: modelCapacityUntil > Date.now() }; }
 
 // Uses the same combined signal as fetch, so both user cancellation and the
 // request-wide timeout interrupt the backoff immediately.
@@ -83,10 +84,18 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
   let lastTransient: Response | undefined;
   let lastNetworkFailure = false;
   let sawKeyFailure = false;
+  const groups = config.GEMINI_KEY_GROUP_IDS ?? [];
+  const groupOf = (key: string) => groups[keys.indexOf(key)] ?? ("unknown-" + keys.indexOf(key));
+  const coolProject = (key: string, reason: "rate_limit" | "auth", seconds: number) => {
+    const group = groupOf(key);
+    for (const candidate of keys)
+      if (groupOf(candidate) === group) coolGeminiKey(model, candidate, reason, seconds);
+  };
   let transientFailures = 0;
   // Upstream 503 usually means model capacity, not exhausted project quota.
   // Try no more than 3 projects per call; 429 may use the whole key pool.
-  const maxTransientAttempts = Math.min(3, keys.length * 3);
+  // Model capacity cannot be repaired by hitting five keys on the same model.
+  const maxTransientAttempts = model === PRIMARY_LITE_MODEL ? 1 : Math.min(3, keys.length * 3);
   const perKeyRetries = keys.length === 1 ? 2 : 0;
   let repeatedSingleKey = 0;
   let singleRetryAllowed = false;
@@ -133,7 +142,7 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
     if (response.status === 429) {
       sawKeyFailure = true;
       const wait = (await retryDelaySeconds(response)) ?? RATE_LIMIT_FALLBACK_SECONDS;
-      coolGeminiKey(model, apiKey, "rate_limit", wait);
+      coolProject(apiKey, "rate_limit", wait);
       console.error({ service, stage: "key_rotation", status: 429, retryInSeconds: wait });
       continue;
     }
@@ -159,6 +168,14 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
         console.error({ service, stage: "key_rotation", status: response.status });
         continue;
       }
+      if (response.status === 404 && model === PRIMARY_LITE_MODEL &&
+          !sawKeyFailure && request.timeoutMs - (Date.now() - startedAt) >= MIN_FALLBACK_BUDGET_MS) {
+        console.warn({service,stage:"model_unavailable_fallback",fromModel:model,toModel:FALLBACK_LITE_MODEL,status:404});
+        const recovered = await requestGeminiContent({...request,model:FALLBACK_LITE_MODEL,
+          timeoutMs:request.timeoutMs - (Date.now() - startedAt)});
+        servedModels.set(recovered,resolvedGeminiModel(recovered,FALLBACK_LITE_MODEL));
+        return recovered;
+      }
       if (TRANSIENT_UPSTREAM_STATUSES.has(response.status)) {
         lastTransient = response;
         singleRetryAllowed = true;
@@ -180,7 +197,7 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
     const remainingMs = request.timeoutMs - (Date.now() - startedAt);
     if (
       model === PRIMARY_LITE_MODEL &&
-      lastTransient.status === 503 &&
+      TRANSIENT_UPSTREAM_STATUSES.has(lastTransient.status) &&
       !sawKeyFailure &&
       remainingMs >= MIN_FALLBACK_BUDGET_MS
     ) {
@@ -188,7 +205,7 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
       // This capacity gate is process-local and resets on restart.
       modelCapacityUntil = Date.now() + MODEL_CAPACITY_COOLDOWN_MS;
       console.warn({ service, stage: "model_fallback",
-        fromModel: model, toModel: FALLBACK_LITE_MODEL, status: 503 });
+        fromModel: model, toModel: FALLBACK_LITE_MODEL, status: lastTransient.status });
       const recovered = await requestGeminiContent({
         ...request,
         model: FALLBACK_LITE_MODEL,

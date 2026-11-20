@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { inspectFromPool, lookupOpenTurkishDictionary, INSPECTOR_UI_ENABLED, type InspectorResult, type OpenTurkishDictionary } from "@/features/word-inspector/api/word-inspector-api";
 import { ApiError } from "@/shared/api/api-client";
 import {
@@ -39,6 +40,55 @@ export function SentenceVocabularyProvider({ words, enabled = true, userId = nul
   const value = useMemo(() => ({index, enabled, userId, allowPoolLookup: allowPoolLookup && INSPECTOR_UI_ENABLED && enabled && !!userId}),
     [index, enabled, userId, allowPoolLookup]);
   return <VocabularyContext.Provider value={value}>{children}</VocabularyContext.Provider>;
+}
+
+type TooltipPlacement = { x: number; y: number; below: boolean; maxHeight: number };
+
+/** A fixed portal escapes card/dialog overflow, and follows the anchored word on scroll. */
+function ViewportTooltip({ anchor, id, children }: {
+  anchor: HTMLElement | null; id: string; children: ReactNode;
+}) {
+  const [placement, setPlacement] = useState<TooltipPlacement | null>(null);
+  useEffect(() => {
+    if (!anchor) { setPlacement(null); return; }
+    function align() {
+      if (!anchor?.isConnected) { setPlacement(null); return; }
+      const rect = anchor.getBoundingClientRect();
+      const width = Math.min(272, Math.max(160, window.innerWidth - 24));
+      const half = width / 2;
+      const x = Math.max(half + 12, Math.min(window.innerWidth - half - 12, rect.left + rect.width / 2));
+      const below = rect.top < 180 && window.innerHeight - rect.bottom > rect.top;
+      const remaining = below ? window.innerHeight - rect.bottom - 18 : rect.top - 18;
+      setPlacement({
+        x, y: below ? rect.bottom + 8 : rect.top - 8, below,
+        maxHeight: Math.max(48, Math.min(320, remaining)),
+      });
+    }
+    align();
+    window.addEventListener("resize", align);
+    window.addEventListener("scroll", align, true);
+    return () => {
+      window.removeEventListener("resize", align);
+      window.removeEventListener("scroll", align, true);
+    };
+  }, [anchor]);
+  if (!placement || typeof document === "undefined") return null;
+  return createPortal(
+    <span
+      id={id}
+      role="tooltip"
+      data-testid="sentence-word-definition"
+      style={{
+        position: "fixed", top: placement.y, left: placement.x,
+        maxWidth: "min(17rem, calc(100vw - 24px))",
+        maxHeight: placement.maxHeight,
+        overflowY: "auto",
+      }}
+      className={"z-[9999] block w-max rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl -translate-x-1/2 " +
+        (placement.below ? "" : "-translate-y-full")}
+    >{children}</span>,
+    document.body,
+  );
 }
 
 /** No hover network calls, AI calls, writes or answer-key disclosures. Explicit-click cache-only GET only. */
@@ -83,6 +133,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
   const id = useId().replace(/:/g, "");
   const [active, setActive] = useState<number | null>(null);
   const [pinned, setPinned] = useState(false);
+  const [activeAnchor, setActiveAnchor] = useState<HTMLElement | null>(null);
 
   if (!enabled && !allowDuringGame) {
     const focus = focusWord?.word.toLocaleLowerCase("en");
@@ -118,7 +169,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
         cached?.status === "choices" ? cached.meanings.join(" · ") :
         cached?.status === "missing" ? "Güvenilir kaynaklarda Türkçe karşılık bulunamadı" :
         cached?.status === "error" ? "Sözlük şu anda kullanılamıyor" :
-        loadingWord === key ? "Ortak havuzda aranıyor…" : "Kütüphanende henüz kayıtlı değil";
+        loadingWord === key ? "Ortak havuzda aranıyor…" : "Bu kelimenin Türkçe anlamı henüz hazır değil";
       return <span key={part.offset} className="relative inline" onMouseLeave={() => {
         if (!pinned) setActive(null);
       }}>
@@ -126,12 +177,12 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           aria-label={`${part.text}: ${description}`}
           aria-describedby={show ? tooltipId : undefined}
           aria-expanded={show && pinned}
-          onMouseEnter={() => { if (!pinned) setActive(part.offset); }}
-          onFocus={() => setActive(part.offset)}
+          onMouseEnter={(event) => { if (!pinned) { setActiveAnchor(event.currentTarget); setActive(part.offset); } }}
+          onFocus={(event) => { setActiveAnchor(event.currentTarget); setActive(part.offset); }}
           onBlur={() => { if (!pinned) setActive(null); }}
-          onClick={() => {
+          onClick={(event) => {
             if (show && pinned) { setActive(null); setPinned(false); }
-            else { setActive(part.offset); setPinned(true);
+            else { setActiveAnchor(event.currentTarget); setActive(part.offset); setPinned(true);
               if (!matches.length && !cached && allowPoolLookup) loadFromPool(key);
             }
           }}
@@ -139,10 +190,7 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
         >
           {isFocus ? <strong className="font-bold italic">{part.text}</strong> : part.text}
         </button>
-        {show && <span id={tooltipId} role="tooltip"
-          data-testid="sentence-word-definition"
-          className="absolute bottom-[calc(100%+0.45rem)] left-1/2 z-60 block w-max max-w-[min(17rem,85vw)] -translate-x-1/2 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-left text-xs font-normal leading-5 text-white shadow-xl"
-        >
+        {show && <ViewportTooltip anchor={activeAnchor} id={tooltipId}>
           <span className="block font-semibold capitalize">{main?.word ?? part.text}</span>
           {main && <span className="block text-slate-300">{main.partOfSpeech}{main.cefr && main.cefr !== "Belirtilmedi" ? ` · ${main.cefr}` : ""}</span>}
           <span className="mt-1 block">{description}</span>
@@ -155,8 +203,8 @@ export function SentenceWordTooltips({ text, focusWord, allowDuringGame = false 
           </span>}
           {cached?.status === "choices" && <span className="block text-slate-300">Birden fazla anlam bulundu. Inspector'da uygun anlamı seç.</span>}
           {!main && allowPoolLookup && !cached && <span className="block text-slate-300">Ortak sözlükte aramak için kelimeye tıkla.</span>}
-          {!main && (!allowPoolLookup || cached?.status === "missing") && <span className="block text-slate-300">Kelimeyi Inspector'da arayabilirsin.</span>}
-        </span>}
+          {!main && (!allowPoolLookup || cached?.status === "missing") && <span className="block text-slate-300">Oyun bittikten sonra Inspector'da arayabilirsin.</span>}
+        </ViewportTooltip>}
       </span>;
     })}
   </span>;

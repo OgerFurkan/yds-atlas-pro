@@ -160,3 +160,33 @@ test("a primary input rejection is not bypassed through another provider",async(
     .rejects.toMatchObject({status:503,code:"DICTIONARY_UPSTREAM_ERROR"});
   expect(visited).toHaveLength(1);
 });
+
+
+test("transient primary outage plus absent secondary gloss is not cached as missing",async()=>{
+  const word="origin";
+  const visited:string[]=[];
+  const fetcher=async(input:unknown)=>{
+    const url=String(input);visited.push(url);
+    if(visited.length===1)return new Response("{}",{status:503});
+    if(visited.length<=3)return new Response("{}",{status:404});
+    return Response.json(turkish(word,[nouns(word,"kaynak")]));
+  };
+  await expect(lookupPublicTurkish(word,"transient-outage-safe",fetcher as typeof fetch))
+    .rejects.toMatchObject({status:503,code:"DICTIONARY_UPSTREAM_ERROR"});
+  const next=await lookupPublicTurkish(word,"transient-outage-safe",fetcher as typeof fetch);
+  expect(next.status).toBe("ready");
+  expect(next.source?.provider).toBe("Wiktapi / Turkish Wiktionary");
+  expect(visited).toHaveLength(4);
+});
+
+test("primary rate limit plus missing secondary remains a rate-limit error",async()=>{
+  const word="precede";
+  let calls=0;
+  const fetcher=async()=>{
+    calls++;
+    return new Response("{}",{status:calls===1?429:404});
+  };
+  await expect(lookupPublicTurkish(word,"transient-quota-guard",fetcher as typeof fetch))
+    .rejects.toMatchObject({status:429,code:"DICTIONARY_RATE_LIMIT"});
+  expect(calls).toBe(2);
+});

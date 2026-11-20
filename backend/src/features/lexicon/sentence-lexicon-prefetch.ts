@@ -73,7 +73,8 @@ function verifyShortGloss(row: GlossRow, word: string) {
   if (row.word_key !== word || row.part_of_speech !== "Tooltip" ||
       row.status !== "machine_validated" || row.content?.kind !== KIND ||
       row.provenance?.kind !== KIND || row.provenance?.license !== "CC BY-SA 4.0" ||
-      row.provenance?.provider !== "FreeDictionaryAPI.com / Wiktionary") return null;
+      !["FreeDictionaryAPI.com / Wiktionary","Wiktapi / Turkish Wiktionary"].includes(
+        String(row.provenance?.provider))) return null;
   const meanings = row.content.meanings;
   const originalPart = row.content.originalPartOfSpeech;
   if (!Array.isArray(meanings) || meanings.length < 1 || meanings.length > 4 ||
@@ -81,9 +82,12 @@ function verifyShortGloss(row: GlossRow, word: string) {
       typeof originalPart !== "string" || originalPart.length > 35) return null;
   try {
     const url = new URL(String(row.provenance.url));
-    if (url.protocol !== "https:" || url.hostname !== "en.wiktionary.org" ||
+    const host=row.provenance.provider==="Wiktapi / Turkish Wiktionary"
+      ? "tr.wiktionary.org" : "en.wiktionary.org";
+    if (url.protocol !== "https:" || url.hostname !== host ||
         !url.pathname.startsWith("/wiki/") || url.username || url.password) return null;
-    return { word, partOfSpeech: originalPart, meanings: meanings as string[], url: url.href };
+    return { word, partOfSpeech: originalPart, meanings: meanings as string[],
+      url: url.href, provider:row.provenance.provider as NonNullable<PublicTurkishResult["source"]>["provider"] };
   } catch { return null; }
 }
 
@@ -102,7 +106,8 @@ export function buildTooltipRecord(word: string, dictionary: PublicTurkishResult
   if (!["ready", "choices"].includes(dictionary.status) ||
       dictionary.entries.length < 1 || dictionary.entries.length > 8 ||
       dictionary.word !== word || dictionary.source?.license !== "CC BY-SA 4.0" ||
-      dictionary.source?.provider !== "FreeDictionaryAPI.com / Wiktionary" ||
+      !["FreeDictionaryAPI.com / Wiktionary","Wiktapi / Turkish Wiktionary"].includes(
+        String(dictionary.source?.provider)) ||
       dictionary.source?.licenseUrl !== "https://creativecommons.org/licenses/by-sa/4.0/") return null;
   const source = dictionary.source;
   if (!source || dictionary.entries.some(e => !e.meanings.length || e.meanings.length > 8)) return null;
@@ -116,8 +121,10 @@ export function buildTooltipRecord(word: string, dictionary: PublicTurkishResult
   const meanings = glosses.filter(item => item.length > 0 && item.length <= 85).slice(0, 4);
   if (!meanings.length) return null;
   const sourceUrl = new URL(source.url);
-  if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== "en.wiktionary.org" ||
-      !sourceUrl.pathname.startsWith("/wiki/")) return null;
+  const host=source.provider==="Wiktapi / Turkish Wiktionary"
+    ? "tr.wiktionary.org" : "en.wiktionary.org";
+  if (sourceUrl.protocol !== "https:" || sourceUrl.hostname !== host ||
+      sourceUrl.username || sourceUrl.password || !sourceUrl.pathname.startsWith("/wiki/")) return null;
   // Match PR #17's canonical short-gloss shape. A tooltip-only entry is NEVER a
   // verified five-example YDS entry; it must remain excluded from editorial use.
   const content = { kind: KIND, word, partOfSpeech: "Tooltip",

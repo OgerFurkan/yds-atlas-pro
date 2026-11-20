@@ -12,6 +12,23 @@ async function expectNoOverflow(page: Page) {
   );
 }
 
+
+test("old sentence tooltip import is visible but cannot run without explicit consent", async ({ page }) => {
+  let posted = 0;
+  await page.route("**/api/lexicon/tooltip/backfill", route => {
+    posted++;
+    return route.fulfill({status: 200, contentType: "application/json",
+      body: JSON.stringify({status:"queued",scannedWords:0,scannedSentences:0,
+        distinctCandidates:0,queuedCandidates:0,deduplicatedGlobally:true,mayBeIncomplete:false})});
+  });
+  await page.goto("/#library");
+  const start = page.getByRole("button", {name:"Eski cümleleri sözlüğe ekle"});
+  await expect(start).toBeVisible();
+  page.once("dialog", dialog => dialog.dismiss());
+  await start.click();
+  expect(posted).toBe(0);
+});
+
 test("single and bulk imports normalize words, review spelling and skip duplicates", async ({
   page,
 }) => {

@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { ServerConfig } from "../src/config/env";
-import { requestGeminiContent } from "../src/features/ai/gemini-request";
+import { requestGeminiContent, resolvedGeminiModel, resetGeminiModelCapacity } from "../src/features/ai/gemini-request";
 
 type FetchMock = (url: unknown, init?: RequestInit) => Promise<Response>;
 
@@ -16,28 +16,32 @@ function request(fetcher: FetchMock, service = "gemini-chat", keys = ["test-key-
 }
 
 test("chat switches to 3.1 Flash-Lite after primary 503 responses", async () => {
+  resetGeminiModelCapacity();
   const visited: string[] = [];
   const response = await request(async (url) => {
     visited.push(String(url));
     return new Response("{}", { status: String(url).includes("gemini-3.1-flash-lite") ? 200 : 503 });
   });
   expect(response.status).toBe(200);
+  expect(resolvedGeminiModel(response, "gemini-3.5-flash-lite")).toBe("gemini-3.1-flash-lite");
   expect(visited.filter((url) => url.includes("gemini-3.5-flash-lite"))).toHaveLength(2);
   expect(visited.filter((url) => url.includes("gemini-3.1-flash-lite"))).toHaveLength(1);
 });
 
-test("word generation does not switch models after upstream failures", async () => {
+test("word generation switches to cheaper Lite fallback after provider 503", async () => {
+  resetGeminiModelCapacity();
   const visited: string[] = [];
   const response = await request(async (url) => {
     visited.push(String(url));
-    return new Response("{}", { status: 503 });
+    return new Response("{}", { status: String(url).includes("gemini-3.1-flash-lite") ? 200 : 503 });
   }, "gemini-word");
-  expect(response.status).toBe(503);
-  expect(visited).toHaveLength(2);
-  expect(visited.every((url) => url.includes("gemini-3.5-flash-lite"))).toBe(true);
+  expect(response.status).toBe(200);
+  expect(visited).toHaveLength(3);
+  expect(resolvedGeminiModel(response, "gemini-3.5-flash-lite")).toBe("gemini-3.1-flash-lite");
 });
 
 test("429 does not switch chat models or evade project quota", async () => {
+  resetGeminiModelCapacity();
   const visited: string[] = [];
   await expect(request(async (url) => {
     visited.push(String(url));
@@ -48,6 +52,7 @@ test("429 does not switch chat models or evade project quota", async () => {
 });
 
 test("both unavailable models stop after a bounded number of requests", async () => {
+  resetGeminiModelCapacity();
   const visited: string[] = [];
   const response = await request(async (url) => {
     visited.push(String(url));
@@ -56,4 +61,31 @@ test("both unavailable models stop after a bounded number of requests", async ()
   expect(response.status).toBe(503);
   expect(visited.filter((url) => url.includes("gemini-3.5-flash-lite"))).toHaveLength(3);
   expect(visited.filter((url) => url.includes("gemini-3.1-flash-lite"))).toHaveLength(3);
+});
+
+test("a 503 opens a brief model-capacity gate for subsequent word requests", async () => {
+  resetGeminiModelCapacity();
+  const visited: string[] = [];
+  const fetcher: FetchMock = async url => {
+    visited.push(String(url));
+    return new Response("{}", {status:String(url).includes("3.1-flash-lite") ? 200 : 503});
+  };
+  await request(fetcher,"gemini-word");
+  visited.length=0;
+  const response=await request(fetcher,"gemini-tiered-sentence");
+  expect(response.status).toBe(200);
+  expect(visited).toHaveLength(1);
+  expect(visited[0]).toContain("gemini-3.1-flash-lite");
+  resetGeminiModelCapacity();
+});
+test("primary model missing (404) cannot be disguised as successful fallback",async()=>{
+  resetGeminiModelCapacity();
+  const visited:string[]=[];
+  const response=await request(async url=>{
+    visited.push(String(url));
+    return new Response("{}",{status:404});
+  },"gemini-word-list");
+  expect(response.status).toBe(404);
+  expect(visited).toHaveLength(1);
+  resetGeminiModelCapacity();
 });

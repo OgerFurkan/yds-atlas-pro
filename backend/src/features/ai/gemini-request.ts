@@ -8,10 +8,19 @@ const RATE_LIMIT_FALLBACK_SECONDS = 60;
 const AUTH_COOLDOWN_SECONDS = 600;
 
 const TRANSIENT_UPSTREAM_STATUSES = new Set([500, 502, 503, 504]);
-// Separate Google model capacities can fail independently. This is a bounded
-// safety net for chat only; authentication and quota failures never trigger it.
-const CHAT_FALLBACK_MODEL = "gemini-3.1-flash-lite";
-const MIN_CHAT_FALLBACK_BUDGET_MS = 4_000;
+// Separate model capacity can fail independently of API key quotas.
+// Keep the secondary model in the Lite family: no higher-cost model escalation.
+const PRIMARY_LITE_MODEL = "gemini-3.5-flash-lite";
+const FALLBACK_LITE_MODEL = "gemini-3.1-flash-lite";
+const MIN_FALLBACK_BUDGET_MS = 4_000;
+const MODEL_CAPACITY_COOLDOWN_MS = 90_000;
+let modelCapacityUntil = 0;
+// Provider response metadata is private to the server; never forwarded as a key.
+const servedModels = new WeakMap<Response, string>();
+export function resolvedGeminiModel(response: Response, requested: string) {
+  return servedModels.get(response) ?? requested;
+}
+export function resetGeminiModelCapacity() { modelCapacityUntil = 0; }
 
 // Uses the same combined signal as fetch, so both user cancellation and the
 // request-wide timeout interrupt the backoff immediately.
@@ -56,6 +65,14 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
   if (!keys.length)
     throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
 
+  // Do not repeatedly hammer an overloaded model on every incoming request.
+  // All tasks (word, 2/1/2 sentence, batch and chat) share the fallback.
+  if (model === PRIMARY_LITE_MODEL && modelCapacityUntil > Date.now() &&
+      request.timeoutMs >= MIN_FALLBACK_BUDGET_MS && !request.signal?.aborted) {
+    const recovered = await requestGeminiContent({ ...request, model: FALLBACK_LITE_MODEL });
+    servedModels.set(recovered, resolvedGeminiModel(recovered, FALLBACK_LITE_MODEL));
+    return recovered;
+  }
   // A single deadline covers every key and retry. A slow upstream must not
   // multiply the caller's timeout by the number of configured projects.
   const timeout = AbortSignal.timeout(request.timeoutMs);
@@ -162,26 +179,23 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
   if (lastTransient) {
     const remainingMs = request.timeoutMs - (Date.now() - startedAt);
     if (
-      service === "gemini-chat" &&
-      model === "gemini-3.5-flash-lite" &&
+      model === PRIMARY_LITE_MODEL &&
+      lastTransient.status === 503 &&
       !sawKeyFailure &&
-      remainingMs >= MIN_CHAT_FALLBACK_BUDGET_MS
+      remainingMs >= MIN_FALLBACK_BUDGET_MS
     ) {
-      // When all attempted projects hit a temporary upstream failure, switching
-      // keys is ineffective. Try another supported Lite model exactly once.
-      // The recursive call cannot fallback again: its model is different.
-      console.warn({
-        service,
-        stage: "model_fallback",
-        fromModel: model,
-        toModel: CHAT_FALLBACK_MODEL,
-        status: lastTransient.status,
-      });
-      return requestGeminiContent({
+      // Retry on a different low-cost model; never mask auth/quota errors.
+      // This capacity gate is process-local and resets on restart.
+      modelCapacityUntil = Date.now() + MODEL_CAPACITY_COOLDOWN_MS;
+      console.warn({ service, stage: "model_fallback",
+        fromModel: model, toModel: FALLBACK_LITE_MODEL, status: 503 });
+      const recovered = await requestGeminiContent({
         ...request,
-        model: CHAT_FALLBACK_MODEL,
+        model: FALLBACK_LITE_MODEL,
         timeoutMs: remainingMs,
       });
+      servedModels.set(recovered, resolvedGeminiModel(recovered, FALLBACK_LITE_MODEL));
+      return recovered;
     }
     return lastTransient;
   }

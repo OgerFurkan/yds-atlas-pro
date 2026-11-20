@@ -3,7 +3,7 @@ import type { ServerConfig } from "../../config/env";
 import { HttpError } from "../../shared/errors";
 import { assertGeminiResponse } from "./gemini-errors";
 import { thinkingConfigFor } from "./gemini-generation";
-import { requestGeminiContent } from "./gemini-request";
+import { requestGeminiContent, resolvedGeminiModel } from "./gemini-request";
 
 export async function generateChatReply(
   input: AiChatRequest,
@@ -61,7 +61,7 @@ export async function generateChatReply(
     return aiChatResponseSchema.parse({
       reply,
       provider: "Gemini",
-      model: config.GEMINI_MODEL_CHAT,
+      model: resolvedGeminiModel(response, config.GEMINI_MODEL_CHAT),
     });
   } catch {
     throw new HttpError(502, "Atlas geçerli bir yanıt üretemedi.", "AI_INVALID_RESPONSE");

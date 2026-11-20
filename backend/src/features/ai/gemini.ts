@@ -8,7 +8,7 @@ import { z } from "zod";
 import type { ServerConfig } from "../../config/env";
 import { HttpError } from "../../shared/errors";
 import { lookupDictionaryWord } from "./dictionary-api";
-import { parseGeminiJson, requestGeminiJson } from "./gemini-request";
+import { parseGeminiJson, requestGeminiJson, resolvedGeminiModel } from "./gemini-request";
 
 function escaped(value: string) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").toLocaleLowerCase("en");
@@ -105,7 +105,7 @@ export async function generateWord(
     return {
       suggestion,
       provider: "Gemini",
-      model: config.GEMINI_MODEL_WORD,
+      model: resolvedGeminiModel(response, config.GEMINI_MODEL_WORD),
       dictionarySource,
     };
   } catch {
@@ -137,6 +137,7 @@ export async function generateWordList(
   const expected = requested ? new Set(requested.map(keyOf)) : undefined;
   const accepted = new Map<string, AiWordListResponse["suggestions"][number]>();
   let providerFailure: unknown;
+  const modelsUsed = new Set<string>();
 
   for (let pass = 0; pass < 2 && accepted.size < count; pass++) {
     const remaining = count - accepted.size;
@@ -182,6 +183,7 @@ export async function generateWordList(
       };
       const candidate = payload.candidates?.[0];
       if (candidate?.finishReason !== "STOP") throw new Error("incomplete generation");
+      modelsUsed.add(resolvedGeminiModel(response, config.GEMINI_MODEL_WORD));
       const text =
         candidate.content?.parts
           ?.filter((part) => !part.thought)
@@ -235,7 +237,7 @@ export async function generateWordList(
   return {
     suggestions,
     provider: "Gemini",
-    model: config.GEMINI_MODEL_WORD,
+    model: modelsUsed.size === 1 ? [...modelsUsed][0] : modelsUsed.size > 1 ? [...modelsUsed].join(" + ") : config.GEMINI_MODEL_WORD,
     dictionarySources: dictionarySources.filter((source) => accepted.has(keyOf(source.word))),
   };
 }

@@ -171,6 +171,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           const input = wordInputSchema.parse(await readJson(request));
           await assertFeedbackWordBinding(config, input);
           result = await saveWord(ctx, input, id);
+          if (sentencePrefetchEnabled(config)) queueSentenceWords(input.examples.map(e => e.sentence));
         } else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");
       } else if (path === "/api/account" && request.method === "GET")

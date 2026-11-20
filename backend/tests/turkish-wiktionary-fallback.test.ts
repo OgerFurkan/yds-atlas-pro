@@ -102,3 +102,61 @@ test("explicit wrong-language compact entry is excluded",()=>{
   }]};
   expect(parseTurkishWiktionaryGloss("house",compact).status).toBe("missing");
 });
+
+
+test.each([
+  [429, "initial"],
+  [502, "subsequent"],
+  [503, "resilient"],
+  [504, "consequence"],
+] as const)("primary HTTP %i uses Turkish Wiktionary for %s without inventing a gloss",async(status,word)=>{
+  const visited:string[]=[];
+  const fetcher=async (input:unknown)=>{
+    const url=String(input); visited.push(url);
+    return url.includes("freedictionaryapi.com")
+      ? new Response("{}",{status})
+      : Response.json(turkish(word,[nouns(word,"sınama anlamı")]));
+  };
+  const gloss=await lookupPublicTurkish(word,"fallback-"+word,fetcher as typeof fetch);
+  expect(gloss.status).toBe("ready");
+  expect(gloss.source?.provider).toBe("Wiktapi / Turkish Wiktionary");
+  expect(gloss.source?.url).toBe("https://tr.wiktionary.org/wiki/"+word);
+  expect(visited).toHaveLength(2);
+  expect(visited[1]).toContain("/v1/tr/word/"+word+"?lang=en");
+});
+
+test("a transient primary network failure independently retries the licensed Turkish provider",async()=>{
+  const visited:string[]=[];
+  const word="mitigate";
+  const fetcher=async (input:unknown)=>{
+    const url=String(input);visited.push(url);
+    if(url.includes("freedictionaryapi.com")) throw new Error("synthetic connection reset");
+    return Response.json(turkish(word,[nouns(word,"azaltma")]));
+  };
+  const gloss=await lookupPublicTurkish(word,"fallback-network-synthetic",fetcher as typeof fetch);
+  expect(gloss.status).toBe("ready");
+  expect(gloss.entries[0].meanings).toEqual(["azaltma"]);
+  expect(visited).toHaveLength(2);
+});
+
+test("both providers failing returns a real error, never a fabricated Turkish meaning",async()=>{
+  const visited:string[]=[];
+  const fetcher=async (input:unknown)=>{
+    visited.push(String(input));
+    return new Response("{}",{status:503});
+  };
+  await expect(lookupPublicTurkish("deteriorate","fallback-both-down",fetcher as typeof fetch))
+    .rejects.toMatchObject({status:503,code:"DICTIONARY_UPSTREAM_ERROR"});
+  expect(visited).toHaveLength(2);
+});
+
+test("a primary input rejection is not bypassed through another provider",async()=>{
+  const visited:string[]=[];
+  const fetcher=async (input:unknown)=>{
+    visited.push(String(input));
+    return new Response("{}",{status:400});
+  };
+  await expect(lookupPublicTurkish("transient","fallback-validation-guard",fetcher as typeof fetch))
+    .rejects.toMatchObject({status:503,code:"DICTIONARY_UPSTREAM_ERROR"});
+  expect(visited).toHaveLength(1);
+});

@@ -30,6 +30,21 @@ test("legacy 2/1/2 merge keeps original examples, user score and meanings", () =
  expect(merged.usageNote).toBe("Kullanıcı notu");
  expect(existing.examples).toHaveLength(1);
 });
+test("a generated sentence collision must never erase an original personal translation", () => {
+ const personalExample = {
+  sentence: generated.examples![0].sentence,
+  translation: "Kullanıcının özenle yazdığı farklı çeviri.",
+  translationFocus: ["farklı"],
+  source: "Kullanıcı",
+ };
+ const original = { ...existing, examples: [personalExample] };
+ const saved = mergeLegacyTieredExamples(original, generated);
+ expect(saved.examples).toHaveLength(6);
+ expect(saved.examples?.slice(0,5)).toEqual(generated.examples);
+ expect(saved.examples?.[5]).toEqual(personalExample);
+ expect(original.examples).toEqual([personalExample]);
+});
+
 test("wrong word, incomplete tiers or shared-lexicon bound entry fail closed", () => {
  expect(() => mergeLegacyTieredExamples(existing, { ...generated, word:"unrelated" })).toThrow();
  expect(() => mergeLegacyTieredExamples(existing, { ...generated, examples:generated.examples?.slice(0,4)})).toThrow();

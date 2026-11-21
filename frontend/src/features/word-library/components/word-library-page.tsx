@@ -358,12 +358,11 @@ export function WordLibraryPage({
           <div id="library-word-controls" className="mt-4">
             <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
             {!loading && !loadError && words.length > 0 && (
-              <details className="mt-3 rounded-lg border border-slate-300 bg-white text-slate-800">
-                <summary className="cursor-pointer px-4 py-3 text-sm font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue">
-                  Eksik öğrenme materyallerini tamamla
-                  <span className="ml-2 font-normal text-slate-600">İsteğe bağlı · Kayıtların korunur</span>
+              <details className="mt-2 text-xs text-atlas-muted">
+                <summary className="inline-flex cursor-pointer rounded-md px-2 py-1.5 font-medium text-atlas-muted hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue">
+                  Gelişmiş kütüphane bakımı
                 </summary>
-                <div className="px-3 pb-3">
+                <div className="mt-2 space-y-2">
                   <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} />
                   <TooltipBackfill onNotify={onNotify} />
                 </div>
@@ -372,7 +371,7 @@ export function WordLibraryPage({
           </div>
 
           <section
-            className="mt-4 rounded-lg border border-slate-200 bg-white"
+            className="mt-4 overflow-hidden rounded-xl border border-border bg-card shadow-[0_5px_20px_rgba(15,35,52,0.035)]"
             aria-label={t("library.aria")}
           >
             <LibraryFilterTabs group={view.group} counts={view.counts} onChange={view.setGroup} />

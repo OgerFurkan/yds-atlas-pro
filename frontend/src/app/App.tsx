@@ -29,6 +29,8 @@ import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api
 import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
+import { needsAiMeaning, splitWordInputsByMeaning, type WordAddMode } from "@/features/word-library/model/manual-word-import";
+import { wordKey } from "@/features/word-library/model/word-normalization";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
 
 const WordInspectorPage = lazy(() =>
@@ -151,11 +153,13 @@ function AppWorkspace({
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
+    mode: WordAddMode = "auto",
   ) {
-    const [prepared] =
-      !id && auth.user
-        ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
-        : [input];
+    // User-entered meanings must save directly. Bare entries can request AI,
+    // or be explicitly kept as incomplete personal vocabulary.
+    const [prepared] = !id && auth.user && mode === "auto" && needsAiMeaning(input)
+      ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
+      : [input];
     await library.save(prepared, id);
   }
 
@@ -168,33 +172,55 @@ function AppWorkspace({
     }
   }
 
-  async function addWords(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
-    let failedWords: string[] = [];
+  async function addWords(
+    inputs: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+    mode: WordAddMode = "auto",
+  ) {
+    if (!auth.user || mode === "manual") return library.addMany(inputs);
+    const { direct, needsAi } = splitWordInputsByMeaning(inputs, library.list());
+    if (needsAi.length > 25)
+      throw new Error("AI ile en fazla 25 anlamsız kelime tamamlanabilir. Anlam ekle veya daha küçük liste seç.");
 
-    const prepared = auth.user
-      ? await prepareWordInputs(
-          inputs,
+    let generated: WordInput[] = [];
+    let failedWords: string[] = [];
+    if (needsAi.length) {
+      try {
+        generated = await prepareWordInputs(
+          needsAi,
           library.list(),
           completeWordsWithGemini,
           (progress) => {
             failedWords = progress.failedWords ?? [];
             onProgress?.(progress);
           },
-        )
-      : inputs;
+        );
+      } catch (error) {
+        // Keep directly entered meanings safe even if the AI provider is down.
+        // Do not persist bare words without the user's explicit manual choice.
+        failedWords = needsAi.map((entry) => entry.word);
+        onProgress?.({
+          completed: 0, total: needsAi.length, batchSize: 5, failedWords,
+        });
+        notify.info(error instanceof Error ? error.message : "AI eksik anlamları tamamlayamadı.");
+      }
+    }
 
-    const result = await library.addMany(prepared);
+    const ready = new Map([...direct, ...generated].map((entry) => [wordKey(entry.word), entry]));
+    const prepared = inputs.flatMap((entry) => {
+      const value = ready.get(wordKey(entry.word));
+      return value ? [value] : [];
+    });
+    const result = prepared.length
+      ? await library.addMany(prepared)
+      : { added: 0, duplicates: 0 };
 
     if (failedWords.length) {
       notify.info(
-        <span>
-          Hazir kelimeler kaydedildi. Tamamlanamayan {failedWords.length} kelime:{" "}
-          <strong>{failedWords.join(", ")}</strong>.
-          Bu kelimeleri yeniden deneyebilirsin.
-        </span>,
+        `${result.added} kelime kaydedildi. Anlamı tamamlanamayan ${failedWords.length} kelimeyi
+        tekrar deneyebilir veya AI olmadan kaydedebilirsin.`,
       );
     }
-
     return result;
   }
 

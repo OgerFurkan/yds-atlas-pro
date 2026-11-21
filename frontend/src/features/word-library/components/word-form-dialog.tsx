@@ -18,6 +18,7 @@ import { useWordSpellcheck } from "../hooks/use-word-spellcheck";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
 import { type WordFormValues, wordFormSchema } from "../model/word-form.schema";
 import { toFormValues, toWordInput } from "../model/word-form-mappers";
+import { needsAiMeaning, type WordAddMode } from "../model/manual-word-import";
 import { AiFillProgress } from "./ai-fill-progress";
 import { AiWordAssist } from "./ai-word-assist";
 import { WordMetadataFields, WordTextField } from "./word-form-fields";
@@ -30,6 +31,7 @@ interface WordFormDialogProps {
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
   ) => Promise<void>;
   onNotify: Notify;
 }
@@ -56,6 +58,7 @@ export function WordFormDialog({
   const wordField = register("word");
   const score = useWatch({ control, name: "score" });
   const currentWord = useWatch({ control, name: "word" });
+  const currentMeanings = useWatch({ control, name: "meanings" });
   const [progress, setProgress] = useState<WordFillProgress | null>(null);
   const aiSource = useRef<WordInput | undefined>(undefined);
   const spelling = useWordSpellcheck({
@@ -68,8 +71,8 @@ export function WordFormDialog({
     onNotify,
   });
 
-  async function save(values: WordFormValues, acceptedWord?: string) {
-    const spellingValue = acceptedWord ?? values.word.trim().replace(/\s+/g, " ");
+  async function save(values: WordFormValues, mode: WordAddMode = "auto") {
+    const spellingValue = values.word.trim().replace(/\s+/g, " ");
     try {
       const checked = await spelling.verify(spellingValue);
       if (!checked) return;
@@ -83,9 +86,13 @@ export function WordFormDialog({
           ? { ...example, translationFocus: original.translationFocus, source: original.source }
           : example;
       });
-      await onSave(enrichWordInput(input), word?.id, setProgress);
+      await onSave(enrichWordInput(input), word?.id, mode === "manual" ? undefined : setProgress, mode);
       onOpenChange(false);
-      onNotify.success(word ? "Kelime güncellendi." : "Kelime kütüphanene eklendi.");
+      onNotify.success(word
+        ? "Kelime güncellendi."
+        : mode === "manual" && needsAiMeaning(input)
+          ? "Kelime kaydedildi. Türkçe anlamını sonra ekleyebilirsin."
+          : "Kelime kaydedildi. Eksik bilgilerini daha sonra düzenleyebilirsin.");
     } catch (error) {
       onNotify.error(error instanceof Error ? error.message : "Kelime kaydedilemedi.");
     } finally {
@@ -136,8 +143,8 @@ export function WordFormDialog({
           <div className="flex items-start gap-2 rounded-md bg-sky-50 px-3 py-2.5 text-[10px] leading-4 text-slate-600">
             <Sparkles className="mt-0.5 shrink-0 text-atlas-blue" size={15} />
             <p>
-              Başlangıç seti çevrimdışı kullanılabilir. Giriş yaptığında yeni kelimelerin eksik
-              bilgileri Gemini ile tamamlanır; misafir kullanımında bilgileri kendin ekleyebilirsin.
+              Türkçe anlam yazdıysan kelime doğrudan kaydedilir. Anlam boşsa AI ile
+              tamamlamayı deneriz. Kaydını her zaman düzenleyebilirsin.
             </p>
           </div>
           <AiWordAssist
@@ -159,10 +166,16 @@ export function WordFormDialog({
             }}
           />
           {progress && <AiFillProgress progress={progress} />}
-          <div className="flex justify-end gap-2 border-t border-slate-100 pt-4">
+          <div className="flex flex-wrap justify-end gap-2 border-t border-slate-100 pt-4">
             <Button variant="secondary" type="button" onClick={() => onOpenChange(false)}>
               Vazgeç
             </Button>
+            {!word && !currentMeanings?.trim() && (
+              <Button variant="outline" type="button" disabled={isSubmitting || spelling.checking}
+                onClick={() => void handleSubmit((values) => save(values, "manual"))()}>
+                Yalnız kelimeyi kaydet
+              </Button>
+            )}
             <Button type="submit" disabled={isSubmitting}>
               {isSubmitting || spelling.checking ? (
                 <LoaderCircle className="animate-spin" size={15} />

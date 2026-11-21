@@ -26,6 +26,7 @@ import { useWordLibraryView } from "@/features/word-library/hooks/use-word-libra
 import { useWordSelection } from "@/features/word-library/hooks/use-word-selection";
 import type { DailyGroup } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
+import type { WordAddMode } from "@/features/word-library/model/manual-word-import";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
 import type { GroupFilter } from "@/features/word-library/model/word-library-view";
@@ -46,11 +47,13 @@ interface WordLibraryPageProps {
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
   ) => Promise<void>;
   onSaveProtected: (input: WordInput, id: string, expectedUpdatedAt: string) => Promise<void>;
   onAddMany: (
     words: WordInput[],
     onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
   ) => Promise<{ added: number; duplicates: number }>;
   onRemove: (id: string) => Promise<void>;
   onRemoveMany: (ids: string[]) => Promise<void>;
@@ -194,8 +197,8 @@ export function WordLibraryPage({
     }
   }
 
-  async function addManyToTargetDay(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
-    if (bulkTargetDay === null) return onAddMany(inputs, onProgress);
+  async function addManyToTargetDay(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void, mode?: WordAddMode) {
+    if (bulkTargetDay === null) return onAddMany(inputs, onProgress, mode);
     const day = bulkTargetDay;
     const alreadyInDay = new Set(daily.plan.groups[day - 1]?.words.map((word) => wordKey(word.word)) ?? []);
     const requested = new Set(inputs.map((input) => wordKey(input.word)).filter((key) => !alreadyInDay.has(key)));
@@ -220,7 +223,7 @@ export function WordLibraryPage({
       const result = await onAddMany(inputs, (progress) => {
         failedWords = new Set((progress.failedWords ?? []).map(wordKey));
         onProgress?.(progress);
-      });
+      }, mode);
       // Missing AI words are not saved. Retried words can be enqueued later.
       for (const key of failedWords) pending.keys.delete(key);
       if (!pending.keys.size) pendingBulk.current = null;
@@ -232,7 +235,7 @@ export function WordLibraryPage({
     }
   }
 
-  async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void) {
+  async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void, mode?: WordAddMode) {
     if (!id && createTargetDay !== null) {
       pendingCreate.current = {
         day: createTargetDay,
@@ -241,7 +244,7 @@ export function WordLibraryPage({
       };
     }
     try {
-      await onSave(input, id, onProgress);
+      await onSave(input, id, onProgress, mode);
     } catch (reason) {
       pendingCreate.current = null;
       throw reason;

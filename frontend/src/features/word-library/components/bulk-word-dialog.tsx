@@ -11,6 +11,8 @@ import {
   DialogTitle,
 } from "@/shared/ui/dialog";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
+import { type WordAddMode } from "../model/manual-word-import";
+import { wordKey } from "../model/word-normalization";
 import { WordImportReview } from "./word-import-review";
 
 interface BulkWordDialogProps {
@@ -19,6 +21,7 @@ interface BulkWordDialogProps {
   onAddMany: (
     words: WordInput[],
     onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
   ) => Promise<{ added: number; duplicates: number }>;
   onNotify: Notify;
   targetDay?: number;
@@ -26,7 +29,7 @@ interface BulkWordDialogProps {
 
 export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, targetDay }: BulkWordDialogProps) {
   const [saving, setSaving] = useState(false);
-  const [missingWords, setMissingWords] = useState<string[]>([]);
+  const [missingWords, setMissingWords] = useState<WordInput[]>([]);
   const [requestedTotal, setRequestedTotal] = useState(0);
   const [retryError, setRetryError] = useState("");
 
@@ -39,7 +42,7 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
     onOpenChange(nextOpen);
   }
 
-  async function submitWords(words: string[], onProgress?: (progress: WordFillProgress) => void) {
+  async function submitWords(words: WordInput[], onProgress?: (progress: WordFillProgress) => void, mode: WordAddMode = "auto") {
     if (saving) return;
 
     setSaving(true);
@@ -49,14 +52,16 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
 
     try {
       const result = await onAddMany(
-        words.map((word) => ({ word })),
+        words,
         (progress) => {
           failedWords = progress.failedWords ?? [];
           onProgress?.(progress);
         },
+        mode,
       );
 
-      setMissingWords(failedWords);
+      const failedKeys = new Set(failedWords.map(wordKey));
+      setMissingWords(words.filter((entry) => failedKeys.has(wordKey(entry.word))));
 
       // Keep the dialog open when some words are incomplete.
       if (failedWords.length > 0) {
@@ -95,8 +100,9 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
           <div>
             <DialogTitle>{targetDay ? `${targetDay}. güne toplu kelime ekle` : "Toplu kelime ekle"}</DialogTitle>
             <DialogDescription>
-              Yazımı incele. Giriş yaptıysan eksik bilgiler Gemini ile tamamlanır (bir seferde 25
-              kelimeye kadar); misafir kullanımında otomatik tamamlanmaz.
+              "hello = merhaba" yazarsan anlamıyla kaydederiz. Yalnız "hello" yazarsan
+              AI tamamlamayı dener. AI olmadan da kaydedebilir, sonra düzenleyebilirsin.
+              AI ile bir seferde en fazla 25 anlamsız kelime tamamlanır.
               {targetDay ? ` Tamamlanan kelimeler doğrudan ${targetDay}. güne yerleştirilir. Gün başına en fazla 40 kelime.` : ""}
             </DialogDescription>
           </div>
@@ -105,16 +111,18 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
         <div className="space-y-4 p-5">
           <WordImportReview
             busy={saving}
-            onAccept={async (words, onProgress) => {
-              // After partial completion, never resend
-              // words that were already successful.
+            onAcceptEntries={async (words, onProgress) => {
+              // After partial completion, never resend already saved words.
               if (missingWords.length > 0) {
                 await submitWords(missingWords, onProgress);
                 return;
               }
-
               setRequestedTotal(words.length);
               await submitWords(words, onProgress);
+            }}
+            onAcceptEntriesManual={async (words) => {
+              setRequestedTotal(words.length);
+              await submitWords(missingWords.length > 0 ? missingWords : words, undefined, "manual");
             }}
           />
 
@@ -126,17 +134,17 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
               <div className="flex items-center gap-2">
                 <TriangleAlert size={18} />
                 <p className="text-sm font-semibold">
-                  {readyCount}/{requestedTotal} kelime hazır
+                  {readyCount}/{requestedTotal} kelime işlendi
                 </p>
               </div>
 
               <p className="text-xs leading-relaxed">
-                Başarılı kelimeler kaydedildi. Aşağıdaki
+                Yazdığın anlamlar kaydedildi. Şu
                 {` ${missingWords.length} `}
-                kelime henüz tamamlanamadı:
+                kelimenin anlamı AI ile tamamlanamadı:
               </p>
 
-              <p className="break-words text-xs font-medium">{missingWords.join(", ")}</p>
+              <p className="break-words text-xs font-medium">{missingWords.map((entry) => entry.word).join(", ")}</p>
 
               {retryError && (
                 <p className="text-xs font-medium" role="alert">
@@ -144,11 +152,16 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
                 </p>
               )}
 
+              <p className="text-xs">İstersen yalnız kelimeleri kaydedip anlamlarını daha sonra ekleyebilirsin.</p>
+              <Button type="button" variant="secondary" disabled={saving}
+                onClick={() => void submitWords([...missingWords], undefined, "manual")}>
+                AI olmadan kaydet
+              </Button>
               <Button
                 type="button"
                 variant="outline"
                 disabled={saving}
-                onClick={() => void retryMissing()}
+                onClick={() => void retryMissing()
                 className="w-full"
               >
                 <RefreshCw size={15} className={saving ? "animate-spin" : ""} />

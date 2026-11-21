@@ -59,7 +59,7 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
     [alice]: [word("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "Evidence")],
     [bob]: [word("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Benefit")],
   };
-  const requests: { path: string; method: string; body: unknown }[] = [];
+  const requests: { path: string; method: string; body: unknown; expectedUpdatedAt?: string }[] = [];
   const accounts: Record<
     string,
     {
@@ -99,7 +99,8 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
     expect(headers.authorization).toMatch(/^Bearer /);
     expect(headers["x-user-id"]).toBeUndefined();
     const body = request.postData() ? request.postDataJSON() : null;
-    requests.push({ path, method: request.method(), body });
+    requests.push({ path, method: request.method(), body,
+      expectedUpdatedAt: headers["x-atlas-expected-updated-at"] });
     if (path === "/api/account") {
       await route.fulfill({ json: accounts[id] });
       return;
@@ -183,6 +184,11 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
       const index = libraries[id].findIndex((entry) => entry.id === updateId);
       if (index < 0) {
         await route.fulfill({ status: 404, json: { error: "Word not found" } });
+        return;
+      }
+      if (headers["x-atlas-expected-updated-at"] &&
+          headers["x-atlas-expected-updated-at"] !== libraries[id][index].updatedAt) {
+        await route.fulfill({ status: 409, json: { error: "Kelime değişti", code: "WORD_VERSION_CONFLICT" } });
         return;
       }
       const updated = {
@@ -465,6 +471,9 @@ test("six confirmed legacy words auto-upgrade on opening the library, preserving
   await expect.poll(() => cloud.requests.filter(req =>
     req.path.startsWith("/api/words/") && req.method === "PUT").length,
     { timeout: 30_000 }).toBe(6);
+  const saves = cloud.requests.filter(req => req.path.startsWith("/api/words/") && req.method === "PUT");
+  expect(saves).toHaveLength(6);
+  expect(saves.every(req => typeof req.expectedUpdatedAt === "string")).toBe(true);
   const completions = cloud.requests.filter(req => req.path === "/api/ai/words/complete");
   expect(completions).toHaveLength(2);
   expect((completions[0].body as {words:string[]}).words).toHaveLength(5);
@@ -485,6 +494,42 @@ test("six confirmed legacy words auto-upgrade on opening the library, preserving
     expect(savedExamples[5].sentence).toBe("Learners use " + name.toLowerCase() + " in context.");
     expect(savedExamples[5].source).toBe("Kullanıcı");
   }
+});
+
+test("automatic legacy repair stops on a simulated concurrent tab edit", async ({ page }) => {
+  const cloud = await mockCloud(page);
+  const initial = {
+    ...word("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "Evidence"),
+    meanings: ["Eski anlam"], score: 18,
+    examples: [{sentence:"My original evidence matters.",translation:"Kendi çevirim.",source:"Kullanıcı"}],
+  };
+  cloud.libraries[alice] = [initial];
+  await page.route("**/api/words/*", async (route) => {
+    if (route.request().method() !== "PUT") { await route.fallback(); return; }
+    // A different tab/phone saved new content while AI was preparing a draft.
+    cloud.libraries[alice][0] = {
+      ...cloud.libraries[alice][0],
+      meanings: ["Diğer sekmedeki yeni anlam"],
+      score: 79,
+      updatedAt: new Date(Date.now() + 15_000).toISOString(),
+    };
+    await route.fallback();
+  });
+  await page.goto("/");
+  await login(page);
+  await page.goto("/#library");
+  const enable = page.getByRole("button",{name:"Otomatik tamamlamayı aç"});
+  await expect(enable).toBeVisible();
+  page.once("dialog",dialog=>void dialog.accept());
+  await enable.click();
+  await expect.poll(() => cloud.requests.filter(req => req.method === "PUT" && req.path.startsWith("/api/words/")).length,
+    {timeout:30_000}).toBe(1);
+  expect(cloud.libraries[alice][0].meanings).toEqual(["Diğer sekmedeki yeni anlam"]);
+  expect(cloud.libraries[alice][0].score).toBe(79);
+  expect(cloud.libraries[alice][0].examples).toEqual(initial.examples);
+  const maintenance=page.locator("#library-word-controls details");
+  await maintenance.locator("summary").click();
+  await expect(maintenance).toContainText("başka sekmede değişti");
 });
 
 test("AI task list is previewed without saving", async ({ page }) => {

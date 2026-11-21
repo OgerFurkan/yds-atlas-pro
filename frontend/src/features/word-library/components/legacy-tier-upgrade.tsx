@@ -7,12 +7,13 @@ import { mergeLegacyTieredExamples } from "@/features/word-library/model/merge-l
 import { hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import type { Notify } from "@/shared/lib/notify";
+import { ApiError } from "@/shared/api/api-client";
 import { Button } from "@/shared/ui/button";
 
 /** Account-scoped, resumable recovery while library is open; never edits scores or removes examples. */
 export function LegacyTierUpgrade({ words, onSave, onNotify, automatic = false }: {
   words: WordEntry[];
-  onSave: (input: WordInput, id?: string) => Promise<void>;
+  onSave: (input: WordInput, id: string, expectedUpdatedAt: string) => Promise<void>;
   onNotify: Notify;
   automatic?: boolean;
 }) {
@@ -82,11 +83,16 @@ export function LegacyTierUpgrade({ words, onSave, onNotify, automatic = false }
           try {
             const generated = curated ?? aiSuggestionToWordInput(suggestion!, response!.model);
             const input = mergeLegacyTieredExamples(fresh, generated);
-            await onSave(input, fresh.id);
+            await onSave(input, fresh.id, fresh.updatedAt);
             completed++;
-          } catch {
-            // Preserve the original row and let the user retry this item later.
+          } catch (error) {
+            // Fail closed on a concurrent edit instead of overwriting newer notes or scores.
             skipped++;
+            if (error instanceof ApiError && error.status === 409) {
+              reason = "Bir kelime başka sekmede değişti; kütüphane yenilendi. İşlemi tekrar başlatabilirsin.";
+              setDone(completed + skipped);
+              break;
+            }
           }
           setDone(completed + skipped);
         }

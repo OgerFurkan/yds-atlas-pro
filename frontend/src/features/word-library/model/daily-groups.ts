@@ -1,5 +1,10 @@
 import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
-import { isGameReady } from "@/features/learning-game/model/game-engine";
+import { usableExamples } from "@/features/learning-game/model/game-engine";
+
+/** Finished days remain available for regular scored study without resetting progress. */
+export function isDayStudyReady(word: WordEntry) {
+  return word.meanings.some((meaning) => meaning.trim().length > 0) && usableExamples(word).length >= 5;
+}
 
 export const DAILY_PLAN_DAYS = 60;
 export const MIN_DAILY_GROUP_SIZE = 10;
@@ -100,7 +105,7 @@ export function buildDailyPlan(
       else if (group === "review") review += 1;
       else learned += 1;
     }
-    const playableWords = dayWords.filter(isGameReady);
+    const playableWords = dayWords.filter(isDayStudyReady);
     return {
       day: index + 1,
       words: dayWords,

@@ -26,6 +26,7 @@ import {
   dailyGroupSizes,
 } from "@/features/word-library/model/daily-groups";
 import { DailyGroupCard } from "./daily-group-card";
+import { DayReviewPanel } from "./day-review-panel";
 
 export function DailyPlanView({
   plan,
@@ -34,6 +35,7 @@ export function DailyPlanView({
   error,
   onGroupSizeChange,
   onStudyGroup,
+  accountId = null,
   onAddWord,
   onBulkAdd,
   onBulkAddForDay,
@@ -50,6 +52,7 @@ export function DailyPlanView({
   error?: string;
   onGroupSizeChange: (size: number) => void;
   onStudyGroup: (group: DailyGroup) => void;
+  accountId?: string | null;
   onAddWord: () => void;
   onBulkAdd: () => void;
   onBulkAddForDay: (day: number) => void;
@@ -62,6 +65,10 @@ export function DailyPlanView({
 }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [review, setReview] = useState<{ day: number; owner: string | null } | null>(null);
+  useEffect(() => {
+    setReview((current) => current?.owner === accountId ? current : null);
+  }, [accountId]);
   const [tourStep, setTourStep] = useState<number | null>(null);
   useEffect(() => {
     const startGuide = () => {
@@ -147,6 +154,13 @@ export function DailyPlanView({
       setBulkSelected([]);
       setBulkPickerOpen(false);
     }
+  }
+
+  // Account switch never reuses a previous account\u0027s review words.
+  if (review && review.owner === accountId) {
+    const selected = plan.groups[review.day - 1];
+    if (selected) return <DayReviewPanel key={review.day} day={review.day} words={selected.words}
+      onExit={() => setReview(null)} />;
   }
 
   return (
@@ -250,6 +264,7 @@ export function DailyPlanView({
               targetSize={groupSize}
               onOpen={openDay}
               onStudy={onStudyGroup}
+              onReview={(selected) => setReview({ day: selected.day, owner: accountId })}
             />
           ))}
         </div>
@@ -297,6 +312,10 @@ export function DailyPlanView({
                     size="sm" variant="outline" disabled={selectedGroup.playable === 0}
                     onClick={() => onStudyGroup(selectedGroup)}
                   ><BookOpenCheck size={15} /> {t("library.daily.manage.studyDay")}</Button>
+                  <Button size="sm" variant="outline" disabled={selectedGroup.total === 0}
+                    onClick={() => { setSelectedDay(null); setReview({ day: selectedDay, owner: accountId }); }}>
+                    {t("library.daily.manage.review")}
+                  </Button>
                 </div>
               </div>
 

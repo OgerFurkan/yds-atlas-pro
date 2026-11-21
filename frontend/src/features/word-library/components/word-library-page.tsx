@@ -371,6 +371,7 @@ export function WordLibraryPage({
           error={daily.error}
           onGroupSizeChange={daily.setGroupSize}
           onStudyGroup={onStudyGroup}
+          accountId={accountId}
           onAddWord={openCreate}
           onBulkAdd={openGeneralBulk}
           onBulkAddForDay={bulkAddForDay}

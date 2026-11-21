@@ -11,11 +11,15 @@ export function MatchingPanel({
   onSelect,
   onRetry,
   onNext,
+  practice = false,
+  nextLabel,
 }: {
   session: GameSession;
   onSelect: (side: "left" | "right", id: string) => void;
   onRetry: () => void;
   onNext: () => void;
+  practice?: boolean;
+  nextLabel?: string;
 }) {
   const { t } = useTranslation();
   const board = session.matching;
@@ -114,7 +118,7 @@ export function MatchingPanel({
             <div>
               <strong className="block">{t("game.allMatched")}</strong>
               <span className="text-xs">
-                {session.queue.length ? t("game.nextWords") : t("game.recallMeaning")}
+                {practice ? t("library.daily.manage.reviewBoardComplete") : session.queue.length ? t("game.nextWords") : t("game.recallMeaning")}
               </span>
             </div>
           </>
@@ -122,7 +126,7 @@ export function MatchingPanel({
           <>
             <Check size={21} />
             <span>
-              <strong>{leftWord && <SentenceWordTooltips text={leftWord.word} focusWord={leftWord} allowDuringGame />}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
+              <strong>{leftWord && (practice ? leftWord.word : <SentenceWordTooltips text={leftWord.word} focusWord={leftWord} allowDuringGame />)}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
               {t("game.pairMatched")}
             </span>
           </>
@@ -158,7 +162,7 @@ export function MatchingPanel({
       </div>
       {complete && (
         <Button id="matching-next" className="w-full sm:ml-auto sm:flex sm:w-auto" onClick={onNext}>
-          {session.queue.length ? t("game.nextMatching") : t("game.toMeaning")}
+          {nextLabel ?? (session.queue.length ? t("game.nextMatching") : t("game.toMeaning"))}
           <ArrowRight size={17} />
         </Button>
       )}

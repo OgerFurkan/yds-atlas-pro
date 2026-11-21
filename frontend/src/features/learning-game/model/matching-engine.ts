@@ -13,18 +13,21 @@ function ordered(ids: string[], seed: string) {
   return result;
 }
 
-export function startMatchingBoard(session: GameSession): GameSession {
+export function startMatchingBoard(session: GameSession, maxPairs = 5): GameSession {
   const meanings = new Set<string>();
+  const labels = new Set<string>();
   const ids: string[] = [];
   for (const id of session.queue) {
     const word = session.words.find((entry) => entry.id === id);
     if (!word) continue;
     const meaning = word.meanings[0].trim().toLocaleLowerCase("tr");
     // Identical translations belong on separate boards so every pair is unambiguous.
-    if (meanings.has(meaning)) continue;
+    const label = word.word.trim().toLocaleLowerCase("en");
+    if (meanings.has(meaning) || labels.has(label)) continue;
     meanings.add(meaning);
+    labels.add(label);
     ids.push(id);
-    if (ids.length === 5) break;
+    if (ids.length === maxPairs) break;
   }
   if (!ids.length) return session;
   return {

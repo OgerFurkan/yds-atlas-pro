@@ -133,6 +133,13 @@ function AppWorkspace({
   }
 
   function studyDailyGroup(group: DailyGroup) {
+    // Protect a saved unfinished session instead of overwriting it with the day preset.
+    if (hasActiveLocalGame()) {
+      notify.info("Yarım kalan görevin korunuyor. Önce mevcut oyuna devam et veya tamamla.");
+      setGamePreset(null);
+      navigate("game");
+      return;
+    }
     setGamePreset({
       day: group.day,
       wordIds: group.playableWords.map((word) => word.id),

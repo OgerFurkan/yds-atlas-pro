@@ -47,6 +47,7 @@ interface WordLibraryPageProps {
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
   ) => Promise<void>;
+  onSaveProtected: (input: WordInput, id: string, expectedUpdatedAt: string) => Promise<void>;
   onAddMany: (
     words: WordInput[],
     onProgress?: (progress: WordFillProgress) => void,
@@ -68,6 +69,7 @@ export function WordLibraryPage({
   accountId = null,
   onReload,
   onSave,
+  onSaveProtected,
   onAddMany,
   onRemove,
   onRemoveMany,
@@ -397,7 +399,7 @@ export function WordLibraryPage({
                   Gelişmiş kütüphane bakımı
                 </summary>
                 <div className="mt-2 space-y-2">
-                  <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} automatic={mayAutoRepair} />
+                  <LegacyTierUpgrade words={words} onSave={onSaveProtected} onNotify={onNotify} automatic={mayAutoRepair} />
                   <TooltipBackfill onNotify={onNotify} automatic={mayAutoRepair} accountId={accountId} />
                 </div>
               </details>

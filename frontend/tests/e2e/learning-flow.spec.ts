@@ -33,7 +33,7 @@ test("old sentence tooltip import is collapsed and cannot run without explicit c
   });
   await page.goto("/#library");
   const recovery = page.locator("#library-word-controls details");
-  await expect(recovery.locator("summary")).toContainText("Eksik öğrenme materyallerini tamamla");
+  await expect(recovery.locator("summary")).toContainText("Gelişmiş kütüphane bakımı");
   const start = page.getByRole("button", {name:"Eski cümleleri sözlüğe ekle"});
   await expect(start).not.toBeVisible();
   expect(posted).toBe(0);

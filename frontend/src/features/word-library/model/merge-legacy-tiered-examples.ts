@@ -13,10 +13,10 @@ export function mergeLegacyTieredExamples(existing: WordEntry, generated: WordIn
   const canonical = generated.examples!.slice(0, 5);
   const seen = new Set(canonical.map(item => item.sentence.trim().toLocaleLowerCase("en")));
   if (seen.size !== 5) throw new Error("Tekrarlanan örnekler reddedildi.");
-  const original = existing.examples.filter(item => {
-    const key = item.sentence.trim().toLocaleLowerCase("en");
-    return !seen.has(key);
-  });
+  // Preserve EVERY user-authored example, including a sentence that happens
+  // to match a new generated one. Deduplicating by English text would silently
+  // discard a user's translation, annotations, or provenance.
+  const original = existing.examples;
   const source = wordInputSchema.parse(existing);
   return wordInputSchema.parse({
     ...source,

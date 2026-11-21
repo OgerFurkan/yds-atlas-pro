@@ -1,6 +1,7 @@
 import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { useEffect, useRef, useState } from "react";
 import { aiSuggestionToWordInput, completeWordsWithGemini } from "@/features/word-library/api/ai-word-api";
+import { withAiRecovery, type AiRetryNotice } from "@/features/word-library/model/ai-retry";
 import { curatedLegacyExamples } from "@/features/word-library/data/legacy-curated-examples";
 import { mergeLegacyTieredExamples } from "@/features/word-library/model/merge-legacy-tiered-examples";
 import { hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
@@ -18,9 +19,13 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
   const [done, setDone] = useState(0);
   const [total, setTotal] = useState(0);
   const [notice, setNotice] = useState("");
+  const [retry, setRetry] = useState<AiRetryNotice | null>(null);
   const cancel = useRef(false);
+  const activeRequest = useRef<AbortController | null>(null);
   const latest = useRef(words);
   useEffect(() => { latest.current = words; }, [words]);
+  useEffect(() => () => activeRequest.current?.abort(), []);
+  function stopUpgrade() { cancel.current = true; activeRequest.current?.abort(); }
   const candidates = words.filter(word => !hasAtlasTiers(word.examples) && !word.lexicon);
   const special = words.filter(word => !hasAtlasTiers(word.examples) && Boolean(word.lexicon)).length;
 
@@ -32,7 +37,7 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
       "AI kullanım kotası harcanabilir. Devam edilsin mi?",
     )) return;
     cancel.current = false;
-    setBusy(true); setDone(0); setTotal(candidates.length); setNotice("");
+    setBusy(true); setDone(0); setTotal(candidates.length); setNotice(""); setRetry(null);
     let completed = 0, skipped = 0, reason = "";
     try {
       // Small requests and per-word authenticated saves: partial progress is kept.
@@ -41,10 +46,22 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
         const aiBatch = batch.filter(word => !curatedLegacyExamples(word.word));
         let response: Awaited<ReturnType<typeof completeWordsWithGemini>> | null = null;
         if (aiBatch.length) {
+          const controller = new AbortController();
+          activeRequest.current = controller;
           try {
-            response = await completeWordsWithGemini(aiBatch.map(word => word.word));
+            // Reuse the bounded quota-aware retry policy used by new-word import.
+            response = await withAiRecovery(
+              () => completeWordsWithGemini(aiBatch.map(word => word.word), controller.signal),
+              (state) => setRetry(state.secondsRemaining > 0 ? state : null),
+              undefined,
+              controller.signal,
+            );
           } catch (error) {
+            if (cancel.current || controller.signal.aborted) break;
             reason = error instanceof Error ? error.message : "AI geçici olarak kullanılamıyor.";
+          } finally {
+            if (activeRequest.current === controller) activeRequest.current = null;
+            setRetry(null);
           }
         }
         const proposals = new Map(response?.suggestions.map(suggestion => [wordKey(suggestion.word), suggestion]) ?? []);
@@ -74,8 +91,12 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
         if (reason) break;
       }
     } finally {
+      activeRequest.current = null;
+      setRetry(null);
       setBusy(false);
+      const remaining = Math.max(0, candidates.length - completed - skipped);
       const summary = completed + " kelimeye 2/1/2 eklendi; " + skipped + " kelime değiştirilmedi." +
+        (remaining > 0 ? " " + remaining + " kelime henüz işlenmedi; tekrar deneyebilirsin." : "") +
         (reason ? " İşlem durdu: " + reason : cancel.current ? " Kullanıcı durdurdu." : "");
       setNotice(summary);
       if (completed) onNotify.success(summary);
@@ -90,10 +111,13 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
         <p className="mt-1 text-xs text-slate-600">5 yeni seviyeli örnek eklenir; mevcut cümlelerin, puanların ve anlamların hiçbiri silinmez.</p>
         {special > 0 && <p className="text-xs text-amber-800">{special} sözlüğe bağlı kayıt ayrıca incelenmelidir.</p>}
       </div>
-      {busy ? <Button variant="outline" type="button" onClick={() => { cancel.current = true; }}>Durdur</Button>
+      {busy ? <Button variant="outline" type="button" onClick={stopUpgrade}>Durdur</Button>
         : <Button type="button" onClick={() => void upgrade()} disabled={!candidates.length}>Eksik cümleleri 2/1/2 tamamla</Button>}
     </div>
     {busy && <div role="status" className="mt-2" aria-live="polite">{done}/{total} kelime tamamlandı…</div>}
+    {retry && <p role="status" className="mt-2 text-xs text-amber-800">
+      {retry.reason === "rate-limit" ? "Gemini kotası yenileniyor" : "Geçici bağlantı sorunu"} · {retry.secondsRemaining} saniye sonra güvenli tekrar deneme.
+    </p>}
     {notice && <p role="status" className="mt-2">{notice}</p>}
   </section>;
 }

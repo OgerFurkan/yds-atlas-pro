@@ -161,7 +161,7 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
                 type="button"
                 variant="outline"
                 disabled={saving}
-                onClick={() => void retryMissing()
+                onClick={() => void retryMissing()}
                 className="w-full"
               >
                 <RefreshCw size={15} className={saving ? "animate-spin" : ""} />

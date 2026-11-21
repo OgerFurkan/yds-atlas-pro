@@ -65,6 +65,7 @@ export function DailyPlanView({
 }) {
   const { t } = useTranslation();
   const [selectedDay, setSelectedDay] = useState<number | null>(null);
+  const [studyNoticeDay, setStudyNoticeDay] = useState<number | null>(null);
   const [review, setReview] = useState<{ day: number; owner: string | null } | null>(null);
   useEffect(() => {
     setReview((current) => current?.owner === accountId ? current : null);
@@ -124,7 +125,18 @@ export function DailyPlanView({
       .includes(search.trim().toLocaleLowerCase("tr")),
   ) ?? [];
 
+  function requestStudy(group: DailyGroup) {
+    // A filled day is always actionable; incomplete content must not create a game session.
+    if (group.playable === 0) {
+      setStudyNoticeDay(group.day);
+      return;
+    }
+    setStudyNoticeDay(null);
+    onStudyGroup(group);
+  }
+
   function openDay(day: number) {
+    setStudyNoticeDay(null);
     setSelectedDay(day);
     setSearch("");
     setWordToAdd("");
@@ -256,6 +268,11 @@ export function DailyPlanView({
             {showAll ? t("library.daily.manage.hideEmpty") : t("library.daily.manage.showAll")}
           </Button>
         </div>
+        {studyNoticeDay !== null && selectedDay === null && (
+          <p role="alert" data-testid="no-ready-study-help" className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+            {t("library.daily.manage.noReadyStudyHelp", { day: studyNoticeDay })}
+          </p>
+        )}
         <div id="daily-plan-study-area" className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
           {visibleGroups.map((group) => (
             <DailyGroupCard
@@ -263,7 +280,7 @@ export function DailyPlanView({
               group={group}
               targetSize={groupSize}
               onOpen={openDay}
-              onStudy={onStudyGroup}
+              onStudy={requestStudy}
               onReview={(selected) => setReview({ day: selected.day, owner: accountId })}
             />
           ))}
@@ -280,7 +297,7 @@ export function DailyPlanView({
           onExit={() => setTourStep(null)}
         />
       )}
-      <Dialog open={selectedDay !== null} onOpenChange={(open) => { if (!open) setSelectedDay(null); }}>
+      <Dialog open={selectedDay !== null} onOpenChange={(open) => { if (!open) { setSelectedDay(null); setStudyNoticeDay(null); } }}>
         <DialogContent className="!w-[min(880px,calc(100vw-24px))] max-w-none">
           <DialogHeader>
             <div className="min-w-0 pr-9">
@@ -292,6 +309,11 @@ export function DailyPlanView({
           </DialogHeader>
           {selectedDay !== null && selectedGroup && (
             <div className="space-y-5 p-4 sm:p-6">
+              {studyNoticeDay === selectedDay && (
+                <p role="alert" data-testid="no-ready-study-help" className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-950">
+                  {t("library.daily.manage.noReadyStudyHelp", { day: selectedDay })}
+                </p>
+              )}
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <strong className="text-2xl text-foreground">{selectedGroup.total}</strong>
@@ -309,8 +331,8 @@ export function DailyPlanView({
                     <Plus size={16} /> {t("library.daily.manage.bulkWrite")}
                   </Button>
                   <Button
-                    size="sm" variant="outline" disabled={selectedGroup.playable === 0}
-                    onClick={() => onStudyGroup(selectedGroup)}
+                    size="sm" variant="outline" disabled={selectedGroup.total === 0}
+                    onClick={() => requestStudy(selectedGroup)}
                   ><BookOpenCheck size={15} /> {t("library.daily.manage.studyDay")}</Button>
                   <Button size="sm" variant="outline" disabled={selectedGroup.total === 0}
                     onClick={() => { setSelectedDay(null); setReview({ day: selectedDay, owner: accountId }); }}>

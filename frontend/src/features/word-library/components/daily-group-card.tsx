@@ -86,7 +86,6 @@ export function DailyGroupCard({
         <Button
           type="button"
           size="sm"
-          disabled={group.playable === 0}
           title={group.playable === 0 ? t("library.daily.manage.noReadyTitle") : undefined}
           className="min-h-8 shrink-0 px-3"
           onClick={() => onStudy(group)}

@@ -455,8 +455,13 @@ test("six confirmed legacy words auto-upgrade on opening the library, preserving
   await page.goto("/");
   await login(page);
   await page.goto("/#library");
-  // No manual recovery control or consent dialog is required for tiered examples.
-  // This must run only in the authenticated library and retain each original row.
+  // The account owner grants explicit consent once; subsequent tier completion
+  // and shared dictionary warmup run without the two legacy operation banners.
+  expect(cloud.requests.some(req => req.method === "PUT")).toBe(false);
+  const enable = page.getByRole("button", { name: "Otomatik tamamlamayı aç" });
+  await expect(enable).toBeVisible();
+  page.once("dialog", dialog => void dialog.accept());
+  await enable.click();
   await expect.poll(() => cloud.requests.filter(req =>
     req.path.startsWith("/api/words/") && req.method === "PUT").length,
     { timeout: 30_000 }).toBe(6);

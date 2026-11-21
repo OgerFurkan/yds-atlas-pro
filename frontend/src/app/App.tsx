@@ -291,6 +291,7 @@ function AppWorkspace({
               words={library.words}
               loading={library.loading}
               loadError={library.loadError}
+              automaticLegacyRepair={!!auth.user && !hasActiveLocalGame()}
               onReload={() => void library.reload()}
               onSave={saveWord}
               onAddMany={addWords}

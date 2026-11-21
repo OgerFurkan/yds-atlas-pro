@@ -5,6 +5,13 @@ import { startMatchingBoard } from "@/features/learning-game/model/matching-engi
 
 export const DAY_REVIEW_ROUND_SIZE = 10;
 
+/** Fit a touch-accessible set on shorter screens without changing 10-word rounds. */
+export function dayReviewBoardSize(width: number, height: number): number {
+  if (height <= 700) return 4;
+  if (width <= 640 || height <= 940) return 5;
+  return 10;
+}
+
 /** Review stays in React memory and never writes storage, scores or the cloud. */
 export function createDayReviewRounds(
   words: readonly WordEntry[],
@@ -31,12 +38,12 @@ export function dayReviewMissingMeanings(words: readonly WordEntry[]): WordEntry
 }
 
 /** Synthetic matching session is never passed to the persistent game component. */
-export function createDayReviewMatching(words: WordEntry[]): GameSession {
+export function createDayReviewMatching(words: WordEntry[], maxVisiblePairs = DAY_REVIEW_ROUND_SIZE): GameSession {
   const base = createSession(words, 10);
   return startMatchingBoard({
     ...base,
     phase: "matching",
     queue: words.map((word) => word.id),
     words,
-  }, DAY_REVIEW_ROUND_SIZE);
+  }, Math.min(maxVisiblePairs, DAY_REVIEW_ROUND_SIZE));
 }

@@ -21,6 +21,8 @@ export function WordImportReview({
   onAccept,
   onAcceptEntries,
   onAcceptEntriesManual,
+  onInputChange,
+  showActions = true,
   busy = false,
   label = "Kelimeleri ekle",
   demo = false,
@@ -30,6 +32,8 @@ export function WordImportReview({
   onAccept?: (words: string[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
   onAcceptEntries?: (entries: WordInput[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
   onAcceptEntriesManual?: (entries: WordInput[]) => Promise<void>;
+  onInputChange?: () => void;
+  showActions?: boolean;
   busy?: boolean;
   label?: string;
   demo?: boolean;
@@ -118,11 +122,13 @@ export function WordImportReview({
             setText(event.target.value);
             setRows([]);
             setError("");
+            setProgress(null);
+            onInputChange?.();
           }}
         />
         <span className="text-xs font-normal text-slate-500">
           {onAcceptEntries
-            ? "Her satıra bir kelime yaz. Anlam varsa = ile ayır. Anlamlar virgülle ayrılabilir. Kelimeleri sonra değiştirebilirsin."
+            ? "Her satıra bir kelime. Anlamları = ile ayır; virgülle birden çok anlam ekle."
             : "Satır, virgül veya noktalı virgülle ayır. Başlıklar düzenlenir, tekrarlar ayıklanır."}
         </span>
       </label>
@@ -171,6 +177,7 @@ export function WordImportReview({
                           ),
                         );
                         onCorrected?.();
+                        onInputChange?.();
                       }}
                     >
                       {suggestion}
@@ -180,13 +187,14 @@ export function WordImportReview({
                     size="sm"
                     variant="link"
                     disabled={busy}
-                    onClick={() =>
+                    onClick={() => {
                       setRows((current) =>
                         current.map((item, i) =>
                           i === index ? { ...item, accepted: true } : item,
                         ),
-                      )
-                    }
+                      );
+                      onInputChange?.();
+                    }}
                   >
                     Bu yazımı kullan
                   </Button>
@@ -197,7 +205,7 @@ export function WordImportReview({
         </div>
       )}
       {progress && <AiFillProgress progress={progress} />}
-      <div className="flex flex-wrap justify-end gap-2">
+      {showActions && <div className="flex flex-wrap justify-end gap-2">
         {rows.length === 0 ? (
           <Button
             id="import-check"
@@ -224,7 +232,7 @@ export function WordImportReview({
           </Button>
           </>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

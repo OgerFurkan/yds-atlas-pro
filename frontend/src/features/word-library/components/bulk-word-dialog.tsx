@@ -100,29 +100,42 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
           <div>
             <DialogTitle>{targetDay ? `${targetDay}. güne toplu kelime ekle` : "Toplu kelime ekle"}</DialogTitle>
             <DialogDescription>
-              "hello = merhaba" yazarsan anlamıyla kaydederiz. Yalnız "hello" yazarsan
-              AI tamamlamayı dener. AI olmadan da kaydedebilir, sonra düzenleyebilirsin.
-              AI ile bir seferde en fazla 25 anlamsız kelime tamamlanır.
-              {targetDay ? ` Tamamlanan kelimeler doğrudan ${targetDay}. güne yerleştirilir. Gün başına en fazla 40 kelime.` : ""}
+              Anlamı yazdıysan direkt kaydederiz. Boşsa AI dener; sonra düzenleyebilirsin.
             </DialogDescription>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+              <span className="rounded-md border border-emerald-300/50 bg-emerald-50/10 px-2 py-1">
+                <strong>hello = merhaba</strong> · Direkt kaydet
+              </span>
+              <span className="rounded-md border border-sky-300/50 bg-sky-50/10 px-2 py-1">
+                <strong>hello</strong> · AI ile tamamla
+              </span>
+            </div>
+            {targetDay && (
+              <p className="mt-1 text-[11px] opacity-75">
+                {targetDay}. güne eklenir · Günlük sınır 40 kelime
+              </p>
+            )}
           </div>
         </DialogHeader>
 
         <div className="space-y-4 p-5">
           <WordImportReview
             busy={saving}
+            showActions={missingWords.length === 0}
+            onInputChange={() => {
+              // Editing after a failed AI attempt creates a NEW reviewed submission.
+              // Never replay the old missingWords entry instead of "hello = merhaba".
+              setMissingWords([]);
+              setRequestedTotal(0);
+              setRetryError("");
+            }}
             onAcceptEntries={async (words, onProgress) => {
-              // After partial completion, never resend already saved words.
-              if (missingWords.length > 0) {
-                await submitWords(missingWords, onProgress);
-                return;
-              }
               setRequestedTotal(words.length);
               await submitWords(words, onProgress);
             }}
             onAcceptEntriesManual={async (words) => {
               setRequestedTotal(words.length);
-              await submitWords(missingWords.length > 0 ? missingWords : words, undefined, "manual");
+              await submitWords(words, undefined, "manual");
             }}
           />
 
@@ -134,14 +147,12 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
               <div className="flex items-center gap-2">
                 <TriangleAlert size={18} />
                 <p className="text-sm font-semibold">
-                  {readyCount}/{requestedTotal} kelime işlendi
+                  {readyCount} kaydedildi · {missingWords.length} bekliyor
                 </p>
               </div>
 
               <p className="text-xs leading-relaxed">
-                Yazdığın anlamlar kaydedildi. Şu
-                {` ${missingWords.length} `}
-                kelimenin anlamı AI ile tamamlanamadı:
+                AI bu kelimenin anlamını tamamlayamadı:
               </p>
 
               <p className="break-words text-xs font-medium">{missingWords.map((entry) => entry.word).join(", ")}</p>
@@ -152,23 +163,22 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
                 </p>
               )}
 
-              <p className="text-xs">İstersen yalnız kelimeleri kaydedip anlamlarını daha sonra ekleyebilirsin.</p>
-              <Button type="button" variant="secondary" disabled={saving}
-                onClick={() => void submitWords([...missingWords], undefined, "manual")}>
-                AI olmadan kaydet
-              </Button>
+              <p className="text-xs">Kelimeyi şimdi kaydedip anlamını daha sonra yazabilirsin.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button type="button" variant="secondary" disabled={saving}
+                  onClick={() => void submitWords([...missingWords], undefined, "manual")}>
+                  AI olmadan kaydet
+                </Button>
               <Button
                 type="button"
                 variant="outline"
                 disabled={saving}
                 onClick={() => void retryMissing()}
-                className="w-full"
               >
                 <RefreshCw size={15} className={saving ? "animate-spin" : ""} />
-                {saving
-                  ? "Eksikler tamamlanıyor..."
-                  : `Eksik ${missingWords.length} kelimeyi tekrar dene`}
+                {saving ? "Deneniyor..." : "AI ile tekrar dene"}
               </Button>
+              </div>
             </div>
           )}
         </div>

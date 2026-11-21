@@ -6,7 +6,7 @@ import { MatchingPanel } from "@/features/learning-game/components/matching-pane
 import { retryMatching, selectMatching, startMatchingBoard } from "@/features/learning-game/model/matching-engine";
 import type { GameSession } from "@/features/learning-game/model/game-session";
 import { Button } from "@/shared/ui/button";
-import { createDayReviewMatching, createDayReviewRounds, dayReviewMissingMeanings } from "../model/day-review";
+import { createDayReviewMatching, createDayReviewRounds, dayReviewBoardSize, dayReviewMissingMeanings } from "../model/day-review";
 
 export function DayReviewPanel({ day, words, onExit }: {
   day: number;
@@ -15,10 +15,11 @@ export function DayReviewPanel({ day, words, onExit }: {
 }) {
   const { t } = useTranslation();
   const missing = dayReviewMissingMeanings(words);
+  const [visiblePairs] = useState(() => dayReviewBoardSize(window.innerWidth, window.innerHeight));
   const [rounds, setRounds] = useState(() => missing.length ? [] : createDayReviewRounds(words));
   const [roundIndex, setRoundIndex] = useState(0);
   const [session, setSession] = useState<GameSession | null>(() =>
-    rounds[0] ? createDayReviewMatching(rounds[0]) : null);
+    rounds[0] ? createDayReviewMatching(rounds[0], visiblePairs) : null);
   const [finished, setFinished] = useState(false);
 
   function restart() {
@@ -26,28 +27,28 @@ export function DayReviewPanel({ day, words, onExit }: {
     const fresh = createDayReviewRounds(words, previous);
     setRounds(fresh);
     setRoundIndex(0);
-    setSession(fresh[0] ? createDayReviewMatching(fresh[0]) : null);
+    setSession(fresh[0] ? createDayReviewMatching(fresh[0], visiblePairs) : null);
     setFinished(false);
   }
   function advanceBoard() {
     if (!session?.matching || session.matching.matched.length !== session.matching.left.length) return;
     if (session.queue.length) {
-      setSession(startMatchingBoard(session, 10));
+      setSession(startMatchingBoard(session, visiblePairs));
     } else if (roundIndex + 1 < rounds.length) {
       const next = roundIndex + 1;
       setRoundIndex(next);
-      setSession(createDayReviewMatching(rounds[next]));
+      setSession(createDayReviewMatching(rounds[next], visiblePairs));
     } else {
       setFinished(true);
     }
   }
   return <section id="day-review" aria-label={t("library.daily.manage.reviewTitle", { day })}
-    className="mx-auto mt-5 w-full max-w-4xl space-y-5">
-    <div className="flex flex-wrap items-center justify-between gap-3">
+    className="mx-auto mt-2 w-full max-w-4xl space-y-2 sm:space-y-3">
+    <div className="flex flex-wrap items-center justify-between gap-2">
       <Button type="button" variant="outline" onClick={onExit}><ArrowLeft size={16} /> {t("library.daily.manage.reviewExit")}</Button>
-      <h2 className="text-xl font-semibold text-foreground">{t("library.daily.manage.reviewTitle", { day })}</h2>
+      <h2 className="text-base font-semibold text-foreground sm:text-lg">{t("library.daily.manage.reviewTitle", { day })}</h2>
     </div>
-    <p role="note" className="rounded-xl border border-border bg-muted/40 p-3 text-sm text-foreground">
+    <p role="note" className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-foreground">
       {t("library.daily.manage.reviewReadOnly")}
     </p>
     {missing.length > 0 ? (
@@ -63,8 +64,8 @@ export function DayReviewPanel({ day, words, onExit }: {
         </div>
       </div>
     ) : session ? (
-      <div className="space-y-4">
-        <div role="status" className="text-center text-sm font-semibold text-foreground">
+      <div className="space-y-2">
+        <div role="status" className="text-center text-xs font-semibold text-foreground">
           {t("library.daily.manage.reviewRound", { current: roundIndex + 1, total: rounds.length, count: rounds[roundIndex].length })}
         </div>
         <MatchingPanel session={session} practice

@@ -104,3 +104,33 @@ test("English dark-mode review fits a tablet viewport without horizontal overflo
   await page.getByRole("button", { name: "Exit" }).click();
   await expect(page.getByTestId("daily-plan-hero")).toBeVisible();
 });
+
+
+test("short laptop review uses compact 5-pair board instead of forcing 10 rows", async ({ page }) => {
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await page.addInitScript((words) =>
+    localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words)), fixture(11));
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await page.getByRole("button", { name: "1. günün kelimelerini puansız tekrar et" }).click();
+  await expect(page.getByText(/1 \/ 2 tur/)).toBeVisible();
+  await expect(page.locator('[data-matching-side="left"]')).toHaveCount(5);
+  const rect = await page.locator("#matching-board").boundingBox();
+  expect(rect).not.toBeNull();
+  expect(rect!.y + rect!.height).toBeLessThanOrEqual(768);
+});
+
+test("mobile review presents accessible 4-pair board and keeps the round size", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 667 });
+  await page.addInitScript((words) =>
+    localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words)), fixture(11));
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await page.getByRole("button", { name: "1. günün kelimelerini puansız tekrar et" }).click();
+  await expect(page.locator('[data-matching-side="left"]')).toHaveCount(4);
+  await expect(page.getByText(/1 \/ 2 tur/)).toBeVisible();
+  const minTarget = await page.locator('[data-matching-side="left"]').first()
+    .evaluate((element) => element.getBoundingClientRect().height);
+  expect(minTarget).toBeGreaterThanOrEqual(44);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+});

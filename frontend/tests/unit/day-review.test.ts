@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { WordEntry } from "@yds-atlas/shared";
-import { createDayReviewRounds, createDayReviewMatching, dayReviewMissingMeanings } from "@/features/word-library/model/day-review";
+import { createDayReviewRounds, createDayReviewMatching, dayReviewBoardSize, dayReviewMissingMeanings } from "@/features/word-library/model/day-review";
 import { selectMatching, startMatchingBoard } from "@/features/learning-game/model/matching-engine";
 
 function word(index: number, meaning?: string): WordEntry {
@@ -52,4 +52,19 @@ test("duplicate translations and identical labels appear on separate fair matchi
     if (session.queue.length) session = startMatchingBoard(session, 10);
   }
   expect(seen.size).toBe(3);
+});
+
+
+test("short and mobile screens show smaller matching boards while keeping 10-word rounds", () => {
+  expect(dayReviewBoardSize(390, 650)).toBe(4);
+  expect(dayReviewBoardSize(390, 850)).toBe(5);
+  expect(dayReviewBoardSize(1280, 800)).toBe(5);
+  expect(dayReviewBoardSize(1440, 1080)).toBe(10);
+  const words = Array.from({ length: 11 }, (_, index) => word(index));
+  const rounds = createDayReviewRounds(words, [], () => 0);
+  expect(rounds.map((round) => round.length)).toEqual([10, 1]);
+  const shortBoard = createDayReviewMatching(rounds[0], 4);
+  expect(shortBoard.matching?.left.length).toBe(4);
+  expect(shortBoard.queue).toHaveLength(10);
+  expect(words.every((entry) => entry.score === 100)).toBe(true);
 });

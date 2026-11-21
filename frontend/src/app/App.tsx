@@ -184,6 +184,7 @@ function AppWorkspace({
 
     let generated: WordInput[] = [];
     let failedWords: string[] = [];
+    let aiUnavailable = false;
     if (needsAi.length) {
       try {
         generated = await prepareWordInputs(
@@ -202,7 +203,7 @@ function AppWorkspace({
         onProgress?.({
           completed: 0, total: needsAi.length, batchSize: 5, failedWords,
         });
-        notify.info(error instanceof Error ? error.message : "AI eksik anlamları tamamlayamadı.");
+        aiUnavailable = true;
       }
     }
 
@@ -216,10 +217,9 @@ function AppWorkspace({
       : { added: 0, duplicates: 0 };
 
     if (failedWords.length) {
-      notify.info(
-        `${result.added} kelime kaydedildi. Anlamı tamamlanamayan ${failedWords.length} kelimeyi
-        tekrar deneyebilir veya AI olmadan kaydedebilirsin.`,
-      );
+      notify.info(`${result.added} kaydedildi · ${failedWords.length} bekliyor. ${aiUnavailable
+        ? "AI şu anda tamamlayamadı."
+        : "Eksik anlamları tekrar deneyebilirsin."} İstersen AI olmadan kaydet.`);
     }
     return result;
   }

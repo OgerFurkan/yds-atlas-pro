@@ -152,7 +152,7 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
               </div>
 
               <p className="text-xs leading-relaxed">
-                AI bu kelimenin anlamını tamamlayamadı:
+                AI bu kelimeleri tamamlayamadı:
               </p>
 
               <p className="break-words text-xs font-medium">{missingWords.map((entry) => entry.word).join(", ")}</p>

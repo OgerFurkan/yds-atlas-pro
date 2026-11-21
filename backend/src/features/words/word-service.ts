@@ -44,20 +44,53 @@ export async function listWords({ db }: RequestContext) {
     if ((data?.length ?? 0) < 500) return words;
   }
 }
-export async function saveWord(ctx: RequestContext, input: WordInput, id?: string) {
+/**
+ * Existing records can be written with an optional optimistic concurrency guard.
+ * The guard reads the exact PostgreSQL timestamp, then conditions the UPDATE on
+ * that raw value and observed score/word. This uses the current schema and
+ * avoids rounding away PostgreSQL microseconds in public WordEntry timestamps.
+ */
+export async function saveWord(
+  ctx: RequestContext, input: WordInput, id?: string, expectedUpdatedAt?: string,
+) {
+  if (expectedUpdatedAt && !id)
+    throw new HttpError(400, "Sürüm kontrolü için kelime kimliği gerekli.", "INVALID_WORD_VERSION");
   const content = normalizeInput(input);
+  let observed: { updated_at: string; score: number; word: string } | null = null;
+  if (id) {
+    const existing = await ctx.db
+      .from("words").select("updated_at,score,word").eq("id", id).maybeSingle();
+    databaseError(existing.error);
+    if (!existing.data) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+    observed = existing.data;
+    // WordEntry exposes millisecond ISO timestamps; the database retains full
+    // microsecond precision, which is used unchanged in the atomic UPDATE.
+    if (expectedUpdatedAt && new Date(observed.updated_at).toISOString() !== expectedUpdatedAt)
+      throw new HttpError(409, "Kelime başka bir oturumda değişti. Önce yenile.", "WORD_VERSION_CONFLICT");
+  }
+  const updatedAt = observed
+    ? new Date(Math.max(Date.now(), Date.parse(observed.updated_at) + 1)).toISOString()
+    : new Date().toISOString();
   const fields = {
     word: content.word,
     score: content.score,
     content,
-    updated_at: new Date().toISOString(),
+    updated_at: updatedAt,
   };
-  const query = id
-    ? ctx.db.from("words").update(fields).eq("id", id)
-    : ctx.db.from("words").insert({ ...fields, user_id: ctx.userId });
-  const { data, error } = await query.select("*").maybeSingle();
+  const response = id
+    ? await (expectedUpdatedAt && observed
+      ? ctx.db.from("words").update(fields).eq("id", id)
+          .eq("updated_at", observed.updated_at).eq("score", observed.score)
+          .eq("word", observed.word)
+      : ctx.db.from("words").update(fields).eq("id", id)
+      ).select("*").maybeSingle()
+    : await ctx.db.from("words").insert({ ...fields, user_id: ctx.userId })
+        .select("*").maybeSingle();
+  const { data, error } = response;
   databaseError(error);
-  if (!data) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+  if (!data) throw expectedUpdatedAt
+    ? new HttpError(409, "Kelime eşzamanlı olarak değişti. Önce yenile.", "WORD_VERSION_CONFLICT")
+    : new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
   return mapWord(data);
 }
 export async function importWords(ctx: RequestContext, inputs: WordInput[]) {

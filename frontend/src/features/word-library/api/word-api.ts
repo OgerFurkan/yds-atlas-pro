@@ -8,10 +8,11 @@ export function remoteWordRepository(userId: string): WordRepository {
     async list() {
       return wordEntrySchema.array().parse(await call<WordEntry[]>("/api/words"));
     },
-    async save(input, id) {
+    async save(input, id, expectedUpdatedAt) {
       return wordEntrySchema.parse(
         await call("/api/words" + (id ? "/" + id : ""), {
           method: id ? "PUT" : "POST",
+          headers: expectedUpdatedAt ? { "X-Atlas-Expected-Updated-At": expectedUpdatedAt } : undefined,
           body: JSON.stringify(enrichWordInput(input)),
         }),
       );

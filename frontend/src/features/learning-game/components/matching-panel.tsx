@@ -11,11 +11,15 @@ export function MatchingPanel({
   onSelect,
   onRetry,
   onNext,
+  practice = false,
+  nextLabel,
 }: {
   session: GameSession;
   onSelect: (side: "left" | "right", id: string) => void;
   onRetry: () => void;
   onNext: () => void;
+  practice?: boolean;
+  nextLabel?: string;
 }) {
   const { t } = useTranslation();
   const board = session.matching;
@@ -25,19 +29,19 @@ export function MatchingPanel({
   const leftWord = session.words.find((word) => word.id === feedback?.leftId);
   const rightWord = session.words.find((word) => word.id === feedback?.rightId);
   return (
-    <div id="matching-board" className="space-y-5">
-      <div id="matching-intro" className="space-y-2 text-center">
-        <span className="mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-atlas-blue">
-          <Languages size={25} />
+    <div id="matching-board" className={cn("space-y-5", practice && "space-y-2")}>
+      <div id="matching-intro" className={cn("space-y-2 text-center", practice && "flex items-center justify-center gap-2 space-y-0")}>
+        <span className={cn("mx-auto grid size-12 place-items-center rounded-2xl bg-blue-50 text-atlas-blue", practice && "mx-0 size-8 rounded-lg")}>
+          <Languages size={practice ? 17 : 25} />
         </span>
-        <h2 className="text-2xl font-bold tracking-tight text-atlas-navy">
+        <h2 className={cn("text-2xl font-bold tracking-tight text-atlas-navy", practice && "text-base")}>
           {t("game.matchingTitle")}
         </h2>
-        <p className="mx-auto max-w-lg text-sm leading-6 text-slate-500">
+        {!practice && <p className="mx-auto max-w-lg text-sm leading-6 text-slate-500">
           {t("game.matchingDescription")}
-        </p>
+        </p>}
       </div>
-      <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600">
+      <div className={cn("flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-xs font-semibold text-slate-600", practice && "rounded-lg px-3 py-1.5")}>
         <span className="flex items-center gap-2">
           <Link2 size={16} /> {t("game.matchingSet")}
         </span>
@@ -45,7 +49,7 @@ export function MatchingPanel({
           {board.matched.length} / {board.left.length} {t("game.matched")}
         </span>
       </div>
-      <div className="grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-8">
+      <div className={cn("grid grid-cols-2 gap-x-3 gap-y-3 sm:gap-x-8", practice && "gap-x-2 gap-y-1.5 sm:gap-x-3")}>
         <span className="px-2 text-xs font-bold tracking-wide text-atlas-blue">
           {t("game.english")}
         </span>
@@ -76,6 +80,7 @@ export function MatchingPanel({
                   onClick={() => onSelect(side, id)}
                   className={cn(
                     "flex min-h-17 min-w-0 cursor-pointer items-center justify-center gap-2 rounded-xl border-2 px-3 py-4 text-center text-sm font-semibold shadow-[0_3px_0_#e2e8f0] transition active:translate-y-0.5 active:shadow-none disabled:cursor-default sm:min-h-19 sm:text-base",
+                    practice && "min-h-11 rounded-lg px-2 py-2 text-xs shadow-none sm:min-h-11 sm:text-sm",
                     matched
                       ? "border-emerald-200 bg-emerald-50 text-emerald-700 shadow-none"
                       : wrong
@@ -101,6 +106,7 @@ export function MatchingPanel({
         aria-live="polite"
         className={cn(
           "flex min-h-18 flex-wrap items-center gap-3 rounded-xl border p-4 text-sm",
+          practice && "min-h-11 rounded-lg px-3 py-2 text-xs",
           complete || feedback?.correct
             ? "border-emerald-200 bg-emerald-50 text-emerald-900"
             : feedback
@@ -114,7 +120,7 @@ export function MatchingPanel({
             <div>
               <strong className="block">{t("game.allMatched")}</strong>
               <span className="text-xs">
-                {session.queue.length ? t("game.nextWords") : t("game.recallMeaning")}
+                {practice ? t("library.daily.manage.reviewBoardComplete") : session.queue.length ? t("game.nextWords") : t("game.recallMeaning")}
               </span>
             </div>
           </>
@@ -122,7 +128,7 @@ export function MatchingPanel({
           <>
             <Check size={21} />
             <span>
-              <strong>{leftWord && <SentenceWordTooltips text={leftWord.word} focusWord={leftWord} allowDuringGame />}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
+              <strong>{leftWord && (practice ? leftWord.word : <SentenceWordTooltips text={leftWord.word} focusWord={leftWord} allowDuringGame />)}</strong> ile <strong>{leftWord?.meanings[0]}</strong>{" "}
               {t("game.pairMatched")}
             </span>
           </>
@@ -158,7 +164,7 @@ export function MatchingPanel({
       </div>
       {complete && (
         <Button id="matching-next" className="w-full sm:ml-auto sm:flex sm:w-auto" onClick={onNext}>
-          {session.queue.length ? t("game.nextMatching") : t("game.toMeaning")}
+          {nextLabel ?? (session.queue.length ? t("game.nextMatching") : t("game.toMeaning"))}
           <ArrowRight size={17} />
         </Button>
       )}

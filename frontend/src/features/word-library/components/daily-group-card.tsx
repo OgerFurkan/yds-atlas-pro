@@ -1,4 +1,4 @@
-import { ArrowUpRight, CircleCheck, Plus, Play } from "lucide-react";
+import { ArrowUpRight, CircleCheck, Plus, Play, RotateCcw } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import { useTranslation } from "react-i18next";
 import type { DailyGroup } from "../model/daily-groups";
@@ -8,11 +8,13 @@ export function DailyGroupCard({
   targetSize,
   onOpen,
   onStudy,
+  onReview,
 }: {
   group: DailyGroup;
   targetSize: number;
   onOpen: (day: number) => void;
   onStudy: (group: DailyGroup) => void;
+  onReview: (group: DailyGroup) => void;
 }) {
   const { t } = useTranslation();
   const isEmpty = group.total === 0;
@@ -74,16 +76,16 @@ export function DailyGroupCard({
           {group.total > 4 ? ` · +${group.total - 4}` : ""}
         </p>
       </button>
-      <div className="flex items-center justify-between gap-3 border-t border-border px-4 py-2.5 sm:px-5">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5 sm:px-5">
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
           <span className="font-semibold text-orange-600">{t("library.daily.manage.hardCount", { count: group.hard })}</span>
           <span>·</span><span>{t("library.daily.manage.reviewCount", { count: group.review })}</span>
           <span>·</span><span className="text-emerald-600">{t("library.daily.manage.learnedCount", { count: group.learned })}</span>
         </div>
+        <div className="flex shrink-0 items-center gap-2">
         <Button
           type="button"
           size="sm"
-          disabled={group.playable === 0}
           title={group.playable === 0 ? t("library.daily.manage.noReadyTitle") : undefined}
           className="min-h-8 shrink-0 px-3"
           onClick={() => onStudy(group)}
@@ -92,6 +94,12 @@ export function DailyGroupCard({
           {isDone ? <CircleCheck size={14} /> : <Play size={14} />}
           {t("library.daily.manage.study")}
         </Button>
+        <Button type="button" size="sm" variant="outline" className="min-h-8 shrink-0 px-3"
+          aria-label={t("library.daily.manage.reviewCardAria", { day: group.day })}
+          onClick={() => onReview(group)}>
+          <RotateCcw size={14} /> {t("library.daily.manage.review")}
+        </Button>
+        </div>
       </div>
     </article>
   );

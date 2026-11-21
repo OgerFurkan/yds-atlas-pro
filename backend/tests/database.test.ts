@@ -44,6 +44,35 @@ async function asUser<T>(id: string, work: () => Promise<T>) {
   }
 }
 describe("Postgres ownership, atomicity and quotas", () => {
+  test("the legacy update CAS rejects a stale tab, preserving newer score and notes", async () => {
+    const original = await db.query<{ updated_at: string; score: number }>(
+      "select updated_at,score from public.words where id=$1", [wordId]);
+    const version = original.rows[0].updated_at;
+    await asUser(alice, async () => {
+      const winner = await db.query(
+        "update public.words set score=71, content=$1::jsonb, updated_at=now()+interval '1 second' " +
+        "where id=$2 returning id",
+        [JSON.stringify({word:"Expand",meanings:["Başka sekmede yazılan kişisel not"]}),wordId],
+      );
+      expect(winner.rows).toHaveLength(1);
+      const stale = await db.query(
+        "update public.words set score=0, content=$1::jsonb, updated_at=now()+interval '2 seconds' " +
+        "where id=$2 and updated_at=$3 and score=0 and word='Expand' returning id",
+        [JSON.stringify({word:"Expand",meanings:["Eski kayıt"]}),wordId,version],
+      );
+      expect(stale.rows).toHaveLength(0);
+    });
+    const result = await db.query<{score:number;content:{meanings:string[]}}>(
+      "select score,content from public.words where id=$1",[wordId]);
+    expect(result.rows[0].score).toBe(71);
+    expect(result.rows[0].content.meanings).toEqual(["Başka sekmede yazılan kişisel not"]);
+    await asUser(bob, async () => {
+      const foreign = await db.query(
+        "update public.words set score=1 where id=$1 and updated_at=$2 returning id",
+        [wordId,version]);
+      expect(foreign.rows).toHaveLength(0);
+    });
+  });
   test("bulk score writes remain owned and reject duplicate score IDs atomically", async () => {
     await asUser(bob, async () => {
       await db.query("select public.apply_word_scores($1)", [

@@ -62,7 +62,22 @@ export async function prepareWordInputs(
       );
     } catch (error) {
       firstFailure ??= error;
-      // Stop on provider failure (quota/timeout/etc.) to avoid wasting API calls.
+      // A malformed Gemini response for one five-word group must not prevent
+      // independently validated later groups from being saved. These failed
+      // words stay absent from the returned safe subset and can be retried.
+      // Quota, network, auth and timeout failures still stop immediately.
+      if (error && typeof error === "object" && "code" in error &&
+          error.code === "AI_INVALID_RESPONSE") {
+        onProgress?.({
+          completed: results.size,
+          total: names.length,
+          batchSize,
+          failedWords: names.slice(0, index + group.length).filter(
+            (name) => !results.has(wordKey(name)),
+          ),
+        });
+        continue;
+      }
       break;
     }
     const sources = new Map(

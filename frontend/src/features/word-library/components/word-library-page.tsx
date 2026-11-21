@@ -26,7 +26,9 @@ import { useWordLibraryView } from "@/features/word-library/hooks/use-word-libra
 import { useWordSelection } from "@/features/word-library/hooks/use-word-selection";
 import type { DailyGroup } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
+import type { WordAddMode } from "@/features/word-library/model/manual-word-import";
 import { wordKey } from "@/features/word-library/model/word-normalization";
+import { hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
 import type { GroupFilter } from "@/features/word-library/model/word-library-view";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
@@ -38,15 +40,20 @@ interface WordLibraryPageProps {
   words: WordEntry[];
   loading: boolean;
   loadError: string;
+  automaticLegacyRepair?: boolean;
+  accountId?: string | null;
   onReload: () => void;
   onSave: (
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
   ) => Promise<void>;
+  onSaveProtected: (input: WordInput, id: string, expectedUpdatedAt: string) => Promise<void>;
   onAddMany: (
     words: WordInput[],
     onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
   ) => Promise<{ added: number; duplicates: number }>;
   onRemove: (id: string) => Promise<void>;
   onRemoveMany: (ids: string[]) => Promise<void>;
@@ -61,8 +68,11 @@ export function WordLibraryPage({
   words,
   loading,
   loadError,
+  automaticLegacyRepair = false,
+  accountId = null,
   onReload,
   onSave,
+  onSaveProtected,
   onAddMany,
   onRemove,
   onRemoveMany,
@@ -74,6 +84,27 @@ export function WordLibraryPage({
   const view = useWordLibraryView(words, initialGroup);
   const daily = useDailyPlan(words, 20, !loading && !loadError);
   const selection = useWordSelection();
+  // A user must opt in once before historical sentence tokens enter the shared
+  // glossary queue or old user records are saved through automatic AI enrichment.
+  const [autoConsent, setAutoConsent] = useState(false);
+  useEffect(() => {
+    try {
+      setAutoConsent(Boolean(accountId) &&
+        localStorage.getItem(`atlas:legacy-repair-consent:${accountId}`) === "v1");
+    } catch { setAutoConsent(false); }
+  }, [accountId]);
+  const legacyCandidatesExist = words.some(word => !hasAtlasTiers(word.examples) && !word.lexicon);
+  const mayAutoRepair = automaticLegacyRepair && autoConsent && !!accountId;
+  function enableAutoRepair() {
+    if (!accountId || !window.confirm(
+      "Eksik eski kelime örneklerini Gemini yardımıyla otomatik tamamla ve cümlelerdeki yalnız İngilizce sözcükleri ortak Türkçe sözlük doğrulama kuyruğuna al. " +
+      "Tam cümleler, kullanıcı kimliğin ve puanların ortak sözlüğe aktarılmaz; mevcut örneklerin silinmez. İşlem kota kullanabilir. Onaylıyor musun?"
+    )) return;
+    try { localStorage.setItem(`atlas:legacy-repair-consent:${accountId}`, "v1"); }
+    catch { onNotify.error("Tarayıcı tercihi kaydedilemedi. Bu cihazda otomatik tamamlama başlatılmadı."); return; }
+    setAutoConsent(true);
+    onNotify.success("Kütüphane tamamlama etkinleştirildi. İşlem kontrollü biçimde başlayacak.");
+  }
   const [activeView, setActiveView] = useState<LibraryView>("words");
   const [libraryGuide, setLibraryGuide] = useState<number | null>(null);
   useEffect(() => {
@@ -166,8 +197,8 @@ export function WordLibraryPage({
     }
   }
 
-  async function addManyToTargetDay(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
-    if (bulkTargetDay === null) return onAddMany(inputs, onProgress);
+  async function addManyToTargetDay(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void, mode?: WordAddMode) {
+    if (bulkTargetDay === null) return onAddMany(inputs, onProgress, mode);
     const day = bulkTargetDay;
     const alreadyInDay = new Set(daily.plan.groups[day - 1]?.words.map((word) => wordKey(word.word)) ?? []);
     const requested = new Set(inputs.map((input) => wordKey(input.word)).filter((key) => !alreadyInDay.has(key)));
@@ -192,7 +223,7 @@ export function WordLibraryPage({
       const result = await onAddMany(inputs, (progress) => {
         failedWords = new Set((progress.failedWords ?? []).map(wordKey));
         onProgress?.(progress);
-      });
+      }, mode);
       // Missing AI words are not saved. Retried words can be enqueued later.
       for (const key of failedWords) pending.keys.delete(key);
       if (!pending.keys.size) pendingBulk.current = null;
@@ -204,7 +235,7 @@ export function WordLibraryPage({
     }
   }
 
-  async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void) {
+  async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void, mode?: WordAddMode) {
     if (!id && createTargetDay !== null) {
       pendingCreate.current = {
         day: createTargetDay,
@@ -213,7 +244,7 @@ export function WordLibraryPage({
       };
     }
     try {
-      await onSave(input, id, onProgress);
+      await onSave(input, id, onProgress, mode);
     } catch (reason) {
       pendingCreate.current = null;
       throw reason;
@@ -343,6 +374,7 @@ export function WordLibraryPage({
           error={daily.error}
           onGroupSizeChange={daily.setGroupSize}
           onStudyGroup={onStudyGroup}
+          accountId={accountId}
           onAddWord={openCreate}
           onBulkAdd={openGeneralBulk}
           onBulkAddForDay={bulkAddForDay}
@@ -357,12 +389,29 @@ export function WordLibraryPage({
         <>
           <div id="library-word-controls" className="mt-4">
             <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
-            <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} />
-             <TooltipBackfill onNotify={onNotify} />
+            {!loading && !loadError && automaticLegacyRepair && accountId && legacyCandidatesExist && !autoConsent && (
+              <div role="note" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-atlas-muted">
+                <span>Eski kelimelerini ve Türkçe anlamlarını otomatik tamamla. Önce bir kez izin vermen yeterli.</span>
+                <button type="button" onClick={enableAutoRepair} className="rounded-md border border-atlas-line bg-card px-3 py-1.5 font-semibold text-atlas-ink hover:bg-muted focus-visible:outline-2 focus-visible:outline-atlas-blue">
+                  Otomatik tamamlamayı aç
+                </button>
+              </div>
+            )}
+            {!loading && !loadError && words.length > 0 && (
+              <details className="mt-2 text-xs text-atlas-muted">
+                <summary className="inline-flex cursor-pointer rounded-md px-2 py-1.5 font-medium text-atlas-muted hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue">
+                  Gelişmiş kütüphane bakımı
+                </summary>
+                <div className="mt-2 space-y-2">
+                  <LegacyTierUpgrade words={words} onSave={onSaveProtected} onNotify={onNotify} automatic={mayAutoRepair} />
+                  <TooltipBackfill onNotify={onNotify} automatic={mayAutoRepair} accountId={accountId} />
+                </div>
+              </details>
+            )}
           </div>
 
           <section
-            className="mt-4 rounded-lg border border-slate-200 bg-white"
+            className="mt-4 overflow-hidden rounded-xl border border-border bg-card shadow-[0_5px_20px_rgba(15,35,52,0.035)]"
             aria-label={t("library.aria")}
           >
             <LibraryFilterTabs group={view.group} counts={view.counts} onChange={view.setGroup} />

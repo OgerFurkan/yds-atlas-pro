@@ -1,3 +1,4 @@
+import type { WordInput } from "@yds-atlas/shared";
 import { Check, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Alert, AlertDescription } from "@/shared/ui/alert";
@@ -6,23 +7,33 @@ import { Textarea } from "@/shared/ui/textarea";
 import { checkSpelling } from "../api/spellcheck";
 import type { SpellcheckResult } from "../model/spellcheck.types";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
-import { parseWordList } from "../model/word-normalization";
+import { parseWordList, wordKey } from "../model/word-normalization";
+import { parseBulkWordEntries } from "../model/manual-word-import";
 import { AiFillProgress } from "./ai-fill-progress";
 
 interface ReviewRow extends SpellcheckResult {
   original: string;
+  meanings: string[];
   accepted: boolean;
 }
 
 export function WordImportReview({
   onAccept,
+  onAcceptEntries,
+  onAcceptEntriesManual,
+  onInputChange,
+  showActions = true,
   busy = false,
   label = "Kelimeleri ekle",
   demo = false,
   onReviewed,
   onCorrected,
 }: {
-  onAccept: (words: string[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
+  onAccept?: (words: string[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
+  onAcceptEntries?: (entries: WordInput[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
+  onAcceptEntriesManual?: (entries: WordInput[]) => Promise<void>;
+  onInputChange?: () => void;
+  showActions?: boolean;
   busy?: boolean;
   label?: string;
   demo?: boolean;
@@ -53,25 +64,37 @@ export function WordImportReview({
     return () => clearInterval(timer);
   }, [demo, reduceMotion]);
   const valid = rows.length > 0 && rows.every((row) => row.isCorrect || row.accepted);
+  async function accept(manual = false) {
+    setError("");
+    setProgress(null);
+    try {
+      const entries = [...new Map(rows.map((row) => [
+        wordKey(row.normalized), { word: row.normalized, meanings: row.meanings },
+      ] as const)).values()];
+      if (manual && onAcceptEntriesManual) await onAcceptEntriesManual(entries);
+      else if (onAcceptEntries) await onAcceptEntries(entries, setProgress);
+      else if (onAccept) await onAccept(entries.map((entry) => entry.word), setProgress);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Kelimeler eklenemedi.");
+    } finally { setProgress(null); }
+  }
 
   async function review() {
-    const words = parseWordList(text);
-    if (words.length > 200) {
-      setError("Bir seferde en fazla 200 kelime ekleyebilirsin.");
-      return;
-    }
-    if (words.some((word) => word.length > 120)) {
-      setError("Bir kelime en fazla 120 karakter olabilir.");
-      return;
-    }
     setChecking(true);
     setError("");
     try {
+      const entries: WordInput[] = onAcceptEntries
+        ? parseBulkWordEntries(text)
+        : parseWordList(text).map((word) => ({ word }));
+      if (entries.length > 200) throw new Error("Bir seferde en fazla 200 kelime ekleyebilirsin.");
+      if (entries.some((entry) => entry.word.length > 120))
+        throw new Error("Bir kelime en fazla 120 karakter olabilir.");
       setRows(
         await Promise.all(
-          words.map(async (original) => ({
-            ...(await checkSpelling(original)),
-            original,
+          entries.map(async (entry) => ({
+            ...(await checkSpelling(entry.word)),
+            original: entry.word,
+            meanings: entry.meanings ?? [],
             accepted: false,
           })),
         ),
@@ -92,17 +115,21 @@ export function WordImportReview({
           id="import-text"
           aria-label="İngilizce kelime listesi"
           className="min-h-36 bg-white"
-          placeholder={"abandon\nbenefit\nconsequence"}
+          placeholder={onAcceptEntries ? "hello = merhaba\nbenefit\nrun = koşmak" : "abandon\nbenefit\nconsequence"}
           value={text}
           disabled={checking || busy || typing}
           onChange={(event) => {
             setText(event.target.value);
             setRows([]);
             setError("");
+            setProgress(null);
+            onInputChange?.();
           }}
         />
         <span className="text-xs font-normal text-slate-500">
-          Satır, virgül veya noktalı virgülle ayır. Başlıklar düzenlenir, tekrarlar ayıklanır.
+          {onAcceptEntries
+            ? "Her satıra bir kelime. Anlamları = ile ayır; virgülle birden çok anlam ekle."
+            : "Satır, virgül veya noktalı virgülle ayır. Başlıklar düzenlenir, tekrarlar ayıklanır."}
         </span>
       </label>
       {error && (
@@ -124,6 +151,7 @@ export function WordImportReview({
                   <TriangleAlert size={15} className="text-amber-700" />
                 )}
                 <strong>{row.normalized}</strong>
+                {row.meanings.length > 0 && <span className="text-slate-600">= {row.meanings.join(", ")}</span>}
                 {row.original !== row.normalized && (
                   <span className="text-slate-500">← {row.original}</span>
                 )}
@@ -149,6 +177,7 @@ export function WordImportReview({
                           ),
                         );
                         onCorrected?.();
+                        onInputChange?.();
                       }}
                     >
                       {suggestion}
@@ -158,13 +187,14 @@ export function WordImportReview({
                     size="sm"
                     variant="link"
                     disabled={busy}
-                    onClick={() =>
+                    onClick={() => {
                       setRows((current) =>
                         current.map((item, i) =>
                           i === index ? { ...item, accepted: true } : item,
                         ),
-                      )
-                    }
+                      );
+                      onInputChange?.();
+                    }}
                   >
                     Bu yazımı kullan
                   </Button>
@@ -175,7 +205,7 @@ export function WordImportReview({
         </div>
       )}
       {progress && <AiFillProgress progress={progress} />}
-      <div className="flex justify-end gap-2">
+      {showActions && <div className="flex flex-wrap justify-end gap-2">
         {rows.length === 0 ? (
           <Button
             id="import-check"
@@ -185,28 +215,24 @@ export function WordImportReview({
             {checking && <LoaderCircle size={15} className="animate-spin" />}Yazımı kontrol et
           </Button>
         ) : (
+          <>
+          {onAcceptEntriesManual && (
+            <Button type="button" variant="outline" disabled={!valid || busy}
+              onClick={() => void accept(true)}>
+              AI olmadan kaydet
+            </Button>
+          )}
           <Button
             id="import-accept"
             disabled={!valid || busy}
-            onClick={async () => {
-              setError("");
-              setProgress(null);
-              try {
-                await onAccept([...new Set(rows.map((row) => row.normalized))], (next) =>
-                  setProgress(next),
-                );
-              } catch (error) {
-                setError(error instanceof Error ? error.message : "Kelimeler eklenemedi.");
-              } finally {
-                setProgress(null);
-              }
-            }}
+            onClick={() => void accept()}
           >
             {busy && <LoaderCircle size={15} className="animate-spin" />}
             {label} ({rows.length})
           </Button>
+          </>
         )}
-      </div>
+      </div>}
     </div>
   );
 }

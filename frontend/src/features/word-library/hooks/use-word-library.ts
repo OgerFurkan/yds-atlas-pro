@@ -43,8 +43,8 @@ export function useWordLibrary(repository: WordRepository = localWordRepository)
       window.removeEventListener("storage", listener);
     };
   }, [sync]);
-  async function save(input: WordInput, id?: string) {
-    const saved = await repository.save(input, id);
+  async function save(input: WordInput, id?: string, expectedUpdatedAt?: string) {
+    const saved = await repository.save(input, id, expectedUpdatedAt);
     await sync();
     return saved;
   }

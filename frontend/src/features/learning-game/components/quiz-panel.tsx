@@ -88,9 +88,9 @@ export function QuizPanel({
       </div>
       {feedback && (
         <>
-          <AnswerFeedback session={session} />
           {feedback.correct && isFinal(session) && (
-            <fieldset id="answer-confidence" className="rounded-xl border bg-slate-50 p-4">
+            <fieldset id="answer-confidence"
+              className="sticky bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-xl border bg-slate-50 p-3 shadow-lg sm:p-4">
               <legend className="px-2 text-sm font-semibold text-slate-700">
                 Bu kelimeyi nasıl hatırladın?
               </legend>
@@ -132,6 +132,7 @@ export function QuizPanel({
               </div>
             </fieldset>
           )}
+          <AnswerFeedback session={session} />
           <div className="flex justify-end">
             <Button
               id="question-next"

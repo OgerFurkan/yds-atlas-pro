@@ -17,6 +17,7 @@ import { useAccountData } from "@/features/account/hooks/use-account-data";
 import { AiChatWidget } from "@/features/ai-chat/components/ai-chat-widget";
 import { INSPECTOR_UI_ENABLED } from "@/features/word-inspector/api/word-inspector-api";
 import { SentenceVocabularyProvider } from "@/features/word-library/components/sentence-word-tooltips";
+import { ApiError } from "@/shared/api/api-client";
 import { readSession } from "@/features/learning-game/model/game-storage";
 import { gameStorageKey } from "@/features/learning-game/model/game-session";
 import { readRawStorage } from "@/shared/lib/storage";
@@ -28,6 +29,8 @@ import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api
 import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
+import { needsAiMeaning, splitWordInputsByMeaning, type WordAddMode } from "@/features/word-library/model/manual-word-import";
+import { wordKey } from "@/features/word-library/model/word-normalization";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
 
 const WordInspectorPage = lazy(() =>
@@ -132,6 +135,13 @@ function AppWorkspace({
   }
 
   function studyDailyGroup(group: DailyGroup) {
+    // Protect a saved unfinished session instead of overwriting it with the day preset.
+    if (hasActiveLocalGame()) {
+      notify.info("Yarım kalan görevin korunuyor. Önce mevcut oyuna devam et veya tamamla.");
+      setGamePreset(null);
+      navigate("game");
+      return;
+    }
     setGamePreset({
       day: group.day,
       wordIds: group.playableWords.map((word) => word.id),
@@ -143,48 +153,82 @@ function AppWorkspace({
     input: WordInput,
     id?: string,
     onProgress?: (progress: WordFillProgress) => void,
+    mode: WordAddMode = "auto",
   ) {
-    const [prepared] =
-      !id && auth.user
-        ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
-        : [input];
+    // User-entered meanings must save directly. Bare entries can request AI,
+    // or be explicitly kept as incomplete personal vocabulary.
+    const [prepared] = !id && auth.user && mode === "auto" && needsAiMeaning(input)
+      ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
+      : [input];
     await library.save(prepared, id);
   }
 
-  async function addWords(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
-    let failedWords: string[] = [];
+  async function saveWordProtected(input: WordInput, id: string, expectedUpdatedAt: string) {
+    try {
+      await library.save(input, id, expectedUpdatedAt);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) await library.reload();
+      throw error;
+    }
+  }
 
-    const prepared = auth.user
-      ? await prepareWordInputs(
-          inputs,
+  async function addWords(
+    inputs: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+    mode: WordAddMode = "auto",
+  ) {
+    if (!auth.user || mode === "manual") return library.addMany(inputs);
+    const { direct, needsAi } = splitWordInputsByMeaning(inputs, library.list());
+    if (needsAi.length > 25)
+      throw new Error("AI ile en fazla 25 anlamsız kelime tamamlanabilir. Anlam ekle veya daha küçük liste seç.");
+
+    let generated: WordInput[] = [];
+    let failedWords: string[] = [];
+    let aiUnavailable = false;
+    if (needsAi.length) {
+      try {
+        generated = await prepareWordInputs(
+          needsAi,
           library.list(),
           completeWordsWithGemini,
           (progress) => {
             failedWords = progress.failedWords ?? [];
             onProgress?.(progress);
           },
-        )
-      : inputs;
-
-    const result = await library.addMany(prepared);
-
-    if (failedWords.length) {
-      notify.info(
-        <span>
-          Hazir kelimeler kaydedildi. Tamamlanamayan {failedWords.length} kelime:{" "}
-          <strong>{failedWords.join(", ")}</strong>.
-          Bu kelimeleri yeniden deneyebilirsin.
-        </span>,
-      );
+        );
+      } catch (error) {
+        // Keep directly entered meanings safe even if the AI provider is down.
+        // Do not persist bare words without the user's explicit manual choice.
+        failedWords = needsAi.map((entry) => entry.word);
+        onProgress?.({
+          completed: 0, total: needsAi.length, batchSize: 5, failedWords,
+        });
+        aiUnavailable = true;
+      }
     }
 
+    const ready = new Map([...direct, ...generated].map((entry) => [wordKey(entry.word), entry]));
+    const prepared = inputs.flatMap((entry) => {
+      const value = ready.get(wordKey(entry.word));
+      return value ? [value] : [];
+    });
+    const result = prepared.length
+      ? await library.addMany(prepared)
+      : { added: 0, duplicates: 0 };
+
+    if (failedWords.length) {
+      notify.info(`${result.added} kaydedildi · ${failedWords.length} bekliyor. ${aiUnavailable
+        ? "AI şu anda tamamlayamadı."
+        : "Eksik anlamları tekrar deneyebilirsin."} İstersen AI olmadan kaydet.`);
+    }
     return result;
   }
 
   return (
     <SentenceVocabularyProvider words={library.words} userId={auth.user?.id}
       enabled={true}
-      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}>
+      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}
+      allowDictionaryLookup={!!auth.user && screen !== "game" && !inspectorBlocked}>
     <div className="flex min-h-screen flex-col bg-atlas-canvas">
       <AppHeader
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
@@ -290,8 +334,11 @@ function AppWorkspace({
               words={library.words}
               loading={library.loading}
               loadError={library.loadError}
+              automaticLegacyRepair={!!auth.user && !hasActiveLocalGame()}
+              accountId={auth.user?.id ?? null}
               onReload={() => void library.reload()}
               onSave={saveWord}
+              onSaveProtected={saveWordProtected}
               onAddMany={addWords}
               onRemove={library.remove}
               onRemoveMany={library.removeMany}

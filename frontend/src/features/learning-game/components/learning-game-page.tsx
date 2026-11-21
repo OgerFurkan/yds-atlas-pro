@@ -3,7 +3,7 @@ import { ArrowLeft, GraduationCap, Pause, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { recordDailyProgress } from "@/features/dashboard/model/daily-progress";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
-import type { DailyGroupPreset } from "@/features/word-library/model/daily-groups";
+import { isDayStudyReady, type DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import type { Notify } from "@/shared/lib/notify";
 import { getStorageScope } from "@/shared/lib/storage-scope";
@@ -13,7 +13,6 @@ import {
   advance,
   createSession,
   currentWord,
-  isGameReady,
   recordAnswer,
   resultScore,
   setConfidence,
@@ -59,7 +58,7 @@ export function LearningGamePage({
   const presetWords = useMemo(() => {
     if (!preset) return [];
     const ids = new Set(preset.wordIds);
-    return words.filter((word) => ids.has(word.id) && isGameReady(word));
+    return words.filter((word) => ids.has(word.id) && isDayStudyReady(word));
   }, [preset, words]);
   const [startedDay] = useState(preset?.day ?? null);
   const [session, setSession] = useState<GameSession | null>(() =>

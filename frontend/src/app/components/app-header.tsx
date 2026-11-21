@@ -70,21 +70,23 @@ export function AppHeader({
     setHelpOpen(false);
   }
   return (
-    <header className="sticky top-0 z-40 border-b border-atlas-line bg-white/95 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-atlas-line bg-card/95 backdrop-blur">
       <div className="relative mx-auto flex h-18 w-full max-w-[1600px] items-center gap-2 px-3 sm:gap-4 sm:px-6 lg:px-8">
         <button
           type="button"
-          className="flex min-w-0 shrink-0 cursor-pointer items-center gap-2 text-left sm:gap-3"
+          className="group flex min-w-0 shrink-0 cursor-pointer items-center gap-3 rounded-lg text-left focus-visible:outline-offset-4"
           aria-label={t("nav.home")}
           onClick={() => go("home")}
         >
-          <AtlasLogo className="size-9 shrink-0 shadow-sm sm:size-10" />
-          <span className="grid gap-1">
-            <strong className="block whitespace-nowrap font-display text-[17px] leading-none text-atlas-navy">
-              YDS Atlas <span className="text-atlas-orange">Pro</span>
-              <span className="hidden text-[0.5rem] min-[360px]:inline"> Beta 0.8</span>
-            </strong>
-            <small className="hidden whitespace-nowrap text-[9px] font-medium tracking-[0.08em] text-slate-500 min-[380px]:block">
+          <AtlasLogo className="size-10 shrink-0 transition-transform duration-200 group-hover:scale-[1.03] sm:size-11" />
+          <span className="flex min-w-0 flex-col justify-center gap-0.5">
+            <span className="flex items-center gap-2">
+              <strong className="whitespace-nowrap font-sans text-[17px] font-bold tracking-[-0.045em] text-atlas-navy sm:text-[19px]">
+                YDS Atlas <span className="text-atlas-orange">Pro</span>
+              </strong>
+              <span className="hidden rounded border border-atlas-line px-1.5 py-0.5 text-[9px] font-bold tracking-[0.12em] text-atlas-muted sm:inline-flex">BETA</span>
+            </span>
+            <small className="hidden whitespace-nowrap text-[11px] font-medium leading-tight tracking-[0.005em] text-atlas-muted min-[380px]:block">
               {t("brand.tagline")}
             </small>
           </span>
@@ -103,7 +105,7 @@ export function AppHeader({
         <nav
           id="main-navigation"
           aria-label={t("nav.main")}
-          className={`${menuOpen ? "absolute inset-x-0 top-18 flex flex-col border-b bg-white p-3 shadow-lg" : "hidden"} gap-1 xl:static xl:ml-auto xl:flex xl:flex-row xl:items-center xl:border-0 xl:p-0 xl:shadow-none`}
+          className={`${menuOpen ? "absolute inset-x-0 top-18 flex flex-col border-b border-border bg-card p-3 shadow-lg" : "hidden"} gap-1 xl:static xl:ml-auto xl:flex xl:flex-row xl:items-center xl:border-0 xl:p-0 xl:shadow-none`}
         >
           <Button
             variant="ghost"

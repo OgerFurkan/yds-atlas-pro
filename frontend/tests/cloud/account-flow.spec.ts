@@ -437,7 +437,7 @@ test("new account words are completed automatically before saving", async ({ pag
   expect(saved.examples[0].source).toContain("Gemini");
 });
 
-test("six confirmed legacy words upgrade in one session without losing examples or scores", async ({ page }) => {
+test("six confirmed legacy words auto-upgrade on opening the library, preserving examples and scores", async ({ page }) => {
   const cloud = await mockCloud(page);
   const names = ["Evidence", "Obtain", "Adapt", "Analyze", "Maintain", "Clarify"];
   const initial = names.map((name, index) => ({
@@ -455,13 +455,8 @@ test("six confirmed legacy words upgrade in one session without losing examples 
   await page.goto("/");
   await login(page);
   await page.goto("/#library");
-  const section = page.locator("#library-word-controls details");
-  await section.locator("summary").click();
-  const start = page.getByRole("button", { name: "Eksik cümleleri 2/1/2 tamamla" });
-  await expect(start).toBeVisible();
-  expect(cloud.requests.some(req => req.method === "PUT")).toBe(false);
-  page.once("dialog", dialog => void dialog.accept());
-  await start.click();
+  // No manual recovery control or consent dialog is required for tiered examples.
+  // This must run only in the authenticated library and retain each original row.
   await expect.poll(() => cloud.requests.filter(req =>
     req.path.startsWith("/api/words/") && req.method === "PUT").length,
     { timeout: 30_000 }).toBe(6);

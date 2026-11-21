@@ -68,7 +68,7 @@ html[data-theme="dark"] {
   --color-secondary: #e9f2f7;
   --color-secondary-foreground: #123b59;
   --color-muted: #f1f5f9;
-  --color-muted-foreground: #64748b;
+  --color-muted-foreground: #526678;
   --color-accent: #fff1e9;
   --color-accent-foreground: #123b59;
   --color-destructive: #b93832;
@@ -80,8 +80,8 @@ html[data-theme="dark"] {
   --radius-lg: 0.75rem;
   --radius-xl: 1rem;
   --color-atlas-ink: #17212b;
-  --color-atlas-muted: #6f7a82;
-  --color-atlas-quiet: #98a1a7;
+  --color-atlas-muted: #536777;
+  --color-atlas-quiet: #61717e;
   --color-atlas-line: #e6e9e9;
   --color-atlas-paper: #ffffff;
   --color-atlas-canvas: #f5f6f7;
@@ -266,7 +266,17 @@ html[data-theme="dark"] .library-word-card[data-selected="true"] {
 
 .word-table-row.is-selected,
 .library-word-card.is-selected {
-  background-color: #e0f2fe;
+  background-color: #eff6fb;
+}
+html:not([data-theme="dark"]) .word-table-row.is-selected > td:first-child {
+  box-shadow: inset 3px 0 0 #2876a6;
+}
+html:not([data-theme="dark"]) .library-word-card.is-selected {
+  border-color: #2876a6;
+  box-shadow: inset 3px 0 0 #2876a6;
+}
+html:not([data-theme="dark"]) .word-table-row.is-selected .text-atlas-ink {
+  color: #142b3e;
 }
 
 html[data-theme="dark"] .word-table-row.is-selected,

@@ -115,6 +115,15 @@ test("short laptop review uses compact 5-pair board instead of forcing 10 rows",
   await page.getByRole("button", { name: "1. günün kelimelerini puansız tekrar et" }).click();
   await expect(page.getByText(/1 \/ 2 tur/)).toBeVisible();
   await expect(page.locator('[data-matching-side="left"]')).toHaveCount(5);
+  const header = page.locator("#day-review-header");
+  const headingBox = await header.getByRole("heading", { name: "1. gün · Tekrar Et" }).boundingBox();
+  const headerBox = await header.boundingBox();
+  expect(headingBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+  expect(Math.abs((headingBox!.x + headingBox!.width / 2) - (headerBox!.x + headerBox!.width / 2)))
+    .toBeLessThanOrEqual(2);
+  expect(headerBox!.height).toBeLessThanOrEqual(106);
+  await expect(header.getByText("Puan, SRS, günlük ilerleme ve kayıtlı oturum korunur.")).toBeVisible();
   const rect = await page.locator("#matching-board").boundingBox();
   expect(rect).not.toBeNull();
   expect(rect!.y + rect!.height).toBeLessThanOrEqual(768);
@@ -129,6 +138,13 @@ test("mobile review presents accessible 4-pair board and keeps the round size", 
   await page.getByRole("button", { name: "1. günün kelimelerini puansız tekrar et" }).click();
   await expect(page.locator('[data-matching-side="left"]')).toHaveCount(4);
   await expect(page.getByText(/1 \/ 2 tur/)).toBeVisible();
+  const header = page.locator("#day-review-header");
+  const headingBox = await header.getByRole("heading", { name: "1. gün · Tekrar Et" }).boundingBox();
+  const headerBox = await header.boundingBox();
+  expect(headingBox).not.toBeNull();
+  expect(headerBox).not.toBeNull();
+  expect(Math.abs((headingBox!.x + headingBox!.width / 2) - (headerBox!.x + headerBox!.width / 2)))
+    .toBeLessThanOrEqual(2);
   const minTarget = await page.locator('[data-matching-side="left"]').first()
     .evaluate((element) => element.getBoundingClientRect().height);
   expect(minTarget).toBeGreaterThanOrEqual(44);

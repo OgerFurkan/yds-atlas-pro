@@ -210,7 +210,7 @@ export const trVocabulary = {
         review: "Tekrar Et",
         reviewCardAria: "{{day}}. günün kelimelerini puansız tekrar et",
         reviewTitle: "{{day}}. gün · Tekrar Et",
-        reviewReadOnly: "Puan, SRS, günlük ilerleme ve kayıtlı çalışma oturumun değişmez. Yalnız bu ekranda eşleştirme pratiği yaparsın.",
+        reviewReadOnly: "Puan, SRS, günlük ilerleme ve kayıtlı oturum korunur.",
         reviewRound: "{{current}} / {{total}} tur · {{count}} kelime",
         reviewBoardComplete: "Bu eşleştirme tamamlandı. Sıradaki eşleştirmeye geç.",
         reviewContinue: "Devam et",

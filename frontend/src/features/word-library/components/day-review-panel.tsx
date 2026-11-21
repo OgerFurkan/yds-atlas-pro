@@ -44,13 +44,28 @@ export function DayReviewPanel({ day, words, onExit }: {
   }
   return <section id="day-review" aria-label={t("library.daily.manage.reviewTitle", { day })}
     className="mx-auto mt-2 w-full max-w-4xl space-y-2 sm:space-y-3">
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <Button type="button" variant="outline" onClick={onExit}><ArrowLeft size={16} /> {t("library.daily.manage.reviewExit")}</Button>
-      <h2 className="text-base font-semibold text-foreground sm:text-lg">{t("library.daily.manage.reviewTitle", { day })}</h2>
-    </div>
-    <p role="note" className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-foreground">
-      {t("library.daily.manage.reviewReadOnly")}
-    </p>
+    <header id="day-review-header"
+      className="rounded-xl border border-border bg-muted/25 px-3 py-2 sm:px-4">
+      <div className="grid grid-cols-[4.5rem_minmax(0,1fr)_4.5rem] items-center gap-1 sm:grid-cols-[6rem_minmax(0,1fr)_6rem]">
+        <Button type="button" variant="outline" className="min-h-11 justify-self-start px-2 sm:px-3" onClick={onExit}>
+          <ArrowLeft size={16} /> {t("library.daily.manage.reviewExit")}
+        </Button>
+        <div className="min-w-0 text-center">
+          <h2 className="text-sm font-semibold leading-5 text-foreground sm:text-base">
+            {t("library.daily.manage.reviewTitle", { day })}
+          </h2>
+          {session && !finished && (
+            <p role="status" className="mt-0.5 text-[11px] leading-4 text-muted-foreground">
+              {t("library.daily.manage.reviewRound", { current: roundIndex + 1, total: rounds.length, count: rounds[roundIndex].length })}
+            </p>
+          )}
+        </div>
+        <span aria-hidden="true" />
+      </div>
+      <p role="note" className="mt-1 text-center text-[11px] leading-4 text-muted-foreground sm:text-xs">
+        {t("library.daily.manage.reviewReadOnly")}
+      </p>
+    </header>
     {missing.length > 0 ? (
       <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
         {t("library.daily.manage.reviewMissing", { count: missing.length })}
@@ -65,9 +80,6 @@ export function DayReviewPanel({ day, words, onExit }: {
       </div>
     ) : session ? (
       <div className="space-y-2">
-        <div role="status" className="text-center text-xs font-semibold text-foreground">
-          {t("library.daily.manage.reviewRound", { current: roundIndex + 1, total: rounds.length, count: rounds[roundIndex].length })}
-        </div>
         <MatchingPanel session={session} practice
           nextLabel={t("library.daily.manage.reviewContinue")}
           onSelect={(side, id) => setSession((current) => current ? selectMatching(current, side, id) : current)}

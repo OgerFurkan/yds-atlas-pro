@@ -210,7 +210,7 @@ export const enVocabulary = {
         review: "Review",
         reviewCardAria: "Review day {{day}} words without points",
         reviewTitle: "Day {{day}} · Review",
-        reviewReadOnly: "Scores, SRS, daily progress and your saved game are unchanged. Matching here is practice only.",
+        reviewReadOnly: "Scores, SRS, daily progress and saved sessions stay unchanged.",
         reviewRound: "Round {{current}} of {{total}} · {{count}} words",
         reviewBoardComplete: "This matching set is complete. Continue to the next set.",
         reviewContinue: "Continue",

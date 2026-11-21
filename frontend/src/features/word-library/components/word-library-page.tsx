@@ -39,6 +39,7 @@ interface WordLibraryPageProps {
   loading: boolean;
   loadError: string;
   automaticLegacyRepair?: boolean;
+  accountId?: string | null;
   onReload: () => void;
   onSave: (
     input: WordInput,
@@ -63,6 +64,7 @@ export function WordLibraryPage({
   loading,
   loadError,
   automaticLegacyRepair = false,
+  accountId = null,
   onReload,
   onSave,
   onAddMany,
@@ -366,7 +368,7 @@ export function WordLibraryPage({
                 </summary>
                 <div className="mt-2 space-y-2">
                   <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} automatic={automaticLegacyRepair} />
-                  <TooltipBackfill onNotify={onNotify} />
+                  <TooltipBackfill onNotify={onNotify} automatic={automaticLegacyRepair} accountId={accountId} />
                 </div>
               </details>
             )}

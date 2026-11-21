@@ -54,3 +54,20 @@ export function toWordInput(values: WordFormValues, word: string): WordInput {
     pronunciationUs: values.pronunciationUs.trim(),
   };
 }
+
+/** Editing a word must not strip its validated 2/1/2 tier metadata.
+ * Only unchanged sentence+translation pairs retain their original provenance. */
+export function preserveExampleMetadata(input: WordInput, source: WordInput): WordInput {
+  if (!input.examples?.length || !source.examples?.length) return input;
+  return {
+    ...input,
+    examples: input.examples.map((example) => {
+      const original = source.examples?.find((entry) =>
+        entry.sentence === example.sentence && entry.translation === example.translation);
+      return original
+        ? { ...example, difficulty: original.difficulty,
+            translationFocus: original.translationFocus, source: original.source }
+        : example;
+    }),
+  };
+}

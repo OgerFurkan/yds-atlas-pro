@@ -17,7 +17,7 @@ import { enrichWordInput } from "../data/starter-vocabulary";
 import { useWordSpellcheck } from "../hooks/use-word-spellcheck";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
 import { type WordFormValues, wordFormSchema } from "../model/word-form.schema";
-import { toFormValues, toWordInput } from "../model/word-form-mappers";
+import { preserveExampleMetadata, toFormValues, toWordInput } from "../model/word-form-mappers";
 import { needsAiMeaning, type WordAddMode } from "../model/manual-word-import";
 import { AiFillProgress } from "./ai-fill-progress";
 import { AiWordAssist } from "./ai-word-assist";
@@ -78,15 +78,8 @@ export function WordFormDialog({
       if (!checked) return;
       const input = toWordInput(values, checked.normalized);
       const source = wordInputSchema.parse(aiSource.current ?? word ?? { word: input.word });
-      input.examples = input.examples?.map((example) => {
-        const original = source.examples.find(
-          (item) => item.sentence === example.sentence && item.translation === example.translation,
-        );
-        return original
-          ? { ...example, translationFocus: original.translationFocus, source: original.source }
-          : example;
-      });
-      await onSave(enrichWordInput(input), word?.id, mode === "manual" ? undefined : setProgress, mode);
+      const preserved = preserveExampleMetadata(input, source);
+      await onSave(enrichWordInput(preserved), word?.id, mode === "manual" ? undefined : setProgress, mode);
       onOpenChange(false);
       onNotify.success(word
         ? "Kelime güncellendi."

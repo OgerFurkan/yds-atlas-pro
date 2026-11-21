@@ -609,3 +609,38 @@ test("cloud assessment resumes, persists before completion, and restores measure
   const completed = cloud.requests.filter((request) => request.path.endsWith("/complete"));
   expect(completed).toHaveLength(1);
 });
+
+
+test("authenticated score-free day review sends no writes or Gemini request", async ({ page }) => {
+  const cloud = await mockCloud(page);
+  const ready = Array.from({ length: 11 }, (_, index) => ({
+    ...word("00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0"), "Reviewed" + index),
+    meanings: ["Ortak anlam"],
+    score: 90,
+    examples: Array.from({ length: 5 }, (_, i) => ({
+      sentence: "The Reviewed" + index + " is example " + i + ".",
+      translation: "Örnek " + index + ".",
+    })),
+  }));
+  cloud.libraries[alice] = ready;
+  await page.goto("/");
+  await login(page);
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  const original = JSON.stringify(cloud.libraries[alice]);
+  const originalAccount = JSON.stringify(cloud.accounts[alice]);
+  const writesBefore = cloud.requests.filter((request) => request.method !== "GET").length;
+  const aiBefore = cloud.requests.filter((request) => request.path.startsWith("/api/ai/")).length;
+  await page.getByRole("button", { name: "1. günün kelimelerini puansız tekrar et" }).click();
+  await expect(page.locator("#day-review")).toBeVisible();
+  const left = page.locator('[data-matching-side="left"]').first();
+  const id = await left.getAttribute("data-word-id");
+  await left.click();
+  await page.locator('[data-matching-side="right"][data-word-id="' + id + '"]').click();
+  await page.getByRole("button", { name: "Çık" }).click();
+  await expect(page.getByTestId("daily-plan-hero")).toBeVisible();
+  expect(cloud.requests.filter((request) => request.method !== "GET")).toHaveLength(writesBefore);
+  expect(cloud.requests.filter((request) => request.path.startsWith("/api/ai/"))).toHaveLength(aiBefore);
+  expect(JSON.stringify(cloud.libraries[alice])).toBe(original);
+  expect(JSON.stringify(cloud.accounts[alice])).toBe(originalAccount);
+});

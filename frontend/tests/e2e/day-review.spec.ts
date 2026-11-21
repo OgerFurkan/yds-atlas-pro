@@ -56,3 +56,51 @@ test("review is isolated from words, day assignments, progress and saved game", 
     [wordsKey, planKey, progressKey, gameKey]);
   expect(after).toEqual(original);
 });
+
+
+test("single-word review finishes, restarts, exits and preserves the library", async ({ page }) => {
+  await page.addInitScript((words) => localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words)), fixture(1, true));
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  const before = await page.evaluate(() => localStorage.getItem("yds-atlas-words-v1"));
+  await page.getByRole("button", { name: "1. günün kelimelerini puansız tekrar et" }).click();
+  await page.locator('[data-matching-side="left"]').first().click();
+  await page.locator('[data-matching-side="right"]').first().click();
+  await page.locator("#matching-next").click();
+  await expect(page.getByText("Tüm kelimeleri tekrar ettin!")).toBeVisible();
+  await page.getByRole("button", { name: "Tekrar Başlat" }).click();
+  await expect(page.getByText(/1 \/ 1 tur/)).toBeVisible();
+  await page.getByRole("button", { name: "Çık" }).click();
+  expect(await page.evaluate(() => localStorage.getItem("yds-atlas-words-v1"))).toBe(before);
+});
+
+test("a saved unfinished study session survives clicking Study on a completed day", async ({ page }) => {
+  await page.addInitScript((words) => localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words)), fixture(10));
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await page.getByRole("button", { name: "1. günün kelimeleriyle çalış" }).click();
+  await expect.poll(() => page.evaluate((key) => localStorage.getItem(key), gameKey)).not.toBeNull();
+  const before = await page.evaluate((key) => localStorage.getItem(key), gameKey);
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await page.getByRole("button", { name: "1. günün kelimeleriyle çalış" }).click();
+  await expect(page.getByRole("button", { name: "Kaldığım yerden devam et" })).toBeVisible();
+  expect(await page.evaluate((key) => localStorage.getItem(key), gameKey)).toBe(before);
+});
+
+test("English dark-mode review fits a tablet viewport without horizontal overflow", async ({ page }) => {
+  await page.setViewportSize({ width: 820, height: 1180 });
+  await page.addInitScript((words) => {
+    localStorage.setItem("yds-atlas-language", "en");
+    localStorage.setItem("yds-atlas-theme", "dark");
+    localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words));
+  }, fixture(11));
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: "Daily Plan" }).click();
+  await page.getByRole("button", { name: "Review day 1 words without points" }).click();
+  await expect(page.getByRole("heading", { name: "Day 1 · Review" })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: "test-results/day-review-tablet-dark-" + test.info().project.name + ".png" });
+  await page.getByRole("button", { name: "Exit" }).click();
+  await expect(page.getByTestId("daily-plan-hero")).toBeVisible();
+});

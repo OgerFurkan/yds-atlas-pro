@@ -38,6 +38,7 @@ interface WordLibraryPageProps {
   words: WordEntry[];
   loading: boolean;
   loadError: string;
+  automaticLegacyRepair?: boolean;
   onReload: () => void;
   onSave: (
     input: WordInput,
@@ -61,6 +62,7 @@ export function WordLibraryPage({
   words,
   loading,
   loadError,
+  automaticLegacyRepair = false,
   onReload,
   onSave,
   onAddMany,
@@ -363,7 +365,7 @@ export function WordLibraryPage({
                   Gelişmiş kütüphane bakımı
                 </summary>
                 <div className="mt-2 space-y-2">
-                  <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} />
+                  <LegacyTierUpgrade words={words} onSave={onSave} onNotify={onNotify} automatic={automaticLegacyRepair} />
                   <TooltipBackfill onNotify={onNotify} />
                 </div>
               </details>

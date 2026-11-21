@@ -65,7 +65,7 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
     });
     if (origin && origins.has(origin)) {
       headers.set("Access-Control-Allow-Origin", origin);
-      headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type");
+      headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Atlas-Expected-Updated-At");
       headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     }
     try {
@@ -185,7 +185,9 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         if (request.method === "PUT") {
           const input = wordInputSchema.parse(await readJson(request));
           await assertFeedbackWordBinding(config, input);
-          result = await saveWord(ctx, input, id);
+          const versionHeader = request.headers.get("X-Atlas-Expected-Updated-At");
+          const expectedUpdatedAt = versionHeader ? z.string().datetime().parse(versionHeader) : undefined;
+          result = await saveWord(ctx, input, id, expectedUpdatedAt);
           await persistExampleTokens(config, input.examples.map(e => e.sentence));
         } else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");

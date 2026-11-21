@@ -19,7 +19,7 @@ function list(): WordEntry[] {
   return parsed.data;
 }
 
-function save(input: WordInput, id?: string) {
+function save(input: WordInput, id?: string, expectedUpdatedAt?: string) {
   const entries = list();
   const data = wordInputSchema.parse({
     ...enrichWordInput(input),
@@ -30,6 +30,8 @@ function save(input: WordInput, id?: string) {
     throw new Error("Bu kelime kütüphanende zaten var.");
   const now = new Date().toISOString();
   const previous = entries.find((entry) => entry.id === id);
+  if (expectedUpdatedAt && previous?.updatedAt !== expectedUpdatedAt)
+    throw new Error("Kelime başka bir oturumda değişti. Önce yenile.");
   const saved: WordEntry = {
     ...data,
     id: id ?? crypto.randomUUID(),

@@ -17,6 +17,7 @@ import { useAccountData } from "@/features/account/hooks/use-account-data";
 import { AiChatWidget } from "@/features/ai-chat/components/ai-chat-widget";
 import { INSPECTOR_UI_ENABLED } from "@/features/word-inspector/api/word-inspector-api";
 import { SentenceVocabularyProvider } from "@/features/word-library/components/sentence-word-tooltips";
+import { ApiError } from "@/shared/api/api-client";
 import { readSession } from "@/features/learning-game/model/game-storage";
 import { gameStorageKey } from "@/features/learning-game/model/game-session";
 import { readRawStorage } from "@/shared/lib/storage";
@@ -151,6 +152,15 @@ function AppWorkspace({
     await library.save(prepared, id);
   }
 
+  async function saveWordProtected(input: WordInput, id: string, expectedUpdatedAt: string) {
+    try {
+      await library.save(input, id, expectedUpdatedAt);
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) await library.reload();
+      throw error;
+    }
+  }
+
   async function addWords(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void) {
     let failedWords: string[] = [];
 
@@ -184,7 +194,8 @@ function AppWorkspace({
   return (
     <SentenceVocabularyProvider words={library.words} userId={auth.user?.id}
       enabled={true}
-      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}>
+      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}
+      allowDictionaryLookup={!!auth.user && screen !== "game" && !inspectorBlocked}>
     <div className="flex min-h-screen flex-col bg-atlas-canvas">
       <AppHeader
         onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
@@ -290,8 +301,11 @@ function AppWorkspace({
               words={library.words}
               loading={library.loading}
               loadError={library.loadError}
+              automaticLegacyRepair={!!auth.user && !hasActiveLocalGame()}
+              accountId={auth.user?.id ?? null}
               onReload={() => void library.reload()}
               onSave={saveWord}
+              onSaveProtected={saveWordProtected}
               onAddMany={addWords}
               onRemove={library.remove}
               onRemoveMany={library.removeMany}

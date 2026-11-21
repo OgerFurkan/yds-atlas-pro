@@ -8,7 +8,7 @@ test("bulk validation reports only bounded rejection categories without user con
   const malformed = JSON.stringify({ suggestions: [{ word: "private-test-word" }] });
   const fetcher = (async () => new Response(JSON.stringify({
     candidates: [{ finishReason: "STOP", content: { parts: [{ text: malformed }] } }],
-  }), { status: 200, headers: { "Content-Type": "application/json" } })) as typeof fetch;
+  }), { status: 200, headers: { "Content-Type": "application/json" } })) as unknown as typeof fetch;
   console.error = (...args: unknown[]) => { records.push(args[0]); };
   try {
     await expect(generateWordList(

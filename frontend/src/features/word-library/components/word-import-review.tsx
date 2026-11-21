@@ -79,7 +79,7 @@ export function WordImportReview({
     setChecking(true);
     setError("");
     try {
-      const entries = onAcceptEntries
+      const entries: WordInput[] = onAcceptEntries
         ? parseBulkWordEntries(text)
         : parseWordList(text).map((word) => ({ word }));
       if (entries.length > 200) throw new Error("Bir seferde en fazla 200 kelime ekleyebilirsin.");

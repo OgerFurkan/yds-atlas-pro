@@ -9,11 +9,12 @@ import { wordKey } from "@/features/word-library/model/word-normalization";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 
-/** Explicit opt-in, account-scoped recovery of legacy entries; never edits scores or removes examples. */
-export function LegacyTierUpgrade({ words, onSave, onNotify }: {
+/** Account-scoped, resumable recovery while library is open; never edits scores or removes examples. */
+export function LegacyTierUpgrade({ words, onSave, onNotify, automatic = false }: {
   words: WordEntry[];
   onSave: (input: WordInput, id?: string) => Promise<void>;
   onNotify: Notify;
+  automatic?: boolean;
 }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(0);
@@ -22,16 +23,17 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
   const [retry, setRetry] = useState<AiRetryNotice | null>(null);
   const cancel = useRef(false);
   const activeRequest = useRef<AbortController | null>(null);
+  const autoStarted = useRef(false);
   const latest = useRef(words);
   useEffect(() => { latest.current = words; }, [words]);
-  useEffect(() => () => activeRequest.current?.abort(), []);
+  useEffect(() => () => { cancel.current = true; activeRequest.current?.abort(); }, []);
   function stopUpgrade() { cancel.current = true; activeRequest.current?.abort(); }
   const candidates = words.filter(word => !hasAtlasTiers(word.examples) && !word.lexicon);
   const special = words.filter(word => !hasAtlasTiers(word.examples) && Boolean(word.lexicon)).length;
 
-  async function upgrade() {
+  async function upgrade(unattended = false) {
     if (busy || !candidates.length) return;
-    if (!window.confirm(
+    if (!unattended && !window.confirm(
       candidates.length + " eski kelime için 2 kolay + 1 orta + 2 YDS örneği oluşturulacak. " +
       "Eski cümleler, anlamlar, puanlar ve ilerleme korunacak. " +
       "AI kullanım kotası harcanabilir. Devam edilsin mi?",
@@ -103,6 +105,21 @@ export function LegacyTierUpgrade({ words, onSave, onNotify }: {
       else if (reason) onNotify.error(summary);
     }
   }
+  // A single bounded pass runs after authenticated library loading. The server
+  // remains the source of truth; a canceled/failed pass resumes on the next visit.
+  // No private historical sentences are sent to Gemini: only English headwords.
+  useEffect(() => {
+    if (!automatic || busy || !candidates.length || autoStarted.current) return;
+    const timer = window.setTimeout(() => {
+      if (autoStarted.current) return;
+      autoStarted.current = true;
+      void upgrade(true);
+    }, 1500);
+    return () => window.clearTimeout(timer);
+    // One automatic pass per mounted library, never re-trigger on partial saves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [automatic, candidates.length]);
+
   if (!candidates.length && !busy && !special) return null;
   return <section className="mt-3 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-sm text-slate-800" aria-label="Eski kelimeleri 2/1/2 sistemine tamamlama">
     <div className="flex flex-wrap items-center justify-between gap-3">

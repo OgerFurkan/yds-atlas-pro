@@ -65,7 +65,7 @@ function WordTableRow({
   const { t } = useTranslation();
   return (
     <tr
-      className={`word-table-row border-t border-slate-100 transition-[border-color] hover:bg-atlas-blue/50 ${selected ? "is-selected" : ""}`}
+      className={`word-table-row border-t border-border transition-colors hover:bg-muted/60 ${selected ? "is-selected" : ""}`}
       data-selected={selected}
     >
       <td className="w-10 pl-4 pr-1">
@@ -78,22 +78,22 @@ function WordTableRow({
       </td>
       <td className="px-2.5 py-3 align-middle">
         <div className="flex min-w-[120px] flex-col gap-0.5">
-          <strong className="text-base text-slate-800"><SentenceWordTooltips text={word.word} focusWord={word}/></strong>
+          <strong className="text-base font-semibold text-atlas-ink"><SentenceWordTooltips text={word.word} focusWord={word}/></strong>
           {word.alternatives.length > 0 && (
-            <small className="text-sm text-slate-400">{word.alternatives.join(", ")}</small>
+            <small className="text-sm text-atlas-muted">{word.alternatives.join(", ")}</small>
           )}
           <WordDetails word={word} />
         </div>
       </td>
       <td className="px-2.5 py-3 align-middle">
-        <div className="max-w-[225px] text-sm leading-6 text-slate-600">
+        <div className="max-w-[225px] text-sm leading-6 text-atlas-ink">
           {word.meanings.length ? (
             word.meanings.join(" · ")
           ) : (
             <span className="text-sm italic text-slate-400">{t("library.meaningMissing")}</span>
           )}
           {word.usageNote && (
-            <small className="mt-0.5 block text-sm text-slate-400">{word.usageNote}</small>
+            <small className="mt-0.5 block text-xs leading-5 text-atlas-muted">{word.usageNote}</small>
           )}
         </div>
       </td>
@@ -206,7 +206,7 @@ export function WordList({
       <div className={view === "list" ? "hidden overflow-x-auto min-[1100px]:block" : "hidden"}>
         <table className="w-full min-w-[980px] border-collapse text-left">
           <thead>
-            <tr className="h-9 bg-slate-50 text-sm font-semibold text-slate-400">
+            <tr className="h-10 bg-muted/60 text-xs font-semibold tracking-[0.02em] text-atlas-muted">
               <th className="w-10 pl-4 pr-1">
                 <span className="sr-only">{t("library.selection")}</span>
               </th>

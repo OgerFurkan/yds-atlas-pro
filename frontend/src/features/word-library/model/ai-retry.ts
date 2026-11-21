@@ -7,13 +7,23 @@ export type AiRetryNotice = {
   secondsRemaining: number;
 };
 
-type RetryableError = { status?: number; retryAfterSeconds?: number };
+type RetryableError = { status?: number; code?: string; retryAfterSeconds?: number };
+
+// A missing key, rejected credential or invalid AI output cannot recover after
+// a timed retry. In particular AI_NOT_CONFIGURED uses HTTP 503, the same status
+// that a genuinely temporary upstream outage may return.
+const TERMINAL_AI_CODES = new Set([
+  "AI_NOT_CONFIGURED", "AI_AUTH_ERROR", "AI_MODEL_NOT_FOUND",
+  "AI_INVALID_RESPONSE", "AI_REQUEST_REJECTED", "AI_CANCELLED",
+  "UNAUTHENTICATED", "INVALID_RESPONSE",
+]);
 
 function asRetryableError(error: unknown): RetryableError {
   if (!error || typeof error !== "object") return {};
   const value = error as RetryableError;
   return {
     status: typeof value.status === "number" ? value.status : undefined,
+    code: typeof value.code === "string" ? value.code : undefined,
     retryAfterSeconds: typeof value.retryAfterSeconds === "number" ? value.retryAfterSeconds : undefined,
   };
 }
@@ -35,7 +45,8 @@ export async function withAiRecovery<T>(
       return await operation();
     } catch (error) {
       if (signal?.aborted) throw signal.reason ?? error;
-      const { status, retryAfterSeconds } = asRetryableError(error);
+      const { status, code, retryAfterSeconds } = asRetryableError(error);
+      if (code && TERMINAL_AI_CODES.has(code)) throw error;
       let reason: AiRetryNotice["reason"];
       let seconds: number;
       if (status === 429 && !rateLimitRetried) {

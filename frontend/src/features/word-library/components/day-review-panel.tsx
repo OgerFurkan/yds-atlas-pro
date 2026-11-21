@@ -78,3 +78,4 @@ export function DayReviewPanel({ day, words, onExit }: {
       <p role="alert">{t("library.daily.manage.reviewEmpty")}</p>
     )}
   </section>;
+}

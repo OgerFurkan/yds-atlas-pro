@@ -175,16 +175,16 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     <div className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
       {open && (
         <section
-          className="atlas-chat-panel flex h-[min(590px,calc(100dvh-32px))] w-[min(390px,calc(100vw-32px))] flex-col gap-3"
+          className="atlas-chat-panel flex h-[min(590px,calc(100dvh-32px))] w-[min(390px,calc(100vw-32px))] flex-col gap-2.5"
           role="dialog"
           aria-label={t("chat.title")}
           aria-modal="false"
         >
-          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl bg-[#f7f9fc] text-[#123b59] shadow-[0_12px_42px_rgba(9,38,59,0.22)]">
-            <header className="relative z-10 flex shrink-0 items-center justify-between bg-[#dcecf4] px-5 py-3">
+          <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card text-foreground shadow-[0_14px_45px_rgba(17,36,54,0.16)]">
+            <header className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-secondary px-5 py-3">
               <button
                 type="button"
-                className="flex items-center gap-2 rounded-full px-2 py-1 text-sm font-bold hover:bg-white/70"
+                className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-bold text-foreground hover:bg-accent"
                 aria-expanded={menuOpen}
                 onClick={() => setMenuOpen(!menuOpen)}
               >
@@ -194,17 +194,17 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="text-[#123b59]"
+                className="text-foreground"
                 aria-label={t("chat.close")}
                 onClick={() => setOpen(false)}
               >
                 <X size={19} />
               </Button>
               {menuOpen && (
-                <div className="absolute top-14 right-4 left-4 rounded-xl bg-[#ffffff] p-2 text-[#123b59] shadow-lg">
+                <div className="absolute top-14 right-4 left-4 rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-lg">
                   <button
                     type="button"
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8]"
+                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-muted"
                     onClick={newChat}
                   >
                     <Plus size={17} />
@@ -333,10 +333,10 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                         <button
                           type="button"
                           key={suggestion}
-                          className="flex w-full items-center gap-4 border-b border-[#dce6ec] px-2 py-4 text-left text-sm hover:bg-atlas-navy/70"
+                          className="flex w-full items-center gap-4 border-b border-border px-3 py-3.5 text-left text-sm text-foreground transition-colors hover:bg-muted focus-visible:bg-muted"
                           onClick={() => void send(suggestion)}
                         >
-                          <Icon size={20} className="shrink-0 text-[#f27637]" />
+                          <Icon size={20} className="shrink-0 text-atlas-orange" />
                           {suggestion}
                         </button>
                       );
@@ -360,7 +360,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                         {message.content}
                       </p>
                     ) : (
-                      <div className="min-w-0 max-w-[93%] rounded-2xl border border-[#e5edf3] bg-white px-4 py-3 shadow-sm">
+                      <div className="min-w-0 max-w-[93%] rounded-2xl border border-border bg-card px-4 py-3 text-foreground shadow-sm">
                         <ChatMessageMarkdown content={message.content} />
                       </div>
                     )}
@@ -410,7 +410,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
 
           <form
             onSubmit={submit}
-            className="shrink-0 rounded-3xl border border-[#dce6ec] bg-[#ffffff] p-3 shadow-[0_8px_30px_rgba(18,59,89,0.20)]"
+            className="shrink-0 rounded-3xl border border-border bg-card p-3 shadow-[0_8px_30px_rgba(18,59,89,0.12)]"
           >
             <div className="flex items-end gap-2 bg">
               <Textarea
@@ -419,7 +419,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 onKeyDown={handleKeyDown}
                 aria-label={t("chat.placeholder")}
                 placeholder={t("chat.placeholder")}
-                className="max-h-24 min-h-10 resize-none border-0 bg-transparent px-1 py-2 text-sm text-[#123b59] shadow-none placeholder:text-[#536b7d] focus-visible:ring-0"
+                className="max-h-24 min-h-10 resize-none border-0 bg-transparent px-1 py-2 text-sm text-foreground shadow-none placeholder:text-muted-foreground focus-visible:ring-0"
                 maxLength={1800}
                 rows={1}
                 disabled={busy || needsSignIn}
@@ -439,7 +439,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       )}
       {!open && (
         <Button
-          className="h-16 w-[min(350px,calc(100vw-32px))] justify-start gap-3 rounded-full border border-[#dce6ec] bg-[#ffffff] px-3 text-[#123b59] shadow-[0_8px_32px_rgba(18,59,89,0.22)] hover:bg-[#ffffff]"
+          className="h-16 w-[min(350px,calc(100vw-32px))] justify-start gap-3 rounded-full border border-border bg-card px-3 text-foreground shadow-[0_8px_32px_rgba(18,59,89,0.14)] hover:bg-muted"
           aria-expanded={false}
           aria-label={t("chat.launcher")}
           onClick={() => setOpen(true)}

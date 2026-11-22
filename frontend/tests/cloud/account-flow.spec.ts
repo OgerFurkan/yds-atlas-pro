@@ -738,6 +738,7 @@ for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const)
     await expect(dialog.locator("#import-accept")).toBeEnabled({ timeout: 30_000 });
     await dialog.locator("#import-accept").click();
 
+    await expect.poll(() => aiCalls.length, { timeout: 30_000 }).toBe(4);
     expect(aiCalls.map((group) => group.length)).toEqual([5, 5, 5, 5]);
     const expectedSaved = scenario === "first-compact" ? 17 : scenario === "all-compact" ? 8 : 0;
     const expectedPending = 20 - expectedSaved;

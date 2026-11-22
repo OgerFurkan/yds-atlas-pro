@@ -4,22 +4,18 @@ import { installSpeechMock } from "../helpers/speech-mock";
 async function contrastOf(locator: import("@playwright/test").Locator): Promise<number> {
   return locator.evaluate((element) => {
     const style = getComputedStyle(element);
-    const rgb = (value: string) => (value.match(/\d+(?:\.\d+)?/g) ?? [])
-      .slice(0, 3).map(Number);
+    const rgb = (value: string) => (value.match(/\d+(?:\.\d+)?/g) ?? []).slice(0, 3).map(Number);
     const lum = (rgbValues: number[]) => {
       if (rgbValues.length !== 3) return 0;
       const linear = rgbValues.map((channel) => {
         const normalized = channel / 255;
-        return normalized <= 0.04045
-          ? normalized / 12.92
-          : ((normalized + 0.055) / 1.055) ** 2.4;
+        return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4;
       });
       return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
     };
     const foreground = lum(rgb(style.color));
     const background = lum(rgb(style.backgroundColor));
-    return (Math.max(foreground, background) + 0.05) /
-      (Math.min(foreground, background) + 0.05);
+    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
   });
 }
 
@@ -224,7 +220,9 @@ test("appearance and language preferences persist and library cards stay distinc
       .locator("span.inline-flex.min-h-7");
     await expect(badge).toBeVisible();
     expect(await contrastOf(badge)).toBeGreaterThanOrEqual(4.5);
-    categoryColors.add(await badge.evaluate((element) => getComputedStyle(element).backgroundColor));
+    categoryColors.add(
+      await badge.evaluate((element) => getComputedStyle(element).backgroundColor),
+    );
   }
   expect(categoryColors.size).toBe(3);
   await page.screenshot({

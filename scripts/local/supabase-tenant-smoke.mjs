@@ -1,6 +1,8 @@
 #!/usr/bin/env node
 // Real LOCAL Auth/JWT + PostgREST RLS. Remote and secret-key targets fail closed.
-import { createClient } from "@supabase/supabase-js";
+import { createRequire } from "node:module";
+const backendRequire = createRequire(new URL("../../backend/package.json", import.meta.url));
+const { createClient } = backendRequire("@supabase/supabase-js");
 import { randomBytes } from "node:crypto";
 import { assertLocalSupabaseTarget } from "./target-guard.mjs";
 const target = assertLocalSupabaseTarget(process.env.LOCAL_SUPABASE_URL ?? "http://127.0.0.1:54321");

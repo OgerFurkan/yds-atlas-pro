@@ -60,7 +60,7 @@ test("axe WCAG A/AA audit on guest home and sign-in", async ({ page }) => {
       results.violations.map((violation) => ({
         id: violation.id,
         impact: violation.impact,
-        nodes: violation.nodes.length,
+        nodes: violation.nodes.map((node) => node.target.join(" ")).slice(0, 25),
       })),
       route,
     ).toEqual([]);

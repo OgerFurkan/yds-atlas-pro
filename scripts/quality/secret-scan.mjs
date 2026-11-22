@@ -14,7 +14,12 @@ const rules = [
   ["private_key", new RegExp("-----BEGIN " + "(?:RSA |EC |OPENSSH )?PRIVATE KEY-----", "g")],
 ];
 export function detectExposedSecrets(text) {
-  return rules.filter(([, pattern]) => pattern.test(text)).map(([name]) => name);
+  return rules
+    .filter(([, pattern]) => {
+      pattern.lastIndex = 0;
+      return pattern.test(text);
+    })
+    .map(([name]) => name);
 }
 const checked = (p) =>
   /^(frontend\/src\/|frontend\/config\/|backend\/src\/|packages\/shared\/src\/|\.github\/workflows\/|supabase\/migrations\/)/.test(p) ||

@@ -11,3 +11,9 @@ test("public publishable key and harmless docs stay allowed", () => {
   assert.deepEqual(detectExposedSecrets("sb_publishable_public_fixture"), []);
   assert.deepEqual(detectExposedSecrets("Gemini fake-provider 429 / 503"), []);
 });
+
+test("repeated scans cannot miss a token due to RegExp global lastIndex", () => {
+  const input = "sb_" + "secret_" + "D".repeat(24);
+  assert.deepEqual(detectExposedSecrets(input), ["supabase_secret"]);
+  assert.deepEqual(detectExposedSecrets(input), ["supabase_secret"]);
+});

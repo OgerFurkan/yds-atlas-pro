@@ -251,6 +251,8 @@ type JsonRequest = {
   schema: unknown;
   /** Bounded schema-free transport retry; caller still validates every field. */
   preferPlainJson?: boolean;
+  /** Word lists confirm a schema fallback only after accepting a word from that response. */
+  onWordListFallback?: (confirm: () => void) => void;
   maxOutputTokens: number;
   timeoutMs: number;
   signal?: AbortSignal;
@@ -261,15 +263,22 @@ type JsonRequest = {
 // text, so if schema-constrained JSON is rejected we retry once without the schema and let
 // the Zod validation in the caller enforce the contract.
 export async function requestGeminiJson(request: JsonRequest): Promise<Response> {
+  const wordList = Boolean(request.onWordListFallback);
+  // A different JSON task on the same model cannot validate the word-list contract.
+  const cooldownKey = wordList ? `word-list/${request.model}` : request.model;
   function body(structured: boolean) {
+    // In MIME-only mode Gemini still needs the field names and envelope shape.
+    const system =
+      wordList && !structured
+        ? `${request.system}\nReturn JSON matching this schema: ${JSON.stringify(request.schema)}`
+        : request.system;
     return {
-      systemInstruction: { parts: [{ text: request.system }] },
+      systemInstruction: { parts: [{ text: system }] },
       contents: [{ role: "user", parts: [{ text: JSON.stringify(request.payload) }] }],
       generationConfig: {
         maxOutputTokens: request.maxOutputTokens,
-        ...(structured
-          ? { responseMimeType: "application/json", responseJsonSchema: request.schema }
-          : {}),
+        ...((structured || wordList) && { responseMimeType: "application/json" }),
+        ...(structured && { responseJsonSchema: request.schema }),
         ...thinkingConfigFor(request.model),
       },
     };
@@ -298,7 +307,7 @@ export async function requestGeminiJson(request: JsonRequest): Promise<Response>
 
   // Skip a repeatedly rejected schema only after a prior plain JSON success.
   // Callers still validate the returned object with their existing Zod schema.
-  if (schemaCooling(request.fetcher, request.model)) {
+  if (schemaCooling(request.fetcher, cooldownKey)) {
     const plain = await send(false);
     await assertGeminiResponse(plain, request.service);
     return plain;
@@ -322,7 +331,18 @@ export async function requestGeminiJson(request: JsonRequest): Promise<Response>
     });
     const fallback = await send(false);
     await assertGeminiResponse(fallback, request.service);
-    coolUnsupportedSchema(request.fetcher, request.model);
+    if (request.onWordListFallback) {
+      request.onWordListFallback(() => {
+        if (
+          resolvedGeminiModel(response, request.model) === request.model &&
+          resolvedGeminiModel(fallback, request.model) === request.model
+        ) {
+          coolUnsupportedSchema(request.fetcher, cooldownKey);
+        }
+      });
+    } else {
+      coolUnsupportedSchema(request.fetcher, cooldownKey);
+    }
     return fallback;
   }
 }

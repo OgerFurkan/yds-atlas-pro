@@ -33,8 +33,6 @@ export async function assertGeminiResponse(response: Response, service = "gemini
     service,
     stage: "upstream_error",
     status: response.status,
-    providerStatus: payload?.error?.status,
-    reasons,
   });
   const invalidKey = reasons?.some((reason) =>
     ["API_KEY_INVALID", "API_KEY_EXPIRED"].includes(reason),

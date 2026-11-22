@@ -97,7 +97,7 @@ test("foreign, malformed, duplicate and wrong translationFocus never become acce
   expect(callCount).toBe(2);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS);
   expect(result.suggestions.every((word) => word.examples.every((example) =>
-    example.translationFocus.every((focus) => example.translation.includes(focus)))).toBe(true);
+    example.translationFocus.every((focus) => example.translation.includes(focus))))).toBe(true);
 });
 test("bad individual entries in both passes preserve only validated neighbors", async () => {
   let count = 0;

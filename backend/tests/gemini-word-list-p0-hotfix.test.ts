@@ -39,7 +39,7 @@ test("P0 regression: malformed structured five-item envelope triggers one compac
     const call = outgoing(init);
     calls.push({ structured: call.structured, count: call.payload.count, requested: call.payload.requested });
     return upstream(call.structured ? '{"suggestions": {' : validated(call.payload.requested ?? []));
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-a"), undefined, fetcher, WORDS);
   expect(calls).toEqual([
     { structured: true, count: 5, requested: WORDS },
@@ -56,7 +56,7 @@ test("MAX_TOKENS fails closed on the first pass and compact retry salvages safe 
     counts.push(call.payload.count);
     return counts.length === 1 ? upstream('{"suggestions": [', "MAX_TOKENS") :
       upstream(validated(call.payload.requested ?? []));
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-b"), undefined, fetcher, WORDS);
   expect(counts).toEqual([5, 2]);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS.slice(0, 2));
@@ -66,7 +66,7 @@ test("malformed and truncated envelopes across both passes still produce 502 and
   const fetcher = (async (_url: unknown, init?: RequestInit) => {
     counts.push(outgoing(init).payload.count);
     return upstream(counts.length === 1 ? '{"suggestions":' : '{"suggestions":{"wrong":true}}');
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   await expect(generateWordList(5, [], config("p0-c"), undefined, fetcher, WORDS))
     .rejects.toMatchObject({ code: "AI_INVALID_RESPONSE", status: 502 });
   expect(counts).toEqual([5, 2]);
@@ -74,7 +74,7 @@ test("malformed and truncated envelopes across both passes still produce 502 and
 test("safety and recitation finishes stop immediately rather than bypassing restrictions", async () => {
   for (const reason of ["SAFETY", "RECITATION"]) {
     let calls = 0;
-    const fetcher = (async () => { calls++; return upstream('{"suggestions":[]}', reason); }) as typeof fetch;
+    const fetcher = (async () => { calls++; return upstream('{"suggestions":[]}', reason); }) as unknown as typeof fetch;
     await expect(generateWordList(5, [], config("p0-safe-" + reason), undefined, fetcher, WORDS))
       .rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });
     expect(calls).toBe(1);
@@ -92,7 +92,7 @@ test("foreign, malformed, duplicate and wrong translationFocus never become acce
           item("alpha"), { word: "bravo" }, item("outside"), item("alpha"), wrongFocus,
         ] }))
       : upstream(validated(params.requested ?? []));
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-d"), undefined, fetcher, WORDS);
   expect(callCount).toBe(2);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS);
@@ -107,7 +107,7 @@ test("bad individual entries in both passes preserve only validated neighbors", 
       ? [item("alpha"), { word: "bravo" }, item("foreign"), { word: "charlie" }, item("alpha")]
       : [{ word: "bravo" }, { word: "charlie" }, { word: "delta" }, { word: "echo" }];
     return upstream(JSON.stringify({ suggestions }));
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-e"), undefined, fetcher, WORDS);
   expect(result.suggestions.map((word) => word.word)).toEqual(["alpha"]);
   expect(count).toBe(2);
@@ -120,7 +120,7 @@ test("structured HTTP 400 still falls back to plain output without weakening val
     return next.structured
       ? Response.json({ error: { status: "INVALID_ARGUMENT" } }, { status: 400 })
       : upstream(validated(next.payload.requested ?? []));
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-f"), undefined, fetcher, WORDS);
   expect(structured).toEqual([true, false]);
   expect(result.suggestions).toHaveLength(5);
@@ -132,7 +132,7 @@ test("non-thought fenced JSON is parsed; thought text is not interpreted as cont
       { thought: true, text: "not user-facing JSON" },
       { text: fence + "json\n" + validated(WORDS) + "\n" + fence },
     ] } }],
-  })) as typeof fetch;
+  })) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-g"), undefined, fetcher, WORDS);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS);
 });
@@ -145,7 +145,7 @@ test.each([
   const fetcher = (async () => {
     calls++;
     return Response.json({ error: { status: "upstream_test" } }, { status });
-  }) as typeof fetch;
+  }) as unknown as typeof fetch;
   await expect(generateWordList(5, [], config("p0-status-" + status), undefined, fetcher, WORDS))
     .rejects.toMatchObject({ code });
   expect(calls).toBe(1);
@@ -154,7 +154,7 @@ test("a pre-aborted request neither contacts the provider nor returns partial wo
   const controller = new AbortController();
   controller.abort();
   let calls = 0;
-  const fetcher = (async () => { calls++; return upstream(validated(WORDS)); }) as typeof fetch;
+  const fetcher = (async () => { calls++; return upstream(validated(WORDS)); }) as unknown as typeof fetch;
   await expect(generateWordList(5, [], config("p0-abort"), controller.signal, fetcher, WORDS))
     .rejects.toMatchObject({ code: "AI_CANCELLED" });
   expect(calls).toBe(0);

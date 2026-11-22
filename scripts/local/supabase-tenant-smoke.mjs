@@ -44,12 +44,16 @@ try {
   check("cross-tenant SELECT hidden",!cross.error && cross.data?.length===0);
   const update=await b.db.from("words").update({score:99}).eq("id",aid).select("id");
   check("cross-tenant UPDATE blocked",!update.error && update.data?.length===0);
+  const deleted=await b.db.from("words").delete().eq("id",aid).select("id");
+  check("cross-tenant DELETE blocked",!deleted.error && deleted.data?.length===0);
   const spoof=await b.db.from("words").insert({user_id:a.id,word:"Spoof"+run,content:{fixture:"LOCAL_SYNTHETIC_F1"}});
   check("forged owner INSERT rejected",!!spoof.error);
   const own=await a.db.from("words").select("score").eq("id",aid).single();
   check("owner A data remains intact",!own.error && own.data?.score===12);
   const anonymous=await client().from("words").select("id").eq("id",aid);
   check("anonymous read rejected or empty",!!anonymous.error || anonymous.data?.length===0);
+  const anonRpc=await client().rpc("set_daily_goal",{p_goal:20});
+  check("anonymous learning RPC denied",!!anonRpc.error);
   console.log("LOCAL_PROVIDER_AUTH_RLS_PASS: two ephemeral users, local GoTrue, JWT, PostgREST");
 } catch(error) {
   console.error(error instanceof Error ? error.message : "FAIL: LOCAL RLS");

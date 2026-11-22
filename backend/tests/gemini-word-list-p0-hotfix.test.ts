@@ -1,4 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { unlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -307,5 +310,94 @@ test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
       " (exit=" + exit + ")");
     // Diagnostics do NOT become a fabricated pass if baseline formatting debt
     // remains; CI logs record their actual exit status for PM acceptance.
+  }
+});
+
+
+test("P0 immutable baseline Biome per-file hunk attribution", () => {
+  const base = "567f57a9a893991ba67a46b72443114347a1aee8";
+  const cwd = fileURLToPath(new URL("../../", import.meta.url));
+  const files = [
+    "backend/src/features/ai/gemini-request.ts",
+    "backend/src/features/ai/gemini.ts",
+    "backend/tests/gemini-word-list-p0-hotfix.test.ts",
+    "frontend/tests/cloud/account-flow.spec.ts",
+    "frontend/tests/unit/prepare-word-inputs-recovery.test.ts",
+  ];
+  const sha12 = (value: string) =>
+    createHash("sha256").update(value).digest("hex").slice(0, 12);
+  const git = (args: string[]) => {
+    const p = Bun.spawnSync({ cmd: ["git", ...args], cwd,
+      stdout: "pipe", stderr: "pipe", env: process.env });
+    return { exit: p.exitCode, stdout: Buffer.from(p.stdout).toString("utf8") };
+  };
+  // Frozen pre-image, never mutable main; CI checkout may be a synthetic merge.
+  if (git(["cat-file", "-e", base + "^{commit}"]).exit !== 0) {
+    const r = git(["fetch", "--no-tags", "--depth=1", "origin", base]);
+    expect(r.exit).toBe(0);
+  }
+  const version = Bun.spawnSync({ cmd: ["bunx", "biome", "--version"], cwd,
+    stdout: "pipe", stderr: "pipe", env: process.env });
+  console.info("P0_BIOME VERSION=" + Buffer.from(version.stdout).toString("utf8").trim() +
+    " EXIT=" + version.exitCode);
+  expect(version.exitCode).toBe(0);
+  const conf = git(["show", base + ":biome.json"]);
+  const currentConf = readFileSync(join(cwd, "biome.json"), "utf8");
+  console.info("P0_BIOME CONFIG_BASE=" + sha12(conf.stdout) +
+    " CONFIG_HEAD=" + sha12(currentConf));
+  expect(conf.stdout).toBe(currentConf);
+
+  const tmp = mkdtempSync(join(tmpdir(), "p0-biome-"));
+  function formatDetails(path: string, label: string, contents: string) {
+    const r = Bun.spawnSync({ cmd: ["bunx", "biome", "format",
+      "--stdin-file-path=" + path], cwd, stdout: "pipe", stderr: "pipe",
+      stdin: Buffer.from(contents, "utf8"), env: process.env });
+    const formatted = Buffer.from(r.stdout).toString("utf8");
+    if (r.exitCode !== 0) {
+      console.info("P0_BIOME " + path + " " + label + " CLI_FAIL=" + r.exitCode);
+      return { valid: false, hunks: [] as { span: string; sig: string; patch: string }[] };
+    }
+    writeFileSync(join(tmp, "input.ts"), contents);
+    writeFileSync(join(tmp, "output.ts"), formatted);
+    const diff = git(["diff", "--no-index", "--no-color", "--unified=0",
+      join(tmp, "input.ts"), join(tmp, "output.ts")]);
+    expect([0, 1]).toContain(diff.exit);
+    const hunks = diff.stdout.split(/(?=^@@ -)/m)
+      .filter((part) => part.startsWith("@@ -"))
+      .map((part) => {
+        const first = part.split("\n")[0];
+        const m = first.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
+        const data = part.split("\n").slice(1).filter((line) =>
+          line.startsWith("+") || line.startsWith("-"));
+        return { span: m ? "L" + m[1] + "(n" + (m[2] ?? "1") + ")" : "?",
+          sig: sha12(data.join("\n")), patch: part.trimEnd() };
+      });
+    console.info("P0_BIOME " + path + " " + label +
+      " EXIT=" + r.exitCode + " MATCH=" + String(contents === formatted) +
+      " HUNKS=" + hunks.map((h) => h.span + "#" + h.sig).join(","));
+    return { valid: true, hunks };
+  }
+  try {
+    for (const path of files) {
+      const baseFile = git(["show", base + ":" + path]);
+      const current = readFileSync(join(cwd, path), "utf8");
+      const prior = baseFile.exit === 0 ? formatDetails(path, "BASE", baseFile.stdout) : null;
+      const now = formatDetails(path, "HEAD", current);
+      const oldIds = new Set((prior?.hunks ?? []).map((h) => h.sig));
+      const introduced = now.hunks.filter((h) => !oldIds.has(h.sig));
+      console.info("P0_BIOME_FILE " + path + " BASE=" + (prior ? "PRESENT" : "ABSENT") +
+        " HEAD_HUNKS=" + now.hunks.length +
+        " INHERITED_EXACT_HUNKS=" + (now.hunks.length - introduced.length) +
+        " NEW_OR_CHANGED_HUNKS=" + introduced.length +
+        " LOCATIONS=" + introduced.map((h) => h.span).join(","));
+      // Emit only newly introduced non-secret source-format hunks, never
+      // raw env/user data. The files are the five pre-approved hotfix paths.
+      for (const h of introduced) {
+        console.info("P0_BIOME_PATCH_FILE " + path + " " + h.span +
+          " PATCH_BASE64=" + Buffer.from(h.patch, "utf8").toString("base64"));
+      }
+    }
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
 });

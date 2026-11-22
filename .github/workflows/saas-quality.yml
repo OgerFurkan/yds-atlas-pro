@@ -9,45 +9,6 @@ permissions:
   contents: read
 
 jobs:
-  install-axe-once:
-    # One-time lockfile-safe free accessibility dependency on PR #26 only; deleted next Builder commit.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 26 && github.event.pull_request.head.repo.full_name == 'OgerFurkan/yds-atlas-pro' && github.event.pull_request.head.ref == 'feature/platform-foundation-f1-f3-20261122-builder'
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: feature/platform-foundation-f1-f3-20261122-builder
-          persist-credentials: true
-          fetch-depth: 2
-      - name: Deny stale or unintended checkout
-        run: test "$(git rev-parse HEAD^)" = 73ca7bd89ca5cd135bae5dd4596dcce36c549159
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.5'
-      - name: Install pinned open-source axe Playwright adapter in frontend workspace
-        run: |
-          bun install --frozen-lockfile
-          cd frontend
-          bun add --dev --exact @axe-core/playwright@4.14.0
-      - name: Verify only frontend manifest and Bun lock changed
-        run: |
-          node --input-type=module -e 'import {execFileSync} from "node:child_process";const list=execFileSync("git",["diff","--name-only"],{encoding:"utf8"}).trim().split("\n").sort();if(JSON.stringify(list)!==JSON.stringify(["bun.lock","frontend/package.json"])) {console.error("BLOCKED: unexpected dependency change",list);process.exit(1)}'
-          git diff --check
-          bun install --frozen-lockfile
-          bun run format:check
-          bun run lint
-          bun run build
-      - name: Commit dependency-only update to same PR branch
-        run: |
-          test "$(git rev-parse HEAD^)" = 73ca7bd89ca5cd135bae5dd4596dcce36c549159
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- frontend/package.json bun.lock
-          git commit -m 'chore(qa): pin free axe-core Playwright adapter in Bun lock'
-          git push origin HEAD:refs/heads/feature/platform-foundation-f1-f3-20261122-builder
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -60,6 +21,14 @@ jobs:
           bun-version: '1.3.5'
       - name: Frozen dependency install
         run: bun install --frozen-lockfile
+      - name: Biome format gate (full existing scope; fail fast)
+        run: bun run format:check
+      - name: Tracked source secret scan (redacted output)
+        run: node scripts/quality/secret-scan.mjs
+      - name: Local target and secret scanner failure-injection tests
+        run: node --test scripts/local/target-guard.test.mjs scripts/quality/secret-scan.test.mjs
+      - name: Dependency vulnerabilities (high and critical fail)
+        run: bun audit --audit-level=high
       - name: Local platform source contract (not provider PASS)
         run: node scripts/quality/foundation-contract.mjs
       - name: Staging provenance negative tests (synthetic, offline)
@@ -74,17 +43,21 @@ jobs:
         run: node --test frontend/tests/atlas-tiered-examples.node.test.mjs frontend/tests/feedback-auth-storage.node.test.mjs
       - name: Repository audit
         run: node scripts/quality/repository-audit.mjs
+      - name: Local Bun HTTP health, CORS negative, and p50/p95 sample
+        run: |
+          HOST=127.0.0.1 PORT=3000 bun run backend/src/index.ts > /tmp/atlas-f1-local-api.log 2>&1 &
+          api_pid=$!
+          trap 'kill "$api_pid" 2>/dev/null || true' EXIT
+          node scripts/quality/local-health-benchmark.mjs
       - name: Install Chromium
         run: cd frontend && bunx playwright install --with-deps chromium
       - name: Browser regressions
         run: bun run --cwd=frontend test:e2e
       - name: Isolated fake-cloud contracts
         run: bun run --cwd=frontend test:cloud
-      - name: Full repository format check (explicit FAIL on legacy debt)
-        run: bun run format:check
 
   optional-quality-matrix:
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.number == 26)
     runs-on: ubuntu-latest
     timeout-minutes: 35
     steps:
@@ -102,3 +75,44 @@ jobs:
         run: cd frontend && bunx playwright install --with-deps chromium firefox webkit
       - name: Multi-browser local keyboard and responsive QA
         run: cd frontend && bunx playwright test --config playwright.qa.config.ts
+
+  local-provider-integration:
+    # Real Docker / LOCAL Supabase on a disposable standard Linux GitHub runner.
+    # Windows host acceptance and STAGING provider tests remain separate gates.
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'pull_request' && github.event.pull_request.number == 26)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5'
+      - name: Frozen install and Docker daemon verification
+        run: |
+          bun install --frozen-lockfile
+          docker info --format '{{.ServerVersion}}'
+          node scripts/local/preflight.mjs
+      - name: Start isolated LOCAL PG17 and Supabase Auth
+        run: |
+          bunx supabase --help > /dev/null
+          bunx supabase start
+      - name: Two genuine synthetic GoTrue JWT accounts and RLS negatives
+        run: |
+          export LOCAL_SUPABASE_URL=http://127.0.0.1:54321
+          LOCAL_SUPABASE_ANON_KEY="$(bunx supabase status -o json | node -e 'let data="";process.stdin.on("data",chunk=>data+=chunk).on("end",()=>{const status=JSON.parse(data);process.stdout.write(status.ANON_KEY||status.anon_key||"")})')"
+          test -n "$LOCAL_SUPABASE_ANON_KEY"
+          export LOCAL_SUPABASE_ANON_KEY
+          node scripts/local/supabase-tenant-smoke.mjs
+      - name: Local Render-style Docker build and non-root HTTP health
+        run: |
+          docker build -f backend/Dockerfile -t atlas-f1-ci-api .
+          test "$(docker image inspect atlas-f1-ci-api --format '{{.Config.User}}')" = bun
+          docker run -d --name atlas-f1-ci-api --network none -e HOST=127.0.0.1 -e PORT=3000 atlas-f1-ci-api
+          docker exec atlas-f1-ci-api bun -e "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(r.status!==200)process.exit(1);console.log('LOCAL_DOCKER_LIVENESS_PASS')})"
+      - name: Cleanup LOCAL disposable containers
+        if: always()
+        run: |
+          docker rm -f atlas-f1-ci-api 2>/dev/null || true
+          bunx supabase stop 2>/dev/null || true

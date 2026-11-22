@@ -11,7 +11,6 @@ async function logOverflow(page: Page, state: string) {
         return {
           tag: element.tagName.toLowerCase(),
           className: String(element.className).slice(0, 160),
-          text: (element.textContent ?? "").trim().slice(0, 50),
           left: Math.round(rect.left),
           right: Math.round(rect.right),
           display: style.display,

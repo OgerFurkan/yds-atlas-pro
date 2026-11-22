@@ -23,6 +23,8 @@ jobs:
         run: bun install --frozen-lockfile
       - name: Local platform source contract (not provider PASS)
         run: node scripts/quality/foundation-contract.mjs
+      - name: Staging provenance negative tests (synthetic, offline)
+        run: node --test scripts/release/staging-manifest.test.mjs
       - name: Lint
         run: bun run lint
       - name: Format check

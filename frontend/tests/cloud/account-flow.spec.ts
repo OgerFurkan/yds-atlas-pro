@@ -649,126 +649,181 @@ test("authenticated score-free day review sends no writes or Gemini request", as
 // P0: live React import/retry UI -> /api/ai/words/complete -> /api/words/import
 // -> mock owner library GET. Only deterministic fake-cloud data, no hosted writes.
 const p0ImportWords = [
-  "ability", "achieve", "adjust", "advance", "analyze",
-  "arrange", "approve", "balance", "clarify", "compare",
-  "conclude", "confirm", "consider", "create", "decide",
-  "define", "demand", "describe", "determine", "develop",
+  "ability",
+  "achieve",
+  "adjust",
+  "advance",
+  "analyze",
+  "arrange",
+  "approve",
+  "balance",
+  "clarify",
+  "compare",
+  "conclude",
+  "confirm",
+  "consider",
+  "create",
+  "decide",
+  "define",
+  "demand",
+  "describe",
+  "determine",
+  "develop",
 ];
 type P0Scenario = "first-compact" | "all-compact" | "all-invalid";
 
 for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const) {
-  test("P0 imported partial UI chain " + scenario + " preserves old scores and retries only missing", async ({ page }) => {
-    const cloud = await mockCloud(page);
-    const existing = cloud.libraries[alice][0];
-    existing.score = 87;
-    existing.meanings = ["Eski kişisel anlam"];
-    existing.examples = [{
-      sentence: "Scholars consider evidence carefully.",
-      translation: "Araştırmacılar kanıtı dikkatle değerlendirir.",
-      translationFocus: ["kanıtı"],
-      source: "Kullanıcı",
-    }] as typeof existing.examples;
-    const immutable = JSON.stringify(existing);
-    const aiCalls: string[][] = [];
-    const imported: string[][] = [];
-    let retryPhase = false;
-    let storedNew = 0;
+  test(
+    "P0 imported partial UI chain " + scenario + " preserves old scores and retries only missing",
+    async ({ page }) => {
+      const cloud = await mockCloud(page);
+      const existing = cloud.libraries[alice][0];
+      existing.score = 87;
+      existing.meanings = ["Eski kişisel anlam"];
+      existing.examples = [
+        {
+          sentence: "Scholars consider evidence carefully.",
+          translation: "Araştırmacılar kanıtı dikkatle değerlendirir.",
+          translationFocus: ["kanıtı"],
+          source: "Kullanıcı",
+        },
+      ] as typeof existing.examples;
+      const immutable = JSON.stringify(existing);
+      const aiCalls: string[][] = [];
+      const imported: string[][] = [];
+      let retryPhase = false;
+      let storedNew = 0;
 
-    await page.route("**/api/ai/words/complete", async (route) => {
-      const names = (route.request().postDataJSON() as { words: string[] }).words;
-      aiCalls.push(names);
-      if (scenario === "all-invalid" && !retryPhase) {
+      await page.route("**/api/ai/words/complete", async (route) => {
+        const names = (route.request().postDataJSON() as { words: string[] }).words;
+        aiCalls.push(names);
+        if (scenario === "all-invalid" && !retryPhase) {
+          await route.fulfill({
+            status: 502,
+            json: { code: "AI_INVALID_RESPONSE", error: "Synthetic rejected envelope" },
+          });
+          return;
+        }
+        const compact =
+          !retryPhase &&
+          (scenario === "all-compact" || (scenario === "first-compact" && aiCalls.length === 1));
+        const selected = compact ? names.slice(0, 2) : names;
         await route.fulfill({
-          status: 502,
-          json: { code: "AI_INVALID_RESPONSE", error: "Synthetic rejected envelope" },
+          json: {
+            provider: "Gemini",
+            model: "synthetic-only",
+            suggestions: selected.map((name) => ({
+              word: name,
+              alternatives: [],
+              meanings: ["kavram"],
+              usageNote: "Sentetik import doğrulaması.",
+              partOfSpeech: "Noun",
+              cefr: "B2",
+              examples: (["easy", "easy", "medium", "yds", "yds"] as const).map(
+                (difficulty, index) => ({
+                  sentence: "Researchers use " + name + " in example " + index + ".",
+                  translation: "Araştırmacılar " + index + ". örnekte kavramı kullanır.",
+                  translationFocus: ["kavramı"],
+                  difficulty,
+                }),
+              ),
+            })),
+          },
         });
+      });
+      await page.route("**/api/words/import", async (route) => {
+        const entries = route.request().postDataJSON() as {
+          word: string;
+          meanings: string[];
+          score?: number;
+          examples: { sentence: string }[];
+        }[];
+        imported.push(entries.map((entry) => entry.word.toLowerCase()));
+        expect(
+          entries.every((entry) => entry.meanings.length > 0 && entry.examples?.length === 5),
+        ).toBe(true);
+        let added = 0;
+        let duplicates = 0;
+        for (const input of entries) {
+          if (
+            cloud.libraries[alice].some(
+              (previous) => previous.word.toLowerCase() === input.word.toLowerCase(),
+            )
+          ) {
+            duplicates++;
+            continue;
+          }
+          cloud.libraries[alice].push({
+            ...word(crypto.randomUUID(), input.word),
+            ...input,
+            score: 0,
+          } as ReturnType<typeof word>);
+          added++;
+          storedNew++;
+        }
+        await route.fulfill({ json: { added, duplicates } });
+      });
+
+      await page.goto("/#library");
+      await login(page);
+      await page.getByRole("button", { name: "Toplu ekle", exact: true }).first().click();
+      const dialog = page.getByRole("dialog", { name: "Toplu kelime ekle" });
+      await dialog
+        .getByRole("textbox", { name: "İngilizce kelime listesi" })
+        .fill(p0ImportWords.join("\n"));
+      await dialog.getByRole("button", { name: "Yazımı kontrol et" }).click();
+      await expect(dialog.locator("#import-accept")).toBeEnabled({ timeout: 30_000 });
+      await dialog.locator("#import-accept").click();
+
+      await expect.poll(() => aiCalls.length, { timeout: 30_000 }).toBe(4);
+      expect(aiCalls.map((group) => group.length)).toEqual([5, 5, 5, 5]);
+      const expectedSaved = scenario === "first-compact" ? 17 : scenario === "all-compact" ? 8 : 0;
+      const expectedPending = 20 - expectedSaved;
+      await expect(
+        dialog.getByText(expectedSaved + " kaydedildi · " + expectedPending + " bekliyor"),
+      ).toBeVisible();
+      expect(storedNew).toBe(expectedSaved);
+      expect(imported.flat()).toHaveLength(expectedSaved);
+      expect(JSON.stringify(cloud.libraries[alice][0])).toBe(immutable);
+      expect(
+        cloud.requests.filter(
+          (request) => request.method === "PUT" && request.path.startsWith("/api/words/"),
+        ),
+      ).toHaveLength(0);
+      const firstSaved = cloud.libraries[alice].slice(1).map((entry) => entry.word.toLowerCase());
+      expect(new Set(firstSaved).size).toBe(expectedSaved);
+      expect(firstSaved.every((key) => p0ImportWords.includes(key))).toBe(true);
+
+      if (scenario === "all-invalid") {
+        expect(imported).toHaveLength(0);
+        expect(cloud.libraries[alice]).toHaveLength(1);
         return;
       }
-      const compact = !retryPhase &&
-        (scenario === "all-compact" || (scenario === "first-compact" && aiCalls.length === 1));
-      const selected = compact ? names.slice(0, 2) : names;
-      await route.fulfill({
-        json: {
-          provider: "Gemini", model: "synthetic-only",
-          suggestions: selected.map((name) => ({
-            word: name, alternatives: [], meanings: ["kavram"],
-            usageNote: "Sentetik import doğrulaması.", partOfSpeech: "Noun", cefr: "B2",
-            examples: (["easy", "easy", "medium", "yds", "yds"] as const).map((difficulty, index) => ({
-              sentence: "Researchers use " + name + " in example " + index + ".",
-              translation: "Araştırmacılar " + index + ". örnekte kavramı kullanır.",
-              translationFocus: ["kavramı"], difficulty,
-            })),
-          })),
-        },
-      });
-    });
-    await page.route("**/api/words/import", async (route) => {
-      const entries = route.request().postDataJSON() as {
-        word: string; meanings: string[]; score?: number; examples: { sentence: string }[];
-      }[];
-      imported.push(entries.map((entry) => entry.word.toLowerCase()));
-      expect(entries.every((entry) =>
-        entry.meanings.length > 0 && entry.examples?.length === 5)).toBe(true);
-      let added = 0;
-      let duplicates = 0;
-      for (const input of entries) {
-        if (cloud.libraries[alice].some((previous) =>
-          previous.word.toLowerCase() === input.word.toLowerCase())) {
-          duplicates++;
-          continue;
-        }
-        cloud.libraries[alice].push({
-          ...word(crypto.randomUUID(), input.word),
-          ...input,
-          score: 0,
-        } as ReturnType<typeof word>);
-        added++;
-        storedNew++;
-      }
-      await route.fulfill({ json: { added, duplicates } });
-    });
-
-    await page.goto("/#library");
-    await login(page);
-    await page.getByRole("button", { name: "Toplu ekle", exact: true }).first().click();
-    const dialog = page.getByRole("dialog", { name: "Toplu kelime ekle" });
-    await dialog.getByRole("textbox", { name: "İngilizce kelime listesi" })
-      .fill(p0ImportWords.join("\n"));
-    await dialog.getByRole("button", { name: "Yazımı kontrol et" }).click();
-    await expect(dialog.locator("#import-accept")).toBeEnabled({ timeout: 30_000 });
-    await dialog.locator("#import-accept").click();
-
-    await expect.poll(() => aiCalls.length, { timeout: 30_000 }).toBe(4);
-    expect(aiCalls.map((group) => group.length)).toEqual([5, 5, 5, 5]);
-    const expectedSaved = scenario === "first-compact" ? 17 : scenario === "all-compact" ? 8 : 0;
-    const expectedPending = 20 - expectedSaved;
-    await expect(dialog.getByText(expectedSaved + " kaydedildi · " + expectedPending + " bekliyor")).toBeVisible();
-    expect(storedNew).toBe(expectedSaved);
-    expect(imported.flat()).toHaveLength(expectedSaved);
-    expect(JSON.stringify(cloud.libraries[alice][0])).toBe(immutable);
-    expect(cloud.requests.filter((request) =>
-      request.method === "PUT" && request.path.startsWith("/api/words/"))).toHaveLength(0);
-    const firstSaved = cloud.libraries[alice].slice(1).map((entry) => entry.word.toLowerCase());
-    expect(new Set(firstSaved).size).toBe(expectedSaved);
-    expect(firstSaved.every((key) => p0ImportWords.includes(key))).toBe(true);
-
-    if (scenario === "all-invalid") {
-      expect(imported).toHaveLength(0);
-      expect(cloud.libraries[alice]).toHaveLength(1);
-      return;
-    }
-    retryPhase = true;
-    await dialog.getByRole("button", { name: "AI ile tekrar dene" }).click();
-    await expect(dialog).not.toBeVisible({ timeout: 30_000 });
-    const remaining = p0ImportWords.filter((wordName) => !firstSaved.includes(wordName));
-    expect(aiCalls.slice(4).flat().map((name) => name.toLowerCase())).toEqual(remaining);
-    expect(cloud.libraries[alice]).toHaveLength(21);
-    expect(new Set(cloud.libraries[alice].slice(1).map((entry) => entry.word.toLowerCase())).size).toBe(20);
-    expect(JSON.stringify(cloud.libraries[alice][0])).toBe(immutable);
-    expect(cloud.libraries[alice].slice(1).every((entry) =>
-      entry.score === 0 && entry.examples.length === 5)).toBe(true);
-    await expect(page.getByRole("button", {
-      name: "Ability kelime ayrıntıları",
-    })).toBeVisible();
-  });
+      retryPhase = true;
+      await dialog.getByRole("button", { name: "AI ile tekrar dene" }).click();
+      await expect(dialog).not.toBeVisible({ timeout: 30_000 });
+      const remaining = p0ImportWords.filter((wordName) => !firstSaved.includes(wordName));
+      expect(
+        aiCalls
+          .slice(4)
+          .flat()
+          .map((name) => name.toLowerCase()),
+      ).toEqual(remaining);
+      expect(cloud.libraries[alice]).toHaveLength(21);
+      expect(
+        new Set(cloud.libraries[alice].slice(1).map((entry) => entry.word.toLowerCase())).size,
+      ).toBe(20);
+      expect(JSON.stringify(cloud.libraries[alice][0])).toBe(immutable);
+      expect(
+        cloud.libraries[alice]
+          .slice(1)
+          .every((entry) => entry.score === 0 && entry.examples.length === 5),
+      ).toBe(true);
+      await expect(
+        page.getByRole("button", {
+          name: "Ability kelime ayrıntıları",
+        }),
+      ).toBeVisible();
+    },
+  );
 }

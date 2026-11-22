@@ -15,12 +15,17 @@ const WORDS = ["alpha", "bravo", "charlie", "delta", "echo"];
 const TIERS = ["easy", "easy", "medium", "yds", "yds"] as const;
 function item(word: string): AiWordListResponse["suggestions"][number] {
   return {
-    word, alternatives: [], meanings: ["kavram"],
-    partOfSpeech: "Noun", cefr: "B1", usageNote: "Yalnızca sentetik test.",
+    word,
+    alternatives: [],
+    meanings: ["kavram"],
+    partOfSpeech: "Noun",
+    cefr: "B1",
+    usageNote: "Yalnızca sentetik test.",
     examples: TIERS.map((difficulty, index) => ({
       sentence: "Researchers discuss " + word + " in example " + (index + 1) + ".",
       translation: "Araştırmacılar " + (index + 1) + ". örnekte kelimeyi tartışıyor.",
-      translationFocus: ["kelimeyi"], difficulty,
+      translationFocus: ["kelimeyi"],
+      difficulty,
     })),
   };
 }
@@ -44,8 +49,14 @@ test("P0 regression: malformed structured five-item envelope triggers one compac
   const calls: { structured: boolean; count: number; requested?: string[] }[] = [];
   const fetcher = (async (_url: unknown, init?: RequestInit) => {
     const call = outgoing(init);
-    calls.push({ structured: call.structured, count: call.payload.count, requested: call.payload.requested });
-    return upstream(call.structured ? '{"suggestions": {' : validated(call.payload.requested ?? []));
+    calls.push({
+      structured: call.structured,
+      count: call.payload.count,
+      requested: call.payload.requested,
+    });
+    return upstream(
+      call.structured ? '{"suggestions": {' : validated(call.payload.requested ?? []),
+    );
   }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-a"), undefined, fetcher, WORDS);
   expect(calls).toEqual([
@@ -53,16 +64,21 @@ test("P0 regression: malformed structured five-item envelope triggers one compac
     { structured: false, count: 2, requested: WORDS.slice(0, 2) },
   ]);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS.slice(0, 2));
-  expect(result.suggestions.every((word) =>
-    word.examples.map((example) => example.difficulty).join() === "easy,easy,medium,yds,yds")).toBe(true);
+  expect(
+    result.suggestions.every(
+      (word) =>
+        word.examples.map((example) => example.difficulty).join() === "easy,easy,medium,yds,yds",
+    ),
+  ).toBe(true);
 });
 test("MAX_TOKENS fails closed on the first pass and compact retry salvages safe words", async () => {
   const counts: number[] = [];
   const fetcher = (async (_url: unknown, init?: RequestInit) => {
     const call = outgoing(init);
     counts.push(call.payload.count);
-    return counts.length === 1 ? upstream('{"suggestions": [', "MAX_TOKENS") :
-      upstream(validated(call.payload.requested ?? []));
+    return counts.length === 1
+      ? upstream('{"suggestions": [', "MAX_TOKENS")
+      : upstream(validated(call.payload.requested ?? []));
   }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-b"), undefined, fetcher, WORDS);
   expect(counts).toEqual([5, 2]);
@@ -74,16 +90,21 @@ test("malformed and truncated envelopes across both passes still produce 502 and
     counts.push(outgoing(init).payload.count);
     return upstream(counts.length === 1 ? '{"suggestions":' : '{"suggestions":{"wrong":true}}');
   }) as unknown as typeof fetch;
-  await expect(generateWordList(5, [], config("p0-c"), undefined, fetcher, WORDS))
-    .rejects.toMatchObject({ code: "AI_INVALID_RESPONSE", status: 502 });
+  await expect(
+    generateWordList(5, [], config("p0-c"), undefined, fetcher, WORDS),
+  ).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE", status: 502 });
   expect(counts).toEqual([5, 2]);
 });
 test("safety and recitation finishes stop immediately rather than bypassing restrictions", async () => {
   for (const reason of ["SAFETY", "RECITATION"]) {
     let calls = 0;
-    const fetcher = (async () => { calls++; return upstream('{"suggestions":[]}', reason); }) as unknown as typeof fetch;
-    await expect(generateWordList(5, [], config("p0-safe-" + reason), undefined, fetcher, WORDS))
-      .rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });
+    const fetcher = (async () => {
+      calls++;
+      return upstream('{"suggestions":[]}', reason);
+    }) as unknown as typeof fetch;
+    await expect(
+      generateWordList(5, [], config("p0-safe-" + reason), undefined, fetcher, WORDS),
+    ).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });
     expect(calls).toBe(1);
   }
 });
@@ -95,24 +116,38 @@ test("foreign, malformed, duplicate and wrong translationFocus never become acce
     const params = outgoing(init).payload;
     callCount++;
     return callCount === 1
-      ? upstream(JSON.stringify({ suggestions: [
-          item("alpha"), { word: "bravo" }, item("outside"), item("alpha"), wrongFocus,
-        ] }))
+      ? upstream(
+          JSON.stringify({
+            suggestions: [
+              item("alpha"),
+              { word: "bravo" },
+              item("outside"),
+              item("alpha"),
+              wrongFocus,
+            ],
+          }),
+        )
       : upstream(validated(params.requested ?? []));
   }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-d"), undefined, fetcher, WORDS);
   expect(callCount).toBe(2);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS);
-  expect(result.suggestions.every((word) => word.examples.every((example) =>
-    example.translationFocus.every((focus) => example.translation.includes(focus))))).toBe(true);
+  expect(
+    result.suggestions.every((word) =>
+      word.examples.every((example) =>
+        example.translationFocus.every((focus) => example.translation.includes(focus)),
+      ),
+    ),
+  ).toBe(true);
 });
 test("bad individual entries in both passes preserve only validated neighbors", async () => {
   let count = 0;
   const fetcher = (async () => {
     count++;
-    const suggestions = count === 1
-      ? [item("alpha"), { word: "bravo" }, item("foreign"), { word: "charlie" }, item("alpha")]
-      : [{ word: "bravo" }, { word: "charlie" }, { word: "delta" }, { word: "echo" }];
+    const suggestions =
+      count === 1
+        ? [item("alpha"), { word: "bravo" }, item("foreign"), { word: "charlie" }, item("alpha")]
+        : [{ word: "bravo" }, { word: "charlie" }, { word: "delta" }, { word: "echo" }];
     return upstream(JSON.stringify({ suggestions }));
   }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-e"), undefined, fetcher, WORDS);
@@ -134,12 +169,20 @@ test("structured HTTP 400 still falls back to plain output without weakening val
 });
 test("non-thought fenced JSON is parsed; thought text is not interpreted as content", async () => {
   const fence = String.fromCharCode(96, 96, 96);
-  const fetcher = (async () => Response.json({
-    candidates: [{ finishReason: "STOP", content: { parts: [
-      { thought: true, text: "not user-facing JSON" },
-      { text: fence + "json\n" + validated(WORDS) + "\n" + fence },
-    ] } }],
-  })) as unknown as typeof fetch;
+  const fetcher = (async () =>
+    Response.json({
+      candidates: [
+        {
+          finishReason: "STOP",
+          content: {
+            parts: [
+              { thought: true, text: "not user-facing JSON" },
+              { text: fence + "json\n" + validated(WORDS) + "\n" + fence },
+            ],
+          },
+        },
+      ],
+    })) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-g"), undefined, fetcher, WORDS);
   expect(result.suggestions.map((word) => word.word)).toEqual(WORDS);
 });
@@ -147,26 +190,33 @@ test.each([
   [429, "AI_QUOTA_EXCEEDED"],
   [401, "AI_AUTH_ERROR"],
   [403, "AI_AUTH_ERROR"],
-] as const)("HTTP %i keeps its real terminal error, not a false malformed-output 502", async (status, code) => {
-  let calls = 0;
-  const fetcher = (async () => {
-    calls++;
-    return Response.json({ error: { status: "upstream_test" } }, { status });
-  }) as unknown as typeof fetch;
-  await expect(generateWordList(5, [], config("p0-status-" + status), undefined, fetcher, WORDS))
-    .rejects.toMatchObject({ code });
-  expect(calls).toBe(1);
-});
+] as const)(
+  "HTTP %i keeps its real terminal error, not a false malformed-output 502",
+  async (status, code) => {
+    let calls = 0;
+    const fetcher = (async () => {
+      calls++;
+      return Response.json({ error: { status: "upstream_test" } }, { status });
+    }) as unknown as typeof fetch;
+    await expect(
+      generateWordList(5, [], config("p0-status-" + status), undefined, fetcher, WORDS),
+    ).rejects.toMatchObject({ code });
+    expect(calls).toBe(1);
+  },
+);
 test("a pre-aborted request neither contacts the provider nor returns partial words", async () => {
   const controller = new AbortController();
   controller.abort();
   let calls = 0;
-  const fetcher = (async () => { calls++; return upstream(validated(WORDS)); }) as unknown as typeof fetch;
-  await expect(generateWordList(5, [], config("p0-abort"), controller.signal, fetcher, WORDS))
-    .rejects.toMatchObject({ code: "AI_CANCELLED" });
+  const fetcher = (async () => {
+    calls++;
+    return upstream(validated(WORDS));
+  }) as unknown as typeof fetch;
+  await expect(
+    generateWordList(5, [], config("p0-abort"), controller.signal, fetcher, WORDS),
+  ).rejects.toMatchObject({ code: "AI_CANCELLED" });
   expect(calls).toBe(0);
 });
-
 
 test("P0 exact frozen main source red then hotfix green on the same malformed five-word fixture", async () => {
   // CI fetches the *immutable* production BASE commit read-only, then loads its
@@ -174,13 +224,14 @@ test("P0 exact frozen main source red then hotfix green on the same malformed fi
   const base = "567f57a9a893991ba67a46b72443114347a1aee8";
   const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
   const tracked = "backend/src/features/ai/gemini.ts";
-  const command = (args: string[], input?: string) => execFileSync("git", args, {
-    cwd: repoRoot,
-    encoding: "utf8",
-    ...(input === undefined ? {} : { input }),
-    stdio: ["pipe", "pipe", "pipe"],
-    timeout: 20_000,
-  }).trimEnd();
+  const command = (args: string[], input?: string) =>
+    execFileSync("git", args, {
+      cwd: repoRoot,
+      encoding: "utf8",
+      ...(input === undefined ? {} : { input }),
+      stdio: ["pipe", "pipe", "pipe"],
+      timeout: 20_000,
+    }).trimEnd();
   let original: string;
   try {
     original = command(["show", base + ":" + tracked]);
@@ -193,8 +244,14 @@ test("P0 exact frozen main source red then hotfix green on the same malformed fi
   // A trailing newline from execFileSync may be removed by trimEnd above; the
   // immutable source checksum is intentionally checked after restoration.
   expect(originalBlobSha).toBe("61549171b61f7dc8dcc7c38f56f3f29db8df61ae");
-  const legacyFile = join(repoRoot, "backend", "src", "features", "ai",
-    "__p0_legacy_main_" + process.pid + ".ts");
+  const legacyFile = join(
+    repoRoot,
+    "backend",
+    "src",
+    "features",
+    "ai",
+    "__p0_legacy_main_" + process.pid + ".ts",
+  );
   writeFileSync(legacyFile, original + "\n", { flag: "wx" });
   try {
     const legacy = await import(pathToFileURL(legacyFile).href);
@@ -202,25 +259,37 @@ test("P0 exact frozen main source red then hotfix green on the same malformed fi
     const oldFetcher = (async (_url: unknown, init?: RequestInit) => {
       const next = outgoing(init);
       callsOld.push({ structured: next.structured, count: next.payload.count });
-      return upstream(next.structured ? '{"suggestions":' : validated(next.payload.requested ?? []));
+      return upstream(
+        next.structured ? '{"suggestions":' : validated(next.payload.requested ?? []),
+      );
     }) as unknown as typeof fetch;
-    await expect(legacy.generateWordList(
-      5, [], config("p0-frozen-main"), undefined, oldFetcher, WORDS,
-    )).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE", status: 502 });
+    await expect(
+      legacy.generateWordList(5, [], config("p0-frozen-main"), undefined, oldFetcher, WORDS),
+    ).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE", status: 502 });
     expect(callsOld).toEqual([
-      { structured: true, count: 5 }, { structured: true, count: 5 },
+      { structured: true, count: 5 },
+      { structured: true, count: 5 },
     ]);
 
     const callsNew: { structured: boolean; count: number }[] = [];
     const newFetcher = (async (_url: unknown, init?: RequestInit) => {
       const next = outgoing(init);
       callsNew.push({ structured: next.structured, count: next.payload.count });
-      return upstream(next.structured ? '{"suggestions":' : validated(next.payload.requested ?? []));
+      return upstream(
+        next.structured ? '{"suggestions":' : validated(next.payload.requested ?? []),
+      );
     }) as unknown as typeof fetch;
-    const result = await generateWordList(5, [], config("p0-frozen-hotfix"),
-      undefined, newFetcher, WORDS);
+    const result = await generateWordList(
+      5,
+      [],
+      config("p0-frozen-hotfix"),
+      undefined,
+      newFetcher,
+      WORDS,
+    );
     expect(callsNew).toEqual([
-      { structured: true, count: 5 }, { structured: false, count: 2 },
+      { structured: true, count: 5 },
+      { structured: false, count: 2 },
     ]);
     expect(result.suggestions.map((entry) => entry.word)).toEqual(WORDS.slice(0, 2));
   } finally {
@@ -234,21 +303,25 @@ test.each(["empty", "non-text", "thought-only"] as const)(
     const sizes: number[] = [];
     const fetcher = (async (_url: unknown, init?: RequestInit) => {
       sizes.push(outgoing(init).payload.count);
-      const parts = kind === "empty" ? [] :
-        kind === "non-text" ? [{ inlineData: { mimeType: "text/plain" } }] :
-        [{ thought: true, text: validated(WORDS) }];
+      const parts =
+        kind === "empty"
+          ? []
+          : kind === "non-text"
+            ? [{ inlineData: { mimeType: "text/plain" } }]
+            : [{ thought: true, text: validated(WORDS) }];
       return Response.json({
         candidates: [{ finishReason: "STOP", content: { parts } }],
       });
     }) as unknown as typeof fetch;
-    await expect(generateWordList(5, [], config("p0-parts-" + kind),
-      undefined, fetcher, WORDS)).rejects.toMatchObject({
-      code: "AI_INVALID_RESPONSE", status: 502,
+    await expect(
+      generateWordList(5, [], config("p0-parts-" + kind), undefined, fetcher, WORDS),
+    ).rejects.toMatchObject({
+      code: "AI_INVALID_RESPONSE",
+      status: 502,
     });
     expect(sizes).toEqual([5, 2]);
   },
 );
-
 
 test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
   const base = "567f57a9a893991ba67a46b72443114347a1aee8";
@@ -260,25 +333,35 @@ test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
     "frontend/tests/cloud/account-flow.spec.ts",
     "frontend/tests/unit/prepare-word-inputs-recovery.test.ts",
   ];
-  const fetchBase = () => execFileSync("git", ["fetch", "--no-tags", "--depth=1", "origin", base], {
-    cwd, stdio: ["ignore", "pipe", "pipe"], timeout: 20_000,
-  });
+  const fetchBase = () =>
+    execFileSync("git", ["fetch", "--no-tags", "--depth=1", "origin", base], {
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 20_000,
+    });
   try {
     execFileSync("git", ["rev-parse", "--verify", base + "^{commit}"], {
-      cwd, stdio: ["ignore", "pipe", "pipe"], timeout: 5_000,
+      cwd,
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 5_000,
     });
   } catch {
     fetchBase();
   }
-  const git = (args: string[]) => execFileSync("git", args, {
-    cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 20_000,
-  });
+  const git = (args: string[]) =>
+    execFileSync("git", args, {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: 20_000,
+    });
   const changed = git(["diff", "--name-only", base, "HEAD"]).trim().split("\n").sort();
   expect(changed).toEqual(files.slice().sort());
   const whitespace = git(["diff", "--check", base, "HEAD", "--", ...files]);
   expect(whitespace).toBe("");
   const patch = git(["diff", "--unified=0", base, "HEAD", "--", ...files]);
-  const additions = patch.split("\n")
+  const additions = patch
+    .split("\n")
     .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
     .join("\n");
   const sensitive = [
@@ -302,17 +385,20 @@ test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
   ] as const;
   for (const [label, cmd] of commands) {
     const result = Bun.spawnSync({
-      cmd: [...cmd], cwd, stdout: "pipe", stderr: "pipe",
+      cmd: [...cmd],
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
       env: process.env,
     });
     const exit = result.exitCode;
-    console.info("P0_QUALITY " + label + ": " + (exit === 0 ? "PASS" : "FAIL") +
-      " (exit=" + exit + ")");
+    console.info(
+      "P0_QUALITY " + label + ": " + (exit === 0 ? "PASS" : "FAIL") + " (exit=" + exit + ")",
+    );
     // Diagnostics do NOT become a fabricated pass if baseline formatting debt
     // remains; CI logs record their actual exit status for PM acceptance.
   }
 });
-
 
 test("P0 immutable baseline Biome per-file hunk attribution", () => {
   const base = "567f57a9a893991ba67a46b72443114347a1aee8";
@@ -324,11 +410,15 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
     "frontend/tests/cloud/account-flow.spec.ts",
     "frontend/tests/unit/prepare-word-inputs-recovery.test.ts",
   ];
-  const sha12 = (value: string) =>
-    createHash("sha256").update(value).digest("hex").slice(0, 12);
+  const sha12 = (value: string) => createHash("sha256").update(value).digest("hex").slice(0, 12);
   const git = (args: string[]) => {
-    const p = Bun.spawnSync({ cmd: ["git", ...args], cwd,
-      stdout: "pipe", stderr: "pipe", env: process.env });
+    const p = Bun.spawnSync({
+      cmd: ["git", ...args],
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: process.env,
+    });
     return { exit: p.exitCode, stdout: Buffer.from(p.stdout).toString("utf8") };
   };
   // Frozen pre-image, never mutable main; CI checkout may be a synthetic merge.
@@ -336,22 +426,35 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
     const r = git(["fetch", "--no-tags", "--depth=1", "origin", base]);
     expect(r.exit).toBe(0);
   }
-  const version = Bun.spawnSync({ cmd: ["bunx", "biome", "--version"], cwd,
-    stdout: "pipe", stderr: "pipe", env: process.env });
-  console.info("P0_BIOME VERSION=" + Buffer.from(version.stdout).toString("utf8").trim() +
-    " EXIT=" + version.exitCode);
+  const version = Bun.spawnSync({
+    cmd: ["bunx", "biome", "--version"],
+    cwd,
+    stdout: "pipe",
+    stderr: "pipe",
+    env: process.env,
+  });
+  console.info(
+    "P0_BIOME VERSION=" +
+      Buffer.from(version.stdout).toString("utf8").trim() +
+      " EXIT=" +
+      version.exitCode,
+  );
   expect(version.exitCode).toBe(0);
   const conf = git(["show", base + ":biome.json"]);
   const currentConf = readFileSync(join(cwd, "biome.json"), "utf8");
-  console.info("P0_BIOME CONFIG_BASE=" + sha12(conf.stdout) +
-    " CONFIG_HEAD=" + sha12(currentConf));
+  console.info("P0_BIOME CONFIG_BASE=" + sha12(conf.stdout) + " CONFIG_HEAD=" + sha12(currentConf));
   expect(conf.stdout).toBe(currentConf);
 
   const tmp = mkdtempSync(join(tmpdir(), "p0-biome-"));
   function formatDetails(path: string, label: string, contents: string) {
-    const r = Bun.spawnSync({ cmd: ["bunx", "biome", "format",
-      "--stdin-file-path=" + path], cwd, stdout: "pipe", stderr: "pipe",
-      stdin: Buffer.from(contents, "utf8"), env: process.env });
+    const r = Bun.spawnSync({
+      cmd: ["bunx", "biome", "format", "--stdin-file-path=" + path],
+      cwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      stdin: Buffer.from(contents, "utf8"),
+      env: process.env,
+    });
     const formatted = Buffer.from(r.stdout).toString("utf8");
     if (r.exitCode !== 0) {
       console.info("P0_BIOME " + path + " " + label + " CLI_FAIL=" + r.exitCode);
@@ -359,22 +462,43 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
     }
     writeFileSync(join(tmp, "input.ts"), contents);
     writeFileSync(join(tmp, "output.ts"), formatted);
-    const diff = git(["diff", "--no-index", "--no-color", "--unified=0",
-      join(tmp, "input.ts"), join(tmp, "output.ts")]);
+    const diff = git([
+      "diff",
+      "--no-index",
+      "--no-color",
+      "--unified=0",
+      join(tmp, "input.ts"),
+      join(tmp, "output.ts"),
+    ]);
     expect([0, 1]).toContain(diff.exit);
-    const hunks = diff.stdout.split(/(?=^@@ -)/m)
+    const hunks = diff.stdout
+      .split(/(?=^@@ -)/m)
       .filter((part) => part.startsWith("@@ -"))
       .map((part) => {
         const first = part.split("\n")[0];
         const m = first.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/);
-        const data = part.split("\n").slice(1).filter((line) =>
-          line.startsWith("+") || line.startsWith("-"));
-        return { span: m ? "L" + m[1] + "(n" + (m[2] ?? "1") + ")" : "?",
-          sig: sha12(data.join("\n")), patch: part.trimEnd() };
+        const data = part
+          .split("\n")
+          .slice(1)
+          .filter((line) => line.startsWith("+") || line.startsWith("-"));
+        return {
+          span: m ? "L" + m[1] + "(n" + (m[2] ?? "1") + ")" : "?",
+          sig: sha12(data.join("\n")),
+          patch: part.trimEnd(),
+        };
       });
-    console.info("P0_BIOME " + path + " " + label +
-      " EXIT=" + r.exitCode + " MATCH=" + String(contents === formatted) +
-      " HUNKS=" + hunks.map((h) => h.span + "#" + h.sig).join(","));
+    console.info(
+      "P0_BIOME " +
+        path +
+        " " +
+        label +
+        " EXIT=" +
+        r.exitCode +
+        " MATCH=" +
+        String(contents === formatted) +
+        " HUNKS=" +
+        hunks.map((h) => h.span + "#" + h.sig).join(","),
+    );
     return { valid: true, hunks };
   }
   try {
@@ -385,16 +509,31 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
       const now = formatDetails(path, "HEAD", current);
       const oldIds = new Set((prior?.hunks ?? []).map((h) => h.sig));
       const introduced = now.hunks.filter((h) => !oldIds.has(h.sig));
-      console.info("P0_BIOME_FILE " + path + " BASE=" + (prior ? "PRESENT" : "ABSENT") +
-        " HEAD_HUNKS=" + now.hunks.length +
-        " INHERITED_EXACT_HUNKS=" + (now.hunks.length - introduced.length) +
-        " NEW_OR_CHANGED_HUNKS=" + introduced.length +
-        " LOCATIONS=" + introduced.map((h) => h.span).join(","));
+      console.info(
+        "P0_BIOME_FILE " +
+          path +
+          " BASE=" +
+          (prior ? "PRESENT" : "ABSENT") +
+          " HEAD_HUNKS=" +
+          now.hunks.length +
+          " INHERITED_EXACT_HUNKS=" +
+          (now.hunks.length - introduced.length) +
+          " NEW_OR_CHANGED_HUNKS=" +
+          introduced.length +
+          " LOCATIONS=" +
+          introduced.map((h) => h.span).join(","),
+      );
       // Emit only newly introduced non-secret source-format hunks, never
       // raw env/user data. The files are the five pre-approved hotfix paths.
       for (const h of introduced) {
-        console.info("P0_BIOME_PATCH_FILE " + path + " " + h.span +
-          " PATCH_BASE64=" + Buffer.from(h.patch, "utf8").toString("base64"));
+        console.info(
+          "P0_BIOME_PATCH_FILE " +
+            path +
+            " " +
+            h.span +
+            " PATCH_BASE64=" +
+            Buffer.from(h.patch, "utf8").toString("base64"),
+        );
       }
     }
   } finally {

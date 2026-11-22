@@ -169,7 +169,9 @@ export async function generateWordList(
     const remaining = count - accepted.size;
     const compactRetry = pass === 1 && retryCompactPlainJson;
     const requestCount = compactRetry ? Math.min(2, remaining) : remaining;
-    const remainingRequested = requested?.filter((word) => !accepted.has(keyOf(word))).slice(0, requestCount);
+    const remainingRequested = requested
+      ?.filter((word) => !accepted.has(keyOf(word)))
+      .slice(0, requestCount);
     const schema = z.object({ suggestions: z.array(aiWordSchema).length(requestCount) }).strict();
 
     let response: Response;

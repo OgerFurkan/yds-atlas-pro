@@ -76,7 +76,6 @@ test("a duplicate or foreign suggestion is not accepted as a requested word", as
   expect(result[0].examples).toHaveLength(5);
 });
 
-
 test("20 requested words preserve compact partial success and retry only three missing", async () => {
   const groups: string[][] = [];
   const inputs = words.map((word): WordInput => ({ word }));
@@ -86,16 +85,18 @@ test("20 requested words preserve compact partial success and retry only three m
   });
   expect(groups.map((group) => group.length)).toEqual([5, 5, 5, 5]);
   expect(first).toHaveLength(17);
-  expect(first.map((entry) => entry.word)).toEqual([
-    ...words.slice(0, 2), ...words.slice(5),
-  ]);
+  expect(first.map((entry) => entry.word)).toEqual([...words.slice(0, 2), ...words.slice(5)]);
   const pending = words.filter((word) => !first.some((item) => item.word === word));
   expect(pending).toEqual(words.slice(2, 5));
   const snapshot = JSON.stringify(first);
   const retried: string[][] = [];
   const second = await prepareWordInputs(
-    pending.map((word): WordInput => ({ word })), first,
-    async (group) => { retried.push(group); return response(group); },
+    pending.map((word): WordInput => ({ word })),
+    first,
+    async (group) => {
+      retried.push(group);
+      return response(group);
+    },
   );
   expect(retried).toEqual([pending]);
   expect(second.map((entry) => entry.word)).toEqual(pending);

@@ -1,3 +1,7 @@
+import { execFileSync } from "node:child_process";
+import { unlinkSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { expect, test } from "bun:test";
 import type { AiWordListResponse } from "@yds-atlas/shared";
 import type { ServerConfig } from "../src/config/env";
@@ -158,4 +162,150 @@ test("a pre-aborted request neither contacts the provider nor returns partial wo
   await expect(generateWordList(5, [], config("p0-abort"), controller.signal, fetcher, WORDS))
     .rejects.toMatchObject({ code: "AI_CANCELLED" });
   expect(calls).toBe(0);
+});
+
+
+test("P0 exact frozen main source red then hotfix green on the same malformed five-word fixture", async () => {
+  // CI fetches the *immutable* production BASE commit read-only, then loads its
+  // actual module in the same src directory. Never use mutable main or prod API.
+  const base = "567f57a9a893991ba67a46b72443114347a1aee8";
+  const repoRoot = fileURLToPath(new URL("../../", import.meta.url));
+  const tracked = "backend/src/features/ai/gemini.ts";
+  const command = (args: string[], input?: string) => execFileSync("git", args, {
+    cwd: repoRoot,
+    encoding: "utf8",
+    ...(input === undefined ? {} : { input }),
+    stdio: ["pipe", "pipe", "pipe"],
+    timeout: 20_000,
+  }).trimEnd();
+  let original: string;
+  try {
+    original = command(["show", base + ":" + tracked]);
+  } catch {
+    // Checkout uses fetch-depth=1 on a synthetic PR merge commit.
+    command(["fetch", "--depth=1", "--no-tags", "origin", base]);
+    original = command(["show", base + ":" + tracked]);
+  }
+  const originalBlobSha = command(["hash-object", "--stdin"], original + "\n");
+  // A trailing newline from execFileSync may be removed by trimEnd above; the
+  // immutable source checksum is intentionally checked after restoration.
+  expect(originalBlobSha).toBe("61549171b61f7dc8dcc7c38f56f3f29db8df61ae");
+  const legacyFile = join(repoRoot, "backend", "src", "features", "ai",
+    "__p0_legacy_main_" + process.pid + ".ts");
+  writeFileSync(legacyFile, original + "\n", { flag: "wx" });
+  try {
+    const legacy = await import(pathToFileURL(legacyFile).href);
+    const callsOld: { structured: boolean; count: number }[] = [];
+    const oldFetcher = (async (_url: unknown, init?: RequestInit) => {
+      const next = outgoing(init);
+      callsOld.push({ structured: next.structured, count: next.payload.count });
+      return upstream(next.structured ? '{"suggestions":' : validated(next.payload.requested ?? []));
+    }) as unknown as typeof fetch;
+    await expect(legacy.generateWordList(
+      5, [], config("p0-frozen-main"), undefined, oldFetcher, WORDS,
+    )).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE", status: 502 });
+    expect(callsOld).toEqual([
+      { structured: true, count: 5 }, { structured: true, count: 5 },
+    ]);
+
+    const callsNew: { structured: boolean; count: number }[] = [];
+    const newFetcher = (async (_url: unknown, init?: RequestInit) => {
+      const next = outgoing(init);
+      callsNew.push({ structured: next.structured, count: next.payload.count });
+      return upstream(next.structured ? '{"suggestions":' : validated(next.payload.requested ?? []));
+    }) as unknown as typeof fetch;
+    const result = await generateWordList(5, [], config("p0-frozen-hotfix"),
+      undefined, newFetcher, WORDS);
+    expect(callsNew).toEqual([
+      { structured: true, count: 5 }, { structured: false, count: 2 },
+    ]);
+    expect(result.suggestions.map((entry) => entry.word)).toEqual(WORDS.slice(0, 2));
+  } finally {
+    unlinkSync(legacyFile);
+  }
+});
+
+test.each(["empty", "non-text", "thought-only"] as const)(
+  "malformed provider parts %s are rejected in both passes with zero accepted",
+  async (kind) => {
+    const sizes: number[] = [];
+    const fetcher = (async (_url: unknown, init?: RequestInit) => {
+      sizes.push(outgoing(init).payload.count);
+      const parts = kind === "empty" ? [] :
+        kind === "non-text" ? [{ inlineData: { mimeType: "text/plain" } }] :
+        [{ thought: true, text: validated(WORDS) }];
+      return Response.json({
+        candidates: [{ finishReason: "STOP", content: { parts } }],
+      });
+    }) as unknown as typeof fetch;
+    await expect(generateWordList(5, [], config("p0-parts-" + kind),
+      undefined, fetcher, WORDS)).rejects.toMatchObject({
+      code: "AI_INVALID_RESPONSE", status: 502,
+    });
+    expect(sizes).toEqual([5, 2]);
+  },
+);
+
+
+test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
+  const base = "567f57a9a893991ba67a46b72443114347a1aee8";
+  const cwd = fileURLToPath(new URL("../../", import.meta.url));
+  const files = [
+    "backend/src/features/ai/gemini-request.ts",
+    "backend/src/features/ai/gemini.ts",
+    "backend/tests/gemini-word-list-p0-hotfix.test.ts",
+    "frontend/tests/cloud/account-flow.spec.ts",
+    "frontend/tests/unit/prepare-word-inputs-recovery.test.ts",
+  ];
+  const fetchBase = () => execFileSync("git", ["fetch", "--no-tags", "--depth=1", "origin", base], {
+    cwd, stdio: ["ignore", "pipe", "pipe"], timeout: 20_000,
+  });
+  try {
+    execFileSync("git", ["rev-parse", "--verify", base + "^{commit}"], {
+      cwd, stdio: ["ignore", "pipe", "pipe"], timeout: 5_000,
+    });
+  } catch {
+    fetchBase();
+  }
+  const git = (args: string[]) => execFileSync("git", args, {
+    cwd, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"], timeout: 20_000,
+  });
+  const changed = git(["diff", "--name-only", base, "HEAD"]).trim().split("\n").sort();
+  expect(changed).toEqual(files.slice().sort());
+  const whitespace = git(["diff", "--check", base, "HEAD", "--", ...files]);
+  expect(whitespace).toBe("");
+  const patch = git(["diff", "--unified=0", base, "HEAD", "--", ...files]);
+  const additions = patch.split("\n")
+    .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
+    .join("\n");
+  const sensitive = [
+    /AIza[0-9A-Za-z_-]{25,}/,
+    /sb_secret_[A-Za-z0-9_-]{15,}/,
+    /gh[pousr]_[A-Za-z0-9_]{25,}/,
+    /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
+    /Bearer\s+eyJ[A-Za-z0-9_-]{20,}/,
+  ];
+  const suspicious = sensitive.some((pattern) => pattern.test(additions));
+  expect(suspicious).toBe(false);
+  console.info("P0_QUALITY git diff --check BASE HEAD: PASS");
+  console.info("P0_QUALITY changed-line secret patterns: PASS");
+
+  // Diagnostics only: main predates the F1–F3 103-file formatting cleanup.
+  // Never autoformat unrelated files or falsely report lint/format PASS.
+  const commands = [
+    ["bun run lint", ["bun", "run", "lint"]],
+    ["bunx oxlint changed", ["bunx", "oxlint", ...files]],
+    ["bunx biome format changed", ["bunx", "biome", "format", ...files]],
+  ] as const;
+  for (const [label, cmd] of commands) {
+    const result = Bun.spawnSync({
+      cmd: [...cmd], cwd, stdout: "pipe", stderr: "pipe",
+      env: process.env,
+    });
+    const exit = result.exitCode;
+    console.info("P0_QUALITY " + label + ": " + (exit === 0 ? "PASS" : "FAIL") +
+      " (exit=" + exit + ")");
+    // Diagnostics do NOT become a fabricated pass if baseline formatting debt
+    // remains; CI logs record their actual exit status for PM acceptance.
+  }
 });

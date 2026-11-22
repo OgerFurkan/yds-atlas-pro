@@ -9,6 +9,111 @@ permissions:
   contents: read
 
 jobs:
+  format-once:
+    # One-time strictly scoped repair for PR #26; removed by Builder after audit.
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 26 && github.event.pull_request.head.repo.full_name == 'OgerFurkan/yds-atlas-pro' && github.event.pull_request.head.sha == '0da0511520add9c2173e430fcf561a62dde35d1f'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout exact authorized source branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/platform-foundation-f1-f3-20261122-builder
+          persist-credentials: true
+          fetch-depth: 2
+      - name: Deny stale or unexpected checkout
+        run: test "$(git rev-parse HEAD)" = 0da0511520add9c2173e430fcf561a62dde35d1f
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.3.5'
+      - name: Frozen install
+        run: bun install --frozen-lockfile
+      - name: Format only 20 confirmed main-inherited files (no lint fixes/import organize)
+        run: |
+          bunx biome format --write \
+            backend/src/app.ts \
+            backend/src/config/env.ts \
+            backend/src/features/ai/gemini-request.ts \
+            backend/src/features/ai/gemini.ts \
+            backend/src/features/feedback/inspector-service.ts \
+            backend/src/features/feedback/inspector-validation.ts \
+            backend/src/features/feedback/tiered-sentence-generation.ts \
+            backend/src/features/lexicon/persistent-tooltip-queue.ts \
+            backend/src/features/lexicon/public-turkish-dictionary.ts \
+            backend/src/features/lexicon/sentence-lexicon-prefetch.ts \
+            backend/src/features/lexicon/tr-wiktionary.ts \
+            backend/src/features/words/word-service.ts \
+            backend/tests/feedback-inspector-migration.node.test.mjs \
+            backend/tests/feedback-inspector-service.node.test.mjs \
+            backend/tests/feedback-inspector-validation.node.test.mjs \
+            frontend/tests/unit/legacy-curated-examples.test.ts \
+            frontend/tests/unit/manual-word-import.test.ts \
+            frontend/tests/unit/merge-legacy-tiered-examples.test.ts \
+            frontend/tests/unit/prepare-word-inputs-recovery.test.ts \
+            frontend/tests/unit/word-form-mappers-metadata.test.ts
+      - name: Verify full formatter and diff whitespace
+        run: |
+          bun run format:check
+          git diff --check
+          git status --short
+      - name: Ensure only approved 20 paths changed
+        run: |
+          node --input-type=module -e 'import {execFileSync} from "node:child_process"; const actual=execFileSync("git",["diff","--name-only"],{encoding:"utf8"}).trim().split("\n").filter(Boolean); const expected=new Set(process.argv.slice(1)); if(actual.length!==20||actual.some(p=>!expected.has(p))) {console.error("FAIL: unexpected formatting paths",actual); process.exit(1);} console.log("20 scoped formatting files verified");' \
+            backend/src/app.ts \
+            backend/src/config/env.ts \
+            backend/src/features/ai/gemini-request.ts \
+            backend/src/features/ai/gemini.ts \
+            backend/src/features/feedback/inspector-service.ts \
+            backend/src/features/feedback/inspector-validation.ts \
+            backend/src/features/feedback/tiered-sentence-generation.ts \
+            backend/src/features/lexicon/persistent-tooltip-queue.ts \
+            backend/src/features/lexicon/public-turkish-dictionary.ts \
+            backend/src/features/lexicon/sentence-lexicon-prefetch.ts \
+            backend/src/features/lexicon/tr-wiktionary.ts \
+            backend/src/features/words/word-service.ts \
+            backend/tests/feedback-inspector-migration.node.test.mjs \
+            backend/tests/feedback-inspector-service.node.test.mjs \
+            backend/tests/feedback-inspector-validation.node.test.mjs \
+            frontend/tests/unit/legacy-curated-examples.test.ts \
+            frontend/tests/unit/manual-word-import.test.ts \
+            frontend/tests/unit/merge-legacy-tiered-examples.test.ts \
+            frontend/tests/unit/prepare-word-inputs-recovery.test.ts \
+            frontend/tests/unit/word-form-mappers-metadata.test.ts
+      - name: Validate build/lint and regression after formatter
+        run: |
+          bun run lint
+          bun run build
+          bun test backend/tests frontend/tests/unit
+      - name: Commit one format-only change on same feature branch
+        run: |
+          test "$(git rev-parse HEAD)" = 0da0511520add9c2173e430fcf561a62dde35d1f
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- \
+            backend/src/app.ts \
+            backend/src/config/env.ts \
+            backend/src/features/ai/gemini-request.ts \
+            backend/src/features/ai/gemini.ts \
+            backend/src/features/feedback/inspector-service.ts \
+            backend/src/features/feedback/inspector-validation.ts \
+            backend/src/features/feedback/tiered-sentence-generation.ts \
+            backend/src/features/lexicon/persistent-tooltip-queue.ts \
+            backend/src/features/lexicon/public-turkish-dictionary.ts \
+            backend/src/features/lexicon/sentence-lexicon-prefetch.ts \
+            backend/src/features/lexicon/tr-wiktionary.ts \
+            backend/src/features/words/word-service.ts \
+            backend/tests/feedback-inspector-migration.node.test.mjs \
+            backend/tests/feedback-inspector-service.node.test.mjs \
+            backend/tests/feedback-inspector-validation.node.test.mjs \
+            frontend/tests/unit/legacy-curated-examples.test.ts \
+            frontend/tests/unit/manual-word-import.test.ts \
+            frontend/tests/unit/merge-legacy-tiered-examples.test.ts \
+            frontend/tests/unit/prepare-word-inputs-recovery.test.ts \
+            frontend/tests/unit/word-form-mappers-metadata.test.ts
+          git commit -m 'style(foundation): apply scoped Biome formatting to 20 legacy files'
+          git push origin HEAD:refs/heads/feature/platform-foundation-f1-f3-20261122-builder
   test:
     runs-on: ubuntu-latest
     timeout-minutes: 30

@@ -650,7 +650,7 @@ test("authenticated score-free day review sends no writes or Gemini request", as
 // -> mock owner library GET. Only deterministic fake-cloud data, no hosted writes.
 const p0ImportWords = [
   "ability", "achieve", "adjust", "advance", "analyze",
-  "approach", "assess", "benefit", "clarify", "compare",
+  "arrange", "approve", "balance", "clarify", "compare",
   "conclude", "confirm", "consider", "create", "decide",
   "define", "demand", "describe", "determine", "develop",
 ];
@@ -730,7 +730,7 @@ for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const)
 
     await page.goto("/#library");
     await login(page);
-    await page.getByRole("button", { name: "Toplu kelime ekle" }).first().click();
+    await page.getByRole("button", { name: "Toplu ekle", exact: true }).first().click();
     const dialog = page.getByRole("dialog", { name: "Toplu kelime ekle" });
     await dialog.getByRole("textbox", { name: "İngilizce kelime listesi" })
       .fill(p0ImportWords.join("\n"));
@@ -767,7 +767,7 @@ for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const)
     expect(cloud.libraries[alice].slice(1).every((entry) =>
       entry.score === 0 && entry.examples.length === 5)).toBe(true);
     await expect(page.getByRole("button", {
-      name: "ability kelime ayrıntıları",
+      name: "Ability kelime ayrıntıları",
     })).toBeVisible();
   });
 }

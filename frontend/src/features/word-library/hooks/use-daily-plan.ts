@@ -53,9 +53,9 @@ export function useDailyPlan(
     const existing = repository.getGroups().find((group) => group.words.includes(wordId));
     if (existing && existing.day !== day) repository.moveWordToDay(wordId, existing.day, day);
     else repository.assignWordToDay(wordId, day);
-    const success = repository.getGroups().some(
-      (group) => group.day === day && group.words.includes(wordId),
-    );
+    const success = repository
+      .getGroups()
+      .some((group) => group.day === day && group.words.includes(wordId));
     refresh();
     return success;
   }

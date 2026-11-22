@@ -63,7 +63,9 @@ export class DailyWordGroupsRepository {
    * deliberately removed words stay unassigned until added again by the user.
    */
   syncWords(orderedWordIds: string[], targetSize: number): void {
-    const uniqueIds = [...new Set(orderedWordIds.filter((id) => typeof id === "string" && id.trim()))];
+    const uniqueIds = [
+      ...new Set(orderedWordIds.filter((id) => typeof id === "string" && id.trim())),
+    ];
     const validIds = new Set(uniqueIds);
     const excluded = this.getExcludedWordIds().filter((id) => validIds.has(id));
     const exclusions = new Set(excluded);
@@ -112,7 +114,10 @@ export class DailyWordGroupsRepository {
 
   /** Remove from the plan only; never delete the source library word. */
   excludeWordFromDay(wordId: string, day: number): void {
-    if (!isValidDay(day) || !this.getGroups().some((g) => g.day === day && g.words.includes(wordId)))
+    if (
+      !isValidDay(day) ||
+      !this.getGroups().some((g) => g.day === day && g.words.includes(wordId))
+    )
       return;
     const excluded = new Set(this.getExcludedWordIds());
     excluded.add(wordId);
@@ -144,11 +149,18 @@ export class DailyWordGroupsRepository {
 
     this.saveGroups(this.sortGroupsByDay(groups));
     const excluded = this.getExcludedWordIds();
-    if (excluded.includes(wordId)) writeStorage(EXCLUDED_KEY, excluded.filter((id) => id !== wordId));
+    if (excluded.includes(wordId))
+      writeStorage(
+        EXCLUDED_KEY,
+        excluded.filter((id) => id !== wordId),
+      );
   }
 
   /** Move/add several existing library words in one atomic group write. */
-  assignManyToDay(wordIds: string[], day: number): { added: number; moved: number; already: number } {
+  assignManyToDay(
+    wordIds: string[],
+    day: number,
+  ): { added: number; moved: number; already: number } {
     if (!isValidDay(day)) throw new Error("Gün 1–60 arasında olmalıdır.");
     const unique = [...new Set(wordIds)];
     if (unique.some((id) => typeof id !== "string" || !id.trim()))
@@ -158,7 +170,9 @@ export class DailyWordGroupsRepository {
     const already = unique.filter((id) => target.words.includes(id)).length;
     const pending = unique.filter((id) => !target.words.includes(id));
     if (target.words.length + pending.length > MAX_WORDS_PER_DAY)
-      throw new Error(`Bu günde yalnızca ${Math.max(0, MAX_WORDS_PER_DAY - target.words.length)} boş yer var.`);
+      throw new Error(
+        `Bu günde yalnızca ${Math.max(0, MAX_WORDS_PER_DAY - target.words.length)} boş yer var.`,
+      );
     if (!pending.length) return { added: 0, moved: 0, already };
 
     let moved = 0;

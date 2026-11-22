@@ -30,7 +30,10 @@ export function WordImportReview({
   onCorrected,
 }: {
   onAccept?: (words: string[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
-  onAcceptEntries?: (entries: WordInput[], onProgress?: (progress: WordFillProgress) => void) => Promise<void>;
+  onAcceptEntries?: (
+    entries: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+  ) => Promise<void>;
   onAcceptEntriesManual?: (entries: WordInput[]) => Promise<void>;
   onInputChange?: () => void;
   showActions?: boolean;
@@ -68,15 +71,26 @@ export function WordImportReview({
     setError("");
     setProgress(null);
     try {
-      const entries = [...new Map(rows.map((row) => [
-        wordKey(row.normalized), { word: row.normalized, meanings: row.meanings },
-      ] as const)).values()];
+      const entries = [
+        ...new Map(
+          rows.map(
+            (row) =>
+              [wordKey(row.normalized), { word: row.normalized, meanings: row.meanings }] as const,
+          ),
+        ).values(),
+      ];
       if (manual && onAcceptEntriesManual) await onAcceptEntriesManual(entries);
       else if (onAcceptEntries) await onAcceptEntries(entries, setProgress);
-      else if (onAccept) await onAccept(entries.map((entry) => entry.word), setProgress);
+      else if (onAccept)
+        await onAccept(
+          entries.map((entry) => entry.word),
+          setProgress,
+        );
     } catch (error) {
       setError(error instanceof Error ? error.message : "Kelimeler eklenemedi.");
-    } finally { setProgress(null); }
+    } finally {
+      setProgress(null);
+    }
   }
 
   async function review() {
@@ -115,7 +129,11 @@ export function WordImportReview({
           id="import-text"
           aria-label="İngilizce kelime listesi"
           className="min-h-36 bg-white"
-          placeholder={onAcceptEntries ? "hello = merhaba\nbenefit\nrun = koşmak" : "abandon\nbenefit\nconsequence"}
+          placeholder={
+            onAcceptEntries
+              ? "hello = merhaba\nbenefit\nrun = koşmak"
+              : "abandon\nbenefit\nconsequence"
+          }
           value={text}
           disabled={checking || busy || typing}
           onChange={(event) => {
@@ -151,7 +169,9 @@ export function WordImportReview({
                   <TriangleAlert size={15} className="text-amber-700" />
                 )}
                 <strong>{row.normalized}</strong>
-                {row.meanings.length > 0 && <span className="text-slate-600">= {row.meanings.join(", ")}</span>}
+                {row.meanings.length > 0 && (
+                  <span className="text-slate-600">= {row.meanings.join(", ")}</span>
+                )}
                 {row.original !== row.normalized && (
                   <span className="text-slate-500">← {row.original}</span>
                 )}
@@ -205,34 +225,36 @@ export function WordImportReview({
         </div>
       )}
       {progress && <AiFillProgress progress={progress} />}
-      {showActions && <div className="flex flex-wrap justify-end gap-2">
-        {rows.length === 0 ? (
-          <Button
-            id="import-check"
-            disabled={!text.trim() || checking || busy || typing}
-            onClick={() => void review()}
-          >
-            {checking && <LoaderCircle size={15} className="animate-spin" />}Yazımı kontrol et
-          </Button>
-        ) : (
-          <>
-          {onAcceptEntriesManual && (
-            <Button type="button" variant="outline" disabled={!valid || busy}
-              onClick={() => void accept(true)}>
-              AI olmadan kaydet
+      {showActions && (
+        <div className="flex flex-wrap justify-end gap-2">
+          {rows.length === 0 ? (
+            <Button
+              id="import-check"
+              disabled={!text.trim() || checking || busy || typing}
+              onClick={() => void review()}
+            >
+              {checking && <LoaderCircle size={15} className="animate-spin" />}Yazımı kontrol et
             </Button>
+          ) : (
+            <>
+              {onAcceptEntriesManual && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={!valid || busy}
+                  onClick={() => void accept(true)}
+                >
+                  AI olmadan kaydet
+                </Button>
+              )}
+              <Button id="import-accept" disabled={!valid || busy} onClick={() => void accept()}>
+                {busy && <LoaderCircle size={15} className="animate-spin" />}
+                {label} ({rows.length})
+              </Button>
+            </>
           )}
-          <Button
-            id="import-accept"
-            disabled={!valid || busy}
-            onClick={() => void accept()}
-          >
-            {busy && <LoaderCircle size={15} className="animate-spin" />}
-            {label} ({rows.length})
-          </Button>
-          </>
-        )}
-      </div>}
+        </div>
+      )}
     </div>
   );
 }

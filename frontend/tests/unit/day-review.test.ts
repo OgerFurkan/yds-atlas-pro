@@ -1,16 +1,30 @@
 import { expect, test } from "bun:test";
 import type { WordEntry } from "@yds-atlas/shared";
-import { createDayReviewRounds, createDayReviewMatching, dayReviewBoardSize, dayReviewMissingMeanings } from "@/features/word-library/model/day-review";
+import {
+  createDayReviewRounds,
+  createDayReviewMatching,
+  dayReviewBoardSize,
+  dayReviewMissingMeanings,
+} from "@/features/word-library/model/day-review";
 import { selectMatching, startMatchingBoard } from "@/features/learning-game/model/matching-engine";
 
 function word(index: number, meaning?: string): WordEntry {
   const createdAt = "2026-01-01T00:00:00.000Z";
   return {
-    id: "review-" + index, word: "Word" + index,
-    meanings: [meaning ?? "anlam " + index], alternatives: [], usageNote: "",
-    partOfSpeech: "Noun", cefr: "B1", score: 100,
-    examples: [], pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
-    createdAt, updatedAt: createdAt,
+    id: "review-" + index,
+    word: "Word" + index,
+    meanings: [meaning ?? "anlam " + index],
+    alternatives: [],
+    usageNote: "",
+    partOfSpeech: "Noun",
+    cefr: "B1",
+    score: 100,
+    examples: [],
+    pronunciationUk: "",
+    pronunciationUs: "",
+    sourceUrl: "",
+    createdAt,
+    updatedAt: createdAt,
   };
 }
 
@@ -25,8 +39,15 @@ for (const count of [1, 9, 10, 11, 20, 25, 40]) {
       Array.from({ length: expected }, (_, index) => Math.min(10, count - 10 * index)),
     );
     expect(new Set(groups.flat().map((entry) => entry.id)).size).toBe(count);
-    const restarted = createDayReviewRounds(words, groups.flat().map((entry) => entry.id), () => 0);
-    if (count > 1) expect(restarted.flat().map((entry) => entry.id)).not.toEqual(groups.flat().map((entry) => entry.id));
+    const restarted = createDayReviewRounds(
+      words,
+      groups.flat().map((entry) => entry.id),
+      () => 0,
+    );
+    if (count > 1)
+      expect(restarted.flat().map((entry) => entry.id)).not.toEqual(
+        groups.flat().map((entry) => entry.id),
+      );
     expect(JSON.stringify(words)).toBe(original);
   });
 }
@@ -37,13 +58,22 @@ test("missing Turkish meaning blocks a review rather than silently excluding wor
 });
 
 test("duplicate translations and identical labels appear on separate fair matching boards", () => {
-  const words = [word(0, "aynı"), word(1, "aynı"), { ...word(2), word: "Word1", meanings: ["başka"] }];
+  const words = [
+    word(0, "aynı"),
+    word(1, "aynı"),
+    { ...word(2), word: "Word1", meanings: ["başka"] },
+  ];
   let session = createDayReviewMatching(words);
   const seen = new Set<string>();
   while (session.queue.length) {
     const board = session.matching!;
-    expect(new Set(board.left.map((id) => session.words.find((entry) => entry.id === id)!.meanings[0])).size).toBe(board.left.length);
-    expect(new Set(board.left.map((id) => session.words.find((entry) => entry.id === id)!.word)).size).toBe(board.left.length);
+    expect(
+      new Set(board.left.map((id) => session.words.find((entry) => entry.id === id)!.meanings[0]))
+        .size,
+    ).toBe(board.left.length);
+    expect(
+      new Set(board.left.map((id) => session.words.find((entry) => entry.id === id)!.word)).size,
+    ).toBe(board.left.length);
     for (const id of board.left) {
       seen.add(id);
       session = selectMatching(session, "left", id);
@@ -53,7 +83,6 @@ test("duplicate translations and identical labels appear on separate fair matchi
   }
   expect(seen.size).toBe(3);
 });
-
 
 test("short and mobile screens show smaller matching boards while keeping 10-word rounds", () => {
   expect(dayReviewBoardSize(390, 650)).toBe(4);

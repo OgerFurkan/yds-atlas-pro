@@ -8,10 +8,7 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
   const percent = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
   const failedWords = progress.failedWords ?? [];
   const retry = progress.retry;
-  const remaining = Math.max(
-    0,
-    Math.ceil((total - completed - failedWords.length) / batchSize),
-  );
+  const remaining = Math.max(0, Math.ceil((total - completed - failedWords.length) / batchSize));
 
   return (
     <div
@@ -50,10 +47,10 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
             ? t("library.aiProgress.retryRateLimit", { seconds: retry.secondsRemaining })
             : t("library.aiProgress.retryBusy", { seconds: retry.secondsRemaining })
           : remaining > 0
-          ? t("library.aiProgress.hint", { count: remaining })
-          : failedWords.length > 0
-            ? t("library.aiProgress.partial", { completed, total })
-            : t("library.aiProgress.finishing")}
+            ? t("library.aiProgress.hint", { count: remaining })
+            : failedWords.length > 0
+              ? t("library.aiProgress.partial", { completed, total })
+              : t("library.aiProgress.finishing")}
       </p>
       {failedWords.length > 0 && (
         <div
@@ -61,7 +58,11 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
           className="mt-3 rounded-xl border border-[#b88735] bg-[#302517] p-3 text-[#fff8e8] shadow-sm"
         >
           <div className="flex items-start gap-2.5">
-            <AlertTriangle aria-hidden="true" size={17} className="mt-0.5 shrink-0 text-[#ffd17b]" />
+            <AlertTriangle
+              aria-hidden="true"
+              size={17}
+              className="mt-0.5 shrink-0 text-[#ffd17b]"
+            />
             <div className="min-w-0">
               <p className="text-sm font-bold leading-5 text-[#fff8e8]">
                 {t("library.aiProgress.failedTitle", { count: failedWords.length })}

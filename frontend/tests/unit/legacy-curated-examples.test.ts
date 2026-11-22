@@ -1,5 +1,8 @@
 import { expect, test } from "bun:test";
-import { CURATED_LEGACY_WORDS, curatedLegacyExamples } from "@/features/word-library/data/legacy-curated-examples";
+import {
+  CURATED_LEGACY_WORDS,
+  curatedLegacyExamples,
+} from "@/features/word-library/data/legacy-curated-examples";
 import { hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
 
 test("six QA screenshot words have 30 original graded and translated examples", () => {
@@ -10,7 +13,9 @@ test("six QA screenshot words have 30 original graded and translated examples", 
     expect(hasAtlasTiers(curated?.examples)).toBe(true);
     for (const [index, example] of (curated?.examples ?? []).entries()) {
       expect(example.sentence.toLowerCase()).toContain(word);
-      expect(example.translationFocus?.every(focus => example.translation.includes(focus))).toBe(true);
+      expect(example.translationFocus?.every((focus) => example.translation.includes(focus))).toBe(
+        true,
+      );
       if (index >= 3) expect(example.sentence.length).toBeGreaterThan(80);
     }
   }

@@ -59,7 +59,8 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
     [alice]: [word("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "Evidence")],
     [bob]: [word("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Benefit")],
   };
-  const requests: { path: string; method: string; body: unknown; expectedUpdatedAt?: string }[] = [];
+  const requests: { path: string; method: string; body: unknown; expectedUpdatedAt?: string }[] =
+    [];
   const accounts: Record<
     string,
     {
@@ -99,8 +100,12 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
     expect(headers.authorization).toMatch(/^Bearer /);
     expect(headers["x-user-id"]).toBeUndefined();
     const body = request.postData() ? request.postDataJSON() : null;
-    requests.push({ path, method: request.method(), body,
-      expectedUpdatedAt: headers["x-atlas-expected-updated-at"] });
+    requests.push({
+      path,
+      method: request.method(),
+      body,
+      expectedUpdatedAt: headers["x-atlas-expected-updated-at"],
+    });
     if (path === "/api/account") {
       await route.fulfill({ json: accounts[id] });
       return;
@@ -186,13 +191,20 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
         await route.fulfill({ status: 404, json: { error: "Word not found" } });
         return;
       }
-      if (headers["x-atlas-expected-updated-at"] &&
-          headers["x-atlas-expected-updated-at"] !== libraries[id][index].updatedAt) {
-        await route.fulfill({ status: 409, json: { error: "Kelime değişti", code: "WORD_VERSION_CONFLICT" } });
+      if (
+        headers["x-atlas-expected-updated-at"] &&
+        headers["x-atlas-expected-updated-at"] !== libraries[id][index].updatedAt
+      ) {
+        await route.fulfill({
+          status: 409,
+          json: { error: "Kelime değişti", code: "WORD_VERSION_CONFLICT" },
+        });
         return;
       }
       const updated = {
-        ...libraries[id][index], ...body, id: updateId,
+        ...libraries[id][index],
+        ...body,
+        id: updateId,
         createdAt: libraries[id][index].createdAt,
         updatedAt: new Date(Date.now() + 1000).toISOString(),
       };
@@ -306,7 +318,10 @@ test("chat menu cancels pending requests and restores the previous conversation"
     await chat.getByRole("button", { name: /YDS Atlas AI/ }).click();
     await chat.getByRole("button", { name: "Yeni sohbet" }).click();
     await expect(
-      chat.getByRole("heading", { name: "Merhaba Ben Atlas, sana nasıl yardımcı olabilirim?", exact: true }),
+      chat.getByRole("heading", {
+        name: "Merhaba Ben Atlas, sana nasıl yardımcı olabilirim?",
+        exact: true,
+      }),
     ).toBeVisible();
     releaseResponse();
     await expect(chat.getByText("Late reply")).toHaveCount(0);
@@ -419,7 +434,9 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   const saved = cloud.requests.find(
     (request) => request.path === "/api/words" && request.method === "POST",
   )!.body as { examples: { translationFocus: string[]; source: string }[]; score: number };
-  expect(saved.examples[0].translationFocus.map(focus => focus.toLocaleLowerCase("tr"))).toEqual(["dayanıklı"]);
+  expect(saved.examples[0].translationFocus.map((focus) => focus.toLocaleLowerCase("tr"))).toEqual([
+    "dayanıklı",
+  ]);
   expect(saved.examples[0].source).toContain("Gemini");
   expect(saved.score).toBe(0);
 });
@@ -443,19 +460,23 @@ test("new account words are completed automatically before saving", async ({ pag
   expect(saved.examples[0].source).toContain("Gemini");
 });
 
-test("six confirmed legacy words auto-upgrade on opening the library, preserving examples and scores", async ({ page }) => {
+test("six confirmed legacy words auto-upgrade on opening the library, preserving examples and scores", async ({
+  page,
+}) => {
   const cloud = await mockCloud(page);
   const names = ["Evidence", "Obtain", "Adapt", "Analyze", "Maintain", "Clarify"];
   const initial = names.map((name, index) => ({
     ...word("00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0"), name),
     score: 25 + index,
     meanings: ["Kişisel anlam " + index],
-    examples: [{
-      sentence: "Learners use " + name.toLowerCase() + " in context.",
-      translation: "Önceki örnek " + index + ".",
-      translationFocus: ["Önceki"],
-      source: "Kullanıcı",
-    }],
+    examples: [
+      {
+        sentence: "Learners use " + name.toLowerCase() + " in context.",
+        translation: "Önceki örnek " + index + ".",
+        translationFocus: ["Önceki"],
+        source: "Kullanıcı",
+      },
+    ],
   }));
   cloud.libraries[alice] = initial as unknown as ReturnType<typeof word>[];
   await page.goto("/");
@@ -463,34 +484,48 @@ test("six confirmed legacy words auto-upgrade on opening the library, preserving
   await page.goto("/#library");
   // The account owner grants explicit consent once; subsequent tier completion
   // and shared dictionary warmup run without the two legacy operation banners.
-  expect(cloud.requests.some(req => req.method === "PUT")).toBe(false);
+  expect(cloud.requests.some((req) => req.method === "PUT")).toBe(false);
   const enable = page.getByRole("button", { name: "Otomatik tamamlamayı aç" });
   await expect(enable).toBeVisible();
-  page.once("dialog", dialog => void dialog.accept());
+  page.once("dialog", (dialog) => void dialog.accept());
   await enable.click();
-  await expect.poll(() => cloud.requests.filter(req =>
-    req.path.startsWith("/api/words/") && req.method === "PUT").length,
-    { timeout: 30_000 }).toBe(6);
-  const saves = cloud.requests.filter(req => req.path.startsWith("/api/words/") && req.method === "PUT");
+  await expect
+    .poll(
+      () =>
+        cloud.requests.filter((req) => req.path.startsWith("/api/words/") && req.method === "PUT")
+          .length,
+      { timeout: 30_000 },
+    )
+    .toBe(6);
+  const saves = cloud.requests.filter(
+    (req) => req.path.startsWith("/api/words/") && req.method === "PUT",
+  );
   expect(saves).toHaveLength(6);
-  expect(saves.every(req => typeof req.expectedUpdatedAt === "string")).toBe(true);
-  const completions = cloud.requests.filter(req => req.path === "/api/ai/words/complete");
+  expect(saves.every((req) => typeof req.expectedUpdatedAt === "string")).toBe(true);
+  const completions = cloud.requests.filter((req) => req.path === "/api/ai/words/complete");
   expect(completions).toHaveLength(2);
-  expect((completions[0].body as {words:string[]}).words).toHaveLength(5);
-  expect((completions[1].body as {words:string[]}).words).toHaveLength(1);
+  expect((completions[0].body as { words: string[] }).words).toHaveLength(5);
+  expect((completions[1].body as { words: string[] }).words).toHaveLength(1);
   for (const [index, name] of names.entries()) {
     // The mock library intentionally replaces array entries after PUT; compare
     // with immutable pre-operation fixtures, not aliased in-memory objects.
     const originalId = "00000000-0000-4000-8000-" + String(index + 1).padStart(12, "0");
-    const actual = cloud.libraries[alice].find(entry => entry.id === originalId);
+    const actual = cloud.libraries[alice].find((entry) => entry.id === originalId);
     expect(actual).toBeDefined();
     expect(actual!.score).toBe(25 + index);
     expect(actual!.meanings).toEqual(["Kişisel anlam " + index]);
     const savedExamples = actual!.examples as Array<{
-      sentence: string; source?: string; difficulty?: string;
+      sentence: string;
+      source?: string;
+      difficulty?: string;
     }>;
-    expect(savedExamples.slice(0,5).map(e => e.difficulty))
-      .toEqual(["easy", "easy", "medium", "yds", "yds"]);
+    expect(savedExamples.slice(0, 5).map((e) => e.difficulty)).toEqual([
+      "easy",
+      "easy",
+      "medium",
+      "yds",
+      "yds",
+    ]);
     expect(savedExamples[5].sentence).toBe("Learners use " + name.toLowerCase() + " in context.");
     expect(savedExamples[5].source).toBe("Kullanıcı");
   }
@@ -500,12 +535,22 @@ test("automatic legacy repair stops on a simulated concurrent tab edit", async (
   const cloud = await mockCloud(page);
   const initial = {
     ...word("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "Evidence"),
-    meanings: ["Eski anlam"], score: 18,
-    examples: [{sentence:"My original evidence matters.",translation:"Kendi çevirim.",source:"Kullanıcı"}],
+    meanings: ["Eski anlam"],
+    score: 18,
+    examples: [
+      {
+        sentence: "My original evidence matters.",
+        translation: "Kendi çevirim.",
+        source: "Kullanıcı",
+      },
+    ],
   };
   cloud.libraries[alice] = [initial];
   await page.route("**/api/words/*", async (route) => {
-    if (route.request().method() !== "PUT") { await route.fallback(); return; }
+    if (route.request().method() !== "PUT") {
+      await route.fallback();
+      return;
+    }
     // A different tab/phone saved new content while AI was preparing a draft.
     cloud.libraries[alice][0] = {
       ...cloud.libraries[alice][0],
@@ -518,16 +563,22 @@ test("automatic legacy repair stops on a simulated concurrent tab edit", async (
   await page.goto("/");
   await login(page);
   await page.goto("/#library");
-  const enable = page.getByRole("button",{name:"Otomatik tamamlamayı aç"});
+  const enable = page.getByRole("button", { name: "Otomatik tamamlamayı aç" });
   await expect(enable).toBeVisible();
-  page.once("dialog",dialog=>void dialog.accept());
+  page.once("dialog", (dialog) => void dialog.accept());
   await enable.click();
-  await expect.poll(() => cloud.requests.filter(req => req.method === "PUT" && req.path.startsWith("/api/words/")).length,
-    {timeout:30_000}).toBe(1);
+  await expect
+    .poll(
+      () =>
+        cloud.requests.filter((req) => req.method === "PUT" && req.path.startsWith("/api/words/"))
+          .length,
+      { timeout: 30_000 },
+    )
+    .toBe(1);
   expect(cloud.libraries[alice][0].meanings).toEqual(["Diğer sekmedeki yeni anlam"]);
   expect(cloud.libraries[alice][0].score).toBe(79);
   expect(cloud.libraries[alice][0].examples).toEqual(initial.examples);
-  const maintenance=page.locator("#library-word-controls details");
+  const maintenance = page.locator("#library-word-controls details");
   await maintenance.locator("summary").click();
   await expect(maintenance).toContainText("başka sekmede değişti");
 });
@@ -610,7 +661,6 @@ test("cloud assessment resumes, persists before completion, and restores measure
   expect(completed).toHaveLength(1);
 });
 
-
 test("authenticated score-free day review sends no writes or Gemini request", async ({ page }) => {
   const cloud = await mockCloud(page);
   const ready = Array.from({ length: 11 }, (_, index) => ({
@@ -640,7 +690,9 @@ test("authenticated score-free day review sends no writes or Gemini request", as
   await page.getByRole("button", { name: "Çık" }).click();
   await expect(page.getByTestId("daily-plan-hero")).toBeVisible();
   expect(cloud.requests.filter((request) => request.method !== "GET")).toHaveLength(writesBefore);
-  expect(cloud.requests.filter((request) => request.path.startsWith("/api/ai/"))).toHaveLength(aiBefore);
+  expect(cloud.requests.filter((request) => request.path.startsWith("/api/ai/"))).toHaveLength(
+    aiBefore,
+  );
   expect(JSON.stringify(cloud.libraries[alice])).toBe(original);
   expect(JSON.stringify(cloud.accounts[alice])).toBe(originalAccount);
 });

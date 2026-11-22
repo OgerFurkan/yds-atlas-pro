@@ -384,21 +384,20 @@ describe("Gemini provider", () => {
     );
   });
   test("list generation filters duplicates and rejects invalid words", async () => {
-    const fetcher = (value: unknown) =>
-      (async () => upstream(value)) as unknown as typeof fetch;
+    const fetcher = (value: unknown) => (async () => upstream(value)) as unknown as typeof fetch;
 
     const result = await generateWordList(
-      1, [], config, undefined,
+      1,
+      [],
+      config,
+      undefined,
       fetcher({ suggestions: [suggestion] }),
     );
     expect(result.suggestions).toHaveLength(1);
 
     // Excluded words must never be accepted.
     await expect(
-      generateWordList(
-        1, ["expand"], config, undefined,
-        fetcher({ suggestions: [suggestion] }),
-      ),
+      generateWordList(1, ["expand"], config, undefined, fetcher({ suggestions: [suggestion] })),
     ).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });
 
     // A duplicate is removed, but the valid entry is preserved.
@@ -408,23 +407,24 @@ describe("Gemini provider", () => {
       return upstream({ suggestions: [suggestion, suggestion] });
     }) as unknown as typeof fetch;
 
-    const partial = await generateWordList(
-      2, [], config, undefined, duplicateFetcher,
-    );
-    expect(partial.suggestions.map((item) => item.word)).toEqual([
-      suggestion.word,
-    ]);
+    const partial = await generateWordList(2, [], config, undefined, duplicateFetcher);
+    expect(partial.suggestions.map((item) => item.word)).toEqual([suggestion.word]);
     expect(attempts).toBe(2);
 
     // Invalid example sentences must not be accepted.
     await expect(
       generateWordList(
-        1, [], config, undefined,
+        1,
+        [],
+        config,
+        undefined,
         fetcher({
-          suggestions: [{
-            ...suggestion,
-            examples: Array(5).fill(suggestion.examples[0]),
-          }],
+          suggestions: [
+            {
+              ...suggestion,
+              examples: Array(5).fill(suggestion.examples[0]),
+            },
+          ],
         }),
       ),
     ).rejects.toMatchObject({ code: "AI_INVALID_RESPONSE" });

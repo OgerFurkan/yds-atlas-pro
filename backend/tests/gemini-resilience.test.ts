@@ -27,7 +27,9 @@ test("503 on one project uses a different project without exposing keys", async 
     requested.push(key);
     return new Response("{}", { status: requested.length === 1 ? 503 : 200 });
   };
-  const response = await requestGeminiContent(options(["test-503-a", "test-503-b"], fetcher, "gemini-res-503"));
+  const response = await requestGeminiContent(
+    options(["test-503-a", "test-503-b"], fetcher, "gemini-res-503"),
+  );
   expect(response.status).toBe(200);
   expect(requested).toHaveLength(2);
   expect(new Set(requested).size).toBe(2);
@@ -39,7 +41,9 @@ test("429 cools one key and selects a different key", async () => {
     requested.push(new Headers(init?.headers).get("x-goog-api-key") ?? "");
     return new Response("{}", { status: requested.length === 1 ? 429 : 200 });
   };
-  const response = await requestGeminiContent(options(["test-429-a", "test-429-b"], fetcher, "gemini-res-429"));
+  const response = await requestGeminiContent(
+    options(["test-429-a", "test-429-b"], fetcher, "gemini-res-429"),
+  );
   expect(response.status).toBe(200);
   expect(new Set(requested).size).toBe(2);
 });
@@ -50,7 +54,9 @@ test("503 failover has a strict bound even when five projects are configured", a
     count++;
     return new Response("{}", { status: 503 });
   };
-  const response = await requestGeminiContent(options(["a-503", "b-503", "c-503", "d-503", "e-503"], fetcher, "gemini-res-bounded"));
+  const response = await requestGeminiContent(
+    options(["a-503", "b-503", "c-503", "d-503", "e-503"], fetcher, "gemini-res-bounded"),
+  );
   expect(response.status).toBe(503);
   expect(count).toBe(3);
 });
@@ -61,36 +67,49 @@ test("a single project retries a transient 500 at most twice", async () => {
     count++;
     return new Response("{}", { status: count < 3 ? 500 : 200 });
   };
-  const response = await requestGeminiContent(options(["test-single-500"], fetcher, "gemini-res-one"));
+  const response = await requestGeminiContent(
+    options(["test-single-500"], fetcher, "gemini-res-one"),
+  );
   expect(response.status).toBe(200);
   expect(count).toBe(3);
 });
 
-
-test("five API keys in one Google project share a 429 cooldown when explicitly mapped",async()=>{
-  const requested:string[]=[];
-  const config={
-    GEMINI_KEYS:["mapped-a","mapped-b","mapped-c","mapped-d","mapped-e"],
-    GEMINI_KEY_GROUP_IDS:["same","same","same","same","same"],
+test("five API keys in one Google project share a 429 cooldown when explicitly mapped", async () => {
+  const requested: string[] = [];
+  const config = {
+    GEMINI_KEYS: ["mapped-a", "mapped-b", "mapped-c", "mapped-d", "mapped-e"],
+    GEMINI_KEY_GROUP_IDS: ["same", "same", "same", "same", "same"],
   } as ServerConfig;
-  await expect(requestGeminiContent({
-    ...options(config.GEMINI_KEYS,async (_url,init)=>{
-      requested.push(new Headers(init?.headers).get("x-goog-api-key")??"");
-      return new Response("{}",{status:429});
-    },"gemini-res-same-project"),
-    config,
-  })).rejects.toMatchObject({code:"AI_QUOTA_EXCEEDED"});
+  await expect(
+    requestGeminiContent({
+      ...options(
+        config.GEMINI_KEYS,
+        async (_url, init) => {
+          requested.push(new Headers(init?.headers).get("x-goog-api-key") ?? "");
+          return new Response("{}", { status: 429 });
+        },
+        "gemini-res-same-project",
+      ),
+      config,
+    }),
+  ).rejects.toMatchObject({ code: "AI_QUOTA_EXCEEDED" });
   expect(requested).toHaveLength(1);
 });
-test("independent project aliases rotate to a ready second project on 429",async()=>{
-  const used:string[]=[];
-  const config={GEMINI_KEYS:["unique-x","unique-y","unique-z"],
-    GEMINI_KEY_GROUP_IDS:["one","two","three"]} as ServerConfig;
-  const result=await requestGeminiContent({
-    ...options(config.GEMINI_KEYS,async (_url,init)=>{
-      used.push(new Headers(init?.headers).get("x-goog-api-key")??"");
-      return new Response("{}",{status:used.length===1?429:200});
-    },"gemini-res-independent-keys"),
+test("independent project aliases rotate to a ready second project on 429", async () => {
+  const used: string[] = [];
+  const config = {
+    GEMINI_KEYS: ["unique-x", "unique-y", "unique-z"],
+    GEMINI_KEY_GROUP_IDS: ["one", "two", "three"],
+  } as ServerConfig;
+  const result = await requestGeminiContent({
+    ...options(
+      config.GEMINI_KEYS,
+      async (_url, init) => {
+        used.push(new Headers(init?.headers).get("x-goog-api-key") ?? "");
+        return new Response("{}", { status: used.length === 1 ? 429 : 200 });
+      },
+      "gemini-res-independent-keys",
+    ),
     config,
   });
   expect(result.status).toBe(200);

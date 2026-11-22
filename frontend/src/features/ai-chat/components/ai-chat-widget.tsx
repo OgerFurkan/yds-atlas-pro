@@ -66,16 +66,12 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     if ((!trimmed && !previouslyFailed) || busy) return;
     // Retrying an overloaded provider with the entire chat history may timeout again.
     // Keep the displayed history, but send only the last question after the first failure.
-    const conversation = previouslyFailed ?? [
-      ...messages,
-      { role: "user" as const, content: trimmed },
-    ].slice(-12);
+    const conversation =
+      previouslyFailed ?? [...messages, { role: "user" as const, content: trimmed }].slice(-12);
     const retryAttempt = previouslyFailed ? retryCount + 1 : 0;
     // Never re-send an assistant reply accidentally on a manual retry. Keep the
     // history visible while replaying exactly the question that failed.
-    const requestMessages = previouslyFailed
-      ? lastFailedUserQuestion(conversation)
-      : conversation;
+    const requestMessages = previouslyFailed ? lastFailedUserQuestion(conversation) : conversation;
     if (!requestMessages.length) return;
     if (!previouslyFailed) setRetryCount(0);
     else setRetryCount(retryAttempt);
@@ -113,9 +109,11 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
         setError(t(retryAttempt > 0 ? "chat.timeoutAgain" : "chat.timeout"));
       else if (reason instanceof ApiError && reason.status === 429)
-        setError(reason.retryAfterSeconds !== undefined
-          ? t("chat.rateLimitedFor", { seconds: Math.ceil(reason.retryAfterSeconds) })
-          : t("chat.rateLimited"));
+        setError(
+          reason.retryAfterSeconds !== undefined
+            ? t("chat.rateLimitedFor", { seconds: Math.ceil(reason.retryAfterSeconds) })
+            : t("chat.rateLimited"),
+        );
       else if (reason instanceof ApiError && reason.code === "AI_NETWORK_ERROR")
         setError(t("chat.networkError"));
       else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
@@ -124,7 +122,10 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         setError(t("chat.modelUnavailable"));
       else if (reason instanceof ApiError && reason.code === "AI_REQUEST_REJECTED")
         setError(t("chat.requestRejected"));
-      else if (reason instanceof ApiError && (reason.code === "AI_UPSTREAM_ERROR" || reason.status === 503))
+      else if (
+        reason instanceof ApiError &&
+        (reason.code === "AI_UPSTREAM_ERROR" || reason.status === 503)
+      )
         setError(t("chat.providerBusy"));
       else setError(reason instanceof Error ? reason.message : t("chat.error"));
     } finally {
@@ -254,17 +255,40 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                     )}
                   </div>
                   {confirmClearHistory && history.length > 0 && (
-                    <div className="space-y-2 rounded-xl border border-[#efc5c0] bg-[#fff5f3] p-3 text-sm text-[#7c2620]" role="group" aria-label={t("chat.clearHistory")}>
+                    <div
+                      className="space-y-2 rounded-xl border border-[#efc5c0] bg-[#fff5f3] p-3 text-sm text-[#7c2620]"
+                      role="group"
+                      aria-label={t("chat.clearHistory")}
+                    >
                       <p>{t("chat.clearHistoryConfirm")}</p>
                       <div className="flex justify-end gap-2">
-                        <button type="button" className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 text-xs font-medium" onClick={() => setConfirmClearHistory(false)}>{t("chat.cancelDelete")}</button>
-                        <button type="button" className="rounded-lg bg-[#a3332c] px-3 py-1.5 text-xs font-semibold text-white" onClick={() => { setHistory([]); setConfirmClearHistory(false); setPendingDeleteIndex(null); }}>{t("chat.confirmDelete")}</button>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 text-xs font-medium"
+                          onClick={() => setConfirmClearHistory(false)}
+                        >
+                          {t("chat.cancelDelete")}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg bg-[#a3332c] px-3 py-1.5 text-xs font-semibold text-white"
+                          onClick={() => {
+                            setHistory([]);
+                            setConfirmClearHistory(false);
+                            setPendingDeleteIndex(null);
+                          }}
+                        >
+                          {t("chat.confirmDelete")}
+                        </button>
                       </div>
                     </div>
                   )}
                   {history.length ? (
                     history.map((conversation, index) => (
-                      <div key={index} className="overflow-hidden rounded-xl border border-[#e3ecf2] bg-white shadow-sm">
+                      <div
+                        key={index}
+                        className="overflow-hidden rounded-xl border border-[#e3ecf2] bg-white shadow-sm"
+                      >
                         <div className="flex min-w-0 items-center gap-1 p-1.5">
                           <button
                             type="button"
@@ -288,15 +312,22 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                               setRetryMessages(null);
                             }}
                           >
-                            {conversation.find((message) => message.role === "user")?.content ?? conversation[0]?.content}
+                            {conversation.find((message) => message.role === "user")?.content ??
+                              conversation[0]?.content}
                           </button>
                           <button
                             type="button"
-                            aria-label={t("chat.deleteConversationNamed", { title: conversation.find((message) => message.role === "user")?.content ?? t("chat.history") })}
+                            aria-label={t("chat.deleteConversationNamed", {
+                              title:
+                                conversation.find((message) => message.role === "user")?.content ??
+                                t("chat.history"),
+                            })}
                             title={t("chat.deleteConversation")}
                             className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#8b4a47] hover:bg-[#fff0ee] hover:text-[#a3332c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
                             onClick={() => {
-                              setPendingDeleteIndex((current) => current === index ? null : index);
+                              setPendingDeleteIndex((current) =>
+                                current === index ? null : index,
+                              );
                               setConfirmClearHistory(false);
                             }}
                           >
@@ -304,14 +335,32 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                           </button>
                         </div>
                         {pendingDeleteIndex === index && (
-                          <div className="space-y-2 border-t border-[#efdedb] bg-[#fff8f7] px-3 py-3 text-xs text-[#7c2620]" role="group" aria-label={t("chat.deleteConversation")}>
+                          <div
+                            className="space-y-2 border-t border-[#efdedb] bg-[#fff8f7] px-3 py-3 text-xs text-[#7c2620]"
+                            role="group"
+                            aria-label={t("chat.deleteConversation")}
+                          >
                             <p>{t("chat.deleteConversationConfirm")}</p>
                             <div className="flex justify-end gap-2">
-                              <button type="button" className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 font-medium" onClick={() => setPendingDeleteIndex(null)}>{t("chat.cancelDelete")}</button>
-                              <button type="button" className="rounded-lg bg-[#a3332c] px-3 py-1.5 font-semibold text-white" onClick={() => {
-                                setHistory((previous) => deleteHistoryConversation(previous, index));
-                                setPendingDeleteIndex(null);
-                              }}>{t("chat.confirmDelete")}</button>
+                              <button
+                                type="button"
+                                className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 font-medium"
+                                onClick={() => setPendingDeleteIndex(null)}
+                              >
+                                {t("chat.cancelDelete")}
+                              </button>
+                              <button
+                                type="button"
+                                className="rounded-lg bg-[#a3332c] px-3 py-1.5 font-semibold text-white"
+                                onClick={() => {
+                                  setHistory((previous) =>
+                                    deleteHistoryConversation(previous, index),
+                                  );
+                                  setPendingDeleteIndex(null);
+                                }}
+                              >
+                                {t("chat.confirmDelete")}
+                              </button>
                             </div>
                           </div>
                         )}
@@ -373,7 +422,10 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </div>
               )}
               {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800" role="alert">
+                <div
+                  className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800"
+                  role="alert"
+                >
                   <p className="text-xs leading-5">{error}</p>
                   {retryMessages && !needsSignIn && (
                     <Button

@@ -12,34 +12,60 @@ async function expectNoOverflow(page: Page) {
   );
 }
 
-
-test("old sentence tooltip import is collapsed and cannot run without explicit consent", async ({ page }) => {
+test("old sentence tooltip import is collapsed and cannot run without explicit consent", async ({
+  page,
+}) => {
   // Keep a real guest-library row so the optional recovery control is present.
   await page.addInitScript(() => {
     const now = new Date().toISOString();
-    localStorage.setItem("yds-atlas-words-v1", JSON.stringify([{
-      id: "legacy-consent-word", word: "Abandon", meanings: ["terk etmek"],
-      alternatives: [], usageNote: "", partOfSpeech: "Verb", cefr: "B1",
-      score: 0, examples: [], pronunciationUk: "", pronunciationUs: "",
-      sourceUrl: "", createdAt: now, updatedAt: now,
-    }]));
+    localStorage.setItem(
+      "yds-atlas-words-v1",
+      JSON.stringify([
+        {
+          id: "legacy-consent-word",
+          word: "Abandon",
+          meanings: ["terk etmek"],
+          alternatives: [],
+          usageNote: "",
+          partOfSpeech: "Verb",
+          cefr: "B1",
+          score: 0,
+          examples: [],
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: now,
+          updatedAt: now,
+        },
+      ]),
+    );
   });
   let posted = 0;
-  await page.route("**/api/lexicon/tooltip/backfill", route => {
+  await page.route("**/api/lexicon/tooltip/backfill", (route) => {
     posted++;
-    return route.fulfill({status: 200, contentType: "application/json",
-      body: JSON.stringify({status:"queued",scannedWords:0,scannedSentences:0,
-        distinctCandidates:0,queuedCandidates:0,deduplicatedGlobally:true,mayBeIncomplete:false})});
+    return route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        status: "queued",
+        scannedWords: 0,
+        scannedSentences: 0,
+        distinctCandidates: 0,
+        queuedCandidates: 0,
+        deduplicatedGlobally: true,
+        mayBeIncomplete: false,
+      }),
+    });
   });
   await page.goto("/#library");
   const recovery = page.locator("#library-word-controls details");
   await expect(recovery.locator("summary")).toContainText("Gelişmiş kütüphane bakımı");
-  const start = page.getByRole("button", {name:"Eski cümleleri sözlüğe ekle"});
+  const start = page.getByRole("button", { name: "Eski cümleleri sözlüğe ekle" });
   await expect(start).not.toBeVisible();
   expect(posted).toBe(0);
   await recovery.locator("summary").click();
   await expect(start).toBeVisible();
-  page.once("dialog", dialog => dialog.dismiss());
+  page.once("dialog", (dialog) => dialog.dismiss());
   await start.click();
   expect(posted).toBe(0);
 });
@@ -157,14 +183,22 @@ test("daily task survives reload, shows translated cards and automatically saves
       // The hidden target in a cloze never becomes a tooltip, but surrounding
       // vocabulary can be inspected without revealing the correct answer.
       if (session.phase.includes("context")) {
-        await expect(page.locator('#question-sentence [data-testid="sentence-word"]').first()).toBeVisible();
+        await expect(
+          page.locator('#question-sentence [data-testid="sentence-word"]').first(),
+        ).toBeVisible();
       } else {
-        await expect(page.locator('#question-sentence [data-testid="sentence-word"]')).toHaveCount(0);
+        await expect(page.locator('#question-sentence [data-testid="sentence-word"]')).toHaveCount(
+          0,
+        );
       }
       await page.locator("#choice-correct").click();
       // After feedback, every displayed English token can expose a tooltip.
-      await expect(page.locator('#question-sentence [data-testid="sentence-word"]').first()).toBeVisible();
-      await expect(page.locator('#answer-feedback [data-testid="sentence-word"]').first()).toBeVisible();
+      await expect(
+        page.locator('#question-sentence [data-testid="sentence-word"]').first(),
+      ).toBeVisible();
+      await expect(
+        page.locator('#answer-feedback [data-testid="sentence-word"]').first(),
+      ).toBeVisible();
       if (!reloaded) {
         const answered = await sessionState(page);
         await page.reload();

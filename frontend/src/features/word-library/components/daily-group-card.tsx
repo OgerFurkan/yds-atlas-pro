@@ -30,10 +30,17 @@ export function DailyGroupCard({
         aria-label={t("library.daily.manage.emptyCardAria", { day: group.day })}
       >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-muted-foreground">{t("library.daily.manage.dayCardLabel", { day: group.day })}</span>
-          <Plus size={18} className="text-muted-foreground transition-colors group-hover:text-[#f27637]" />
+          <span className="text-xs font-bold text-muted-foreground">
+            {t("library.daily.manage.dayCardLabel", { day: group.day })}
+          </span>
+          <Plus
+            size={18}
+            className="text-muted-foreground transition-colors group-hover:text-[#f27637]"
+          />
         </div>
-        <span className="text-sm font-semibold text-foreground">{t("library.daily.manage.addToEmptyCard")}</span>
+        <span className="text-sm font-semibold text-foreground">
+          {t("library.daily.manage.addToEmptyCard")}
+        </span>
       </button>
     );
   }
@@ -44,24 +51,34 @@ export function DailyGroupCard({
         type="button"
         onClick={() => onOpen(group.day)}
         className="flex w-full flex-col gap-3 px-4 pt-4 pb-3 text-left transition-colors hover:bg-muted/50 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[#f27637] sm:px-5"
-        aria-label={t("library.daily.manage.filledCardAria", { day: group.day, count: group.total })}
+        aria-label={t("library.daily.manage.filledCardAria", {
+          day: group.day,
+          count: group.total,
+        })}
       >
         <div className="flex w-full items-center justify-between gap-3">
-          <span className="text-xs font-bold tracking-wider text-muted-foreground">{t("library.daily.manage.dayCardLabel", { day: group.day })}</span>
+          <span className="text-xs font-bold tracking-wider text-muted-foreground">
+            {t("library.daily.manage.dayCardLabel", { day: group.day })}
+          </span>
           <span
             className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
               isDone ? "bg-emerald-500/10 text-emerald-600" : "bg-[#f27637]/10 text-[#d85b20]"
             }`}
           >
-            {isDone ? t("library.daily.manage.completed") : t("library.daily.manage.wordTarget", { count: group.total, target: targetSize })}
+            {isDone
+              ? t("library.daily.manage.completed")
+              : t("library.daily.manage.wordTarget", { count: group.total, target: targetSize })}
           </span>
         </div>
         <div className="flex w-full items-end justify-between gap-3">
           <div>
             <strong className="block text-2xl leading-none text-foreground">
-              {group.learned}<span className="text-base font-medium text-muted-foreground">/{group.total}</span>
+              {group.learned}
+              <span className="text-base font-medium text-muted-foreground">/{group.total}</span>
             </strong>
-            <span className="mt-1 block text-xs text-muted-foreground">{t("library.daily.manage.learnedWord")}</span>
+            <span className="mt-1 block text-xs text-muted-foreground">
+              {t("library.daily.manage.learnedWord")}
+            </span>
           </div>
           <ArrowUpRight size={19} className="text-muted-foreground" />
         </div>
@@ -72,33 +89,47 @@ export function DailyGroupCard({
           />
         </div>
         <p className="w-full truncate text-xs text-muted-foreground">
-          {group.words.slice(0, 4).map((word) => word.word).join(" · ")}
+          {group.words
+            .slice(0, 4)
+            .map((word) => word.word)
+            .join(" · ")}
           {group.total > 4 ? ` · +${group.total - 4}` : ""}
         </p>
       </button>
       <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border px-4 py-2.5 sm:px-5">
         <div className="flex flex-wrap gap-2 text-[11px] text-muted-foreground">
-          <span className="font-semibold text-orange-600">{t("library.daily.manage.hardCount", { count: group.hard })}</span>
-          <span>·</span><span>{t("library.daily.manage.reviewCount", { count: group.review })}</span>
-          <span>·</span><span className="text-emerald-600">{t("library.daily.manage.learnedCount", { count: group.learned })}</span>
+          <span className="font-semibold text-orange-600">
+            {t("library.daily.manage.hardCount", { count: group.hard })}
+          </span>
+          <span>·</span>
+          <span>{t("library.daily.manage.reviewCount", { count: group.review })}</span>
+          <span>·</span>
+          <span className="text-emerald-600">
+            {t("library.daily.manage.learnedCount", { count: group.learned })}
+          </span>
         </div>
         <div className="flex shrink-0 items-center gap-2">
-        <Button
-          type="button"
-          size="sm"
-          title={group.playable === 0 ? t("library.daily.manage.noReadyTitle") : undefined}
-          className="min-h-8 shrink-0 px-3"
-          onClick={() => onStudy(group)}
-          aria-label={t("library.daily.manage.studyCardAria", { day: group.day })}
-        >
-          {isDone ? <CircleCheck size={14} /> : <Play size={14} />}
-          {t("library.daily.manage.study")}
-        </Button>
-        <Button type="button" size="sm" variant="outline" className="min-h-8 shrink-0 px-3"
-          aria-label={t("library.daily.manage.reviewCardAria", { day: group.day })}
-          onClick={() => onReview(group)}>
-          <RotateCcw size={14} /> {t("library.daily.manage.review")}
-        </Button>
+          <Button
+            type="button"
+            size="sm"
+            title={group.playable === 0 ? t("library.daily.manage.noReadyTitle") : undefined}
+            className="min-h-8 shrink-0 px-3"
+            onClick={() => onStudy(group)}
+            aria-label={t("library.daily.manage.studyCardAria", { day: group.day })}
+          >
+            {isDone ? <CircleCheck size={14} /> : <Play size={14} />}
+            {t("library.daily.manage.study")}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="min-h-8 shrink-0 px-3"
+            aria-label={t("library.daily.manage.reviewCardAria", { day: group.day })}
+            onClick={() => onReview(group)}
+          >
+            <RotateCcw size={14} /> {t("library.daily.manage.review")}
+          </Button>
         </div>
       </div>
     </article>

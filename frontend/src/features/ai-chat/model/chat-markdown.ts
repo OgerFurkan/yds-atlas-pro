@@ -53,7 +53,10 @@ export function parseChatBlocks(source: string): ChatBlock[] {
 
   while (index < lines.length) {
     const line = lines[index];
-    if (!line.trim()) { index++; continue; }
+    if (!line.trim()) {
+      index++;
+      continue;
+    }
 
     if (/^\s*```/.test(line)) {
       index++;
@@ -64,10 +67,16 @@ export function parseChatBlocks(source: string): ChatBlock[] {
       continue;
     }
     if (/^\s{0,3}(?:---+|___+|\*\*\*+)\s*$/.test(line)) {
-      blocks.push({ kind: "rule" }); index++; continue;
+      blocks.push({ kind: "rule" });
+      index++;
+      continue;
     }
     const heading = line.match(/^\s{0,3}#{1,6}\s+(.+)$/);
-    if (heading) { blocks.push({ kind: "heading", text: heading[1] }); index++; continue; }
+    if (heading) {
+      blocks.push({ kind: "heading", text: heading[1] });
+      index++;
+      continue;
+    }
     if (/^\s*>\s?/.test(line)) {
       const quoted: string[] = [];
       while (index < lines.length && /^\s*>\s?/.test(lines[index])) {

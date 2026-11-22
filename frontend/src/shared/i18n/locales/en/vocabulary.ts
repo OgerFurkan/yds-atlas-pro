@@ -105,7 +105,8 @@ export const enVocabulary = {
       count: "{{completed}} / {{total}} words",
       hint: "{{count}} requests left · Keep this window open.",
       finishing: "Finishing the last request and adding to your library…",
-      retryRateLimit: "AI request limit: only missing words will retry in {{seconds}} seconds. Keep this window open.",
+      retryRateLimit:
+        "AI request limit: only missing words will retry in {{seconds}} seconds. Keep this window open.",
       retryBusy: "Gemini is temporarily busy. Retrying in {{seconds}} seconds.",
       partial: "{{completed}}/{{total}} words ready. Missing words can be retried.",
       failedTitle: "{{count}} words could not be completed",
@@ -125,17 +126,21 @@ export const enVocabulary = {
         tourBulkAction: "Bulk add",
         tourName: "Daily Plan guide",
         tourOverviewTitle: "Welcome to Daily Plan",
-        tourOverviewDescription: "Organize vocabulary across 60 days and track progress. This guide does not modify your data.",
+        tourOverviewDescription:
+          "Organize vocabulary across 60 days and track progress. This guide does not modify your data.",
         tourTargetTitle: "Daily word goal",
-        tourTargetDescription: "Choose 10, 20, 30, or 40 to control automatic placement of new words. Existing days will not change.",
+        tourTargetDescription:
+          "Choose 10, 20, 30, or 40 to control automatic placement of new words. Existing days will not change.",
         tourDaysTitle: "Day cards",
         tourDaysDescription: "Open a day to manage, move, or remove its assigned words.",
         tourBulkTitle: "Add words in bulk",
         tourBulkDescription: "Enter multiple words and optionally assign them to a chosen day.",
         tourStudyTitle: "Study your day's words",
-        tourStudyDescription: "When words are ready, use Study on a day card to launch the learning game.",
+        tourStudyDescription:
+          "When words are ready, use Study on a day card to launch the learning game.",
         heroTitle: "Manage your own learning path",
-        heroDescription: "Add, edit, move, or remove words for each day. Open a day card to manage its words.",
+        heroDescription:
+          "Add, edit, move, or remove words for each day. Open a day card to manage its words.",
         learnedProgress: "{{learned}} / {{total}} words learned",
         plannedShort: "planned",
         activeShort: "active days",
@@ -148,7 +153,8 @@ export const enVocabulary = {
         hideEmpty: "Hide empty days",
         showAll: "Show all 60 days",
         dayTitle: "Day {{day}} words",
-        dayDescription: "Manage your words. Removing a word from a day does not delete it from your library.",
+        dayDescription:
+          "Manage your words. Removing a word from a day does not delete it from your library.",
         wordCountLearned: "words · {{count}} learned",
         newWord: "New word",
         bulkSelect: "Select from library",
@@ -186,7 +192,8 @@ export const enVocabulary = {
         emptyDayTitle: "This day is empty",
         emptyDayHint: "Add a new or existing word above.",
         noSearchResults: "No words match your search.",
-        localOnly: "Note: Day assignments are currently stored locally for this browser and account. Cross-device sync is not available yet.",
+        localOnly:
+          "Note: Day assignments are currently stored locally for this browser and account. Cross-device sync is not available yet.",
         confirmMoveOne: "Move this word from day {{from}} to day {{to}}?",
         confirmMoveMany: "Move {{count}} words from other days into this day?",
         dayCardLabel: "DAY {{day}}",
@@ -204,7 +211,8 @@ export const enVocabulary = {
         reviewCount: "{{count}} to review",
         learnedCount: "{{count}} learned",
         noReadyTitle: "Complete missing word details first",
-        noReadyStudyHelp: "No words in day {{day}} are ready to study yet. Open the day details and add missing Turkish meanings and five suitable example sentences per word. Your scores, progress and unfinished game are preserved.",
+        noReadyStudyHelp:
+          "No words in day {{day}} are ready to study yet. Open the day details and add missing Turkish meanings and five suitable example sentences per word. Your scores, progress and unfinished game are preserved.",
         studyCardAria: "Study day {{day}} words",
         study: "Study",
         review: "Review",
@@ -217,7 +225,8 @@ export const enVocabulary = {
         reviewFinished: "You reviewed all the words!",
         reviewRestart: "Restart review",
         reviewExit: "Exit",
-        reviewMissing: "{{count}} words have no Turkish meaning. Review has not started; edit those words first.",
+        reviewMissing:
+          "{{count}} words have no Turkish meaning. Review has not started; edit those words first.",
         reviewEmpty: "There are no words in this day.",
       },
       tabBadge_one: "{{count}} day filled",

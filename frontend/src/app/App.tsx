@@ -29,7 +29,11 @@ import { completeWordsWithGemini } from "@/features/word-library/api/ai-word-api
 import type { DailyGroup, DailyGroupPreset } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { prepareWordInputs } from "@/features/word-library/model/prepare-word-inputs";
-import { needsAiMeaning, splitWordInputsByMeaning, type WordAddMode } from "@/features/word-library/model/manual-word-import";
+import {
+  needsAiMeaning,
+  splitWordInputsByMeaning,
+  type WordAddMode,
+} from "@/features/word-library/model/manual-word-import";
 import { wordKey } from "@/features/word-library/model/word-normalization";
 import { PreferencesDialog } from "@/shared/ui/preferences-dialog";
 
@@ -157,9 +161,10 @@ function AppWorkspace({
   ) {
     // User-entered meanings must save directly. Bare entries can request AI,
     // or be explicitly kept as incomplete personal vocabulary.
-    const [prepared] = !id && auth.user && mode === "auto" && needsAiMeaning(input)
-      ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
-      : [input];
+    const [prepared] =
+      !id && auth.user && mode === "auto" && needsAiMeaning(input)
+        ? await prepareWordInputs([input], library.list(), completeWordsWithGemini, onProgress)
+        : [input];
     await library.save(prepared, id);
   }
 
@@ -180,7 +185,9 @@ function AppWorkspace({
     if (!auth.user || mode === "manual") return library.addMany(inputs);
     const { direct, needsAi } = splitWordInputsByMeaning(inputs, library.list());
     if (needsAi.length > 25)
-      throw new Error("AI ile en fazla 25 anlamsız kelime tamamlanabilir. Anlam ekle veya daha küçük liste seç.");
+      throw new Error(
+        "AI ile en fazla 25 anlamsız kelime tamamlanabilir. Anlam ekle veya daha küçük liste seç.",
+      );
 
     let generated: WordInput[] = [];
     let failedWords: string[] = [];
@@ -201,7 +208,10 @@ function AppWorkspace({
         // Do not persist bare words without the user's explicit manual choice.
         failedWords = needsAi.map((entry) => entry.word);
         onProgress?.({
-          completed: 0, total: needsAi.length, batchSize: 5, failedWords,
+          completed: 0,
+          total: needsAi.length,
+          batchSize: 5,
+          failedWords,
         });
         aiUnavailable = true;
       }
@@ -212,167 +222,174 @@ function AppWorkspace({
       const value = ready.get(wordKey(entry.word));
       return value ? [value] : [];
     });
-    const result = prepared.length
-      ? await library.addMany(prepared)
-      : { added: 0, duplicates: 0 };
+    const result = prepared.length ? await library.addMany(prepared) : { added: 0, duplicates: 0 };
 
     if (failedWords.length) {
-      notify.info(`${result.added} kaydedildi · ${failedWords.length} bekliyor. ${aiUnavailable
-        ? "AI şu anda tamamlayamadı."
-        : "Eksik anlamları tekrar deneyebilirsin."} İstersen AI olmadan kaydet.`);
+      notify.info(
+        `${result.added} kaydedildi · ${failedWords.length} bekliyor. ${
+          aiUnavailable ? "AI şu anda tamamlayamadı." : "Eksik anlamları tekrar deneyebilirsin."
+        } İstersen AI olmadan kaydet.`,
+      );
     }
     return result;
   }
 
   return (
-    <SentenceVocabularyProvider words={library.words} userId={auth.user?.id}
+    <SentenceVocabularyProvider
+      words={library.words}
+      userId={auth.user?.id}
       enabled={true}
-      allowPoolLookup={INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked}
-      allowDictionaryLookup={!!auth.user && screen !== "game" && !inspectorBlocked}>
-    <div className="flex min-h-screen flex-col bg-atlas-canvas">
-      <AppHeader
-        onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
-        onOpenSettings={() => setSettingsOpen(true)}
-        signedIn={!!auth.user}
-        showInspector={!!auth.user && INSPECTOR_UI_ENABLED && screen !== "game" && !inspectorBlocked}
-        screen={screen}
-        onNavigate={(nextScreen) => {
-          setOpenCreateOnLibrary(false);
-          setGamePreset(null);
-          navigate(nextScreen);
-        }}
-        onNotify={notify}
-      />
-      <main className="mx-auto w-full max-w-360 flex-1 px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
-        {auth.error && (
-          <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
-            {auth.error}
-          </p>
-        )}
-        {auth.user && library.loadError && screen !== "library" && (
-          <div role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
-            {library.loadError}{" "}
-            <button
-              type="button"
-              className="cursor-pointer underline"
-              onClick={() => void library.reload()}
-            >
-              Yeniden dene
-            </button>
-          </div>
-        )}
-        {screen === "home" ? (
-          <DashboardPage
-            words={library.words}
-            onGoalChange={(goal) => {
-              void account.saveGoal(goal).then((saved) => {
-                if (saved)
-                  notify.info(
-                    <span>
-                      Günlük Kelime Hedefi:
-                      <br />
-                      <strong>{goal}</strong> Kelime Olarak Güncellendi
-                    </span>,
-                  );
-              });
-            }}
-            onAddWord={openLibraryForNewWord}
-            onOpenLibrary={navigateLibrary}
-            onStartLearning={() => navigate("game")}
-          />
-        ) : screen === "inspector" ? (
-          !auth.user || !INSPECTOR_UI_ENABLED ? (
-            <p role="alert">Word Inspector şu an erişime açık değil.</p>
-          ) : inspectorBlocked ? (
-            <div role="alert" className="rounded-xl border bg-white p-6">
-              Devam eden oyunun sırasında Word Inspector kapalı. İlerlemen korunuyor.
-              <button type="button" className="ml-4 underline" onClick={() => navigate("game")}>
-                Oyuna dön
+      allowPoolLookup={
+        INSPECTOR_UI_ENABLED && !!auth.user && screen !== "game" && !inspectorBlocked
+      }
+      allowDictionaryLookup={!!auth.user && screen !== "game" && !inspectorBlocked}
+    >
+      <div className="flex min-h-screen flex-col bg-atlas-canvas">
+        <AppHeader
+          onOpenAccount={() => (auth.user ? setAccountOpen(true) : onLogin())}
+          onOpenSettings={() => setSettingsOpen(true)}
+          signedIn={!!auth.user}
+          showInspector={
+            !!auth.user && INSPECTOR_UI_ENABLED && screen !== "game" && !inspectorBlocked
+          }
+          screen={screen}
+          onNavigate={(nextScreen) => {
+            setOpenCreateOnLibrary(false);
+            setGamePreset(null);
+            navigate(nextScreen);
+          }}
+          onNotify={notify}
+        />
+        <main className="mx-auto w-full max-w-360 flex-1 px-4 py-7 sm:px-6 sm:py-9 lg:px-8">
+          {auth.error && (
+            <p role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+              {auth.error}
+            </p>
+          )}
+          {auth.user && library.loadError && screen !== "library" && (
+            <div role="alert" className="mb-4 rounded-lg bg-red-50 p-3 text-sm text-red-800">
+              {library.loadError}{" "}
+              <button
+                type="button"
+                className="cursor-pointer underline"
+                onClick={() => void library.reload()}
+              >
+                Yeniden dene
               </button>
             </div>
-          ) : (
-            <Suspense fallback={<p role="status">Kelime inceleme açılıyor…</p>}>
-              <WordInspectorPage
-                userId={auth.user.id}
-                onAddToLibrary={(word) => library.addMany([word])}
+          )}
+          {screen === "home" ? (
+            <DashboardPage
+              words={library.words}
+              onGoalChange={(goal) => {
+                void account.saveGoal(goal).then((saved) => {
+                  if (saved)
+                    notify.info(
+                      <span>
+                        Günlük Kelime Hedefi:
+                        <br />
+                        <strong>{goal}</strong> Kelime Olarak Güncellendi
+                      </span>,
+                    );
+                });
+              }}
+              onAddWord={openLibraryForNewWord}
+              onOpenLibrary={navigateLibrary}
+              onStartLearning={() => navigate("game")}
+            />
+          ) : screen === "inspector" ? (
+            !auth.user || !INSPECTOR_UI_ENABLED ? (
+              <p role="alert">Word Inspector şu an erişime açık değil.</p>
+            ) : inspectorBlocked ? (
+              <div role="alert" className="rounded-xl border bg-white p-6">
+                Devam eden oyunun sırasında Word Inspector kapalı. İlerlemen korunuyor.
+                <button type="button" className="ml-4 underline" onClick={() => navigate("game")}>
+                  Oyuna dön
+                </button>
+              </div>
+            ) : (
+              <Suspense fallback={<p role="status">Kelime inceleme açılıyor…</p>}>
+                <WordInspectorPage
+                  userId={auth.user.id}
+                  onAddToLibrary={(word) => library.addMany([word])}
+                />
+              </Suspense>
+            )
+          ) : screen === "game" ? (
+            <Suspense
+              fallback={
+                <p className="py-20 text-center text-sm text-slate-500">Öğrenme rotan açılıyor…</p>
+              }
+            >
+              <LearningGamePage
+                words={library.words}
+                listWords={library.list}
+                preset={gamePreset}
+                onPresetHandled={clearGamePreset}
+                onBack={() => navigate("home")}
+                onNotify={notify}
+                onAddMany={addWords}
+                onApplyScores={library.applyScores}
+                onPersistSession={account.persist}
+                onCompleteSession={account.complete}
+                onOpenLibrary={() => navigateLibrary()}
               />
             </Suspense>
-          )
-        ) : screen === "game" ? (
-          <Suspense
-            fallback={
-              <p className="py-20 text-center text-sm text-slate-500">Öğrenme rotan açılıyor…</p>
-            }
-          >
-            <LearningGamePage
-              words={library.words}
-              listWords={library.list}
-              preset={gamePreset}
-              onPresetHandled={clearGamePreset}
-              onBack={() => navigate("home")}
-              onNotify={notify}
-              onAddMany={addWords}
-              onApplyScores={library.applyScores}
-              onPersistSession={account.persist}
-              onCompleteSession={account.complete}
-              onOpenLibrary={() => navigateLibrary()}
-            />
-          </Suspense>
-        ) : (
-          <Suspense
-            fallback={
-              <div className="flex min-h-56 items-center justify-center gap-2 text-sm text-slate-500">
-                <span className="size-5 animate-spin rounded-full border-2 border-slate-200 border-t-atlas-blue" />{" "}
-                Kütüphane açılıyor...
-              </div>
-            }
-          >
-            <WordLibraryPage
-              key={`${initialGroup}-${openCreateOnLibrary}`}
-              initialGroup={initialGroup}
-              initialCreate={openCreateOnLibrary}
-              words={library.words}
-              loading={library.loading}
-              loadError={library.loadError}
-              automaticLegacyRepair={!!auth.user && !hasActiveLocalGame()}
-              accountId={auth.user?.id ?? null}
-              onReload={() => void library.reload()}
-              onSave={saveWord}
-              onSaveProtected={saveWordProtected}
-              onAddMany={addWords}
-              onRemove={library.remove}
-              onRemoveMany={library.removeMany}
-              onStudyGroup={studyDailyGroup}
-              onNotify={notify}
-              onInitialCreateHandled={() => setOpenCreateOnLibrary(false)}
-            />
-          </Suspense>
+          ) : (
+            <Suspense
+              fallback={
+                <div className="flex min-h-56 items-center justify-center gap-2 text-sm text-slate-500">
+                  <span className="size-5 animate-spin rounded-full border-2 border-slate-200 border-t-atlas-blue" />{" "}
+                  Kütüphane açılıyor...
+                </div>
+              }
+            >
+              <WordLibraryPage
+                key={`${initialGroup}-${openCreateOnLibrary}`}
+                initialGroup={initialGroup}
+                initialCreate={openCreateOnLibrary}
+                words={library.words}
+                loading={library.loading}
+                loadError={library.loadError}
+                automaticLegacyRepair={!!auth.user && !hasActiveLocalGame()}
+                accountId={auth.user?.id ?? null}
+                onReload={() => void library.reload()}
+                onSave={saveWord}
+                onSaveProtected={saveWordProtected}
+                onAddMany={addWords}
+                onRemove={library.remove}
+                onRemoveMany={library.removeMany}
+                onStudyGroup={studyDailyGroup}
+                onNotify={notify}
+                onInitialCreateHandled={() => setOpenCreateOnLibrary(false)}
+              />
+            </Suspense>
+          )}
+        </main>
+        <AppFooter />
+        {auth.user && (
+          <AccountDialog
+            open={accountOpen}
+            onOpenChange={setAccountOpen}
+            user={auth.user}
+            onImportGuest={account.importGuest}
+          />
         )}
-      </main>
-      <AppFooter />
-      {auth.user && (
-        <AccountDialog
-          open={accountOpen}
-          onOpenChange={setAccountOpen}
-          user={auth.user}
-          onImportGuest={account.importGuest}
+        <PreferencesDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+        <AiChatWidget onLogin={onLogin} />
+        <ToastContainer
+          position="top-right"
+          autoClose={3500}
+          limit={3}
+          newestOnTop
+          closeOnClick={false}
+          pauseOnFocusLoss
+          aria-label={t("common.notifications")}
+          toastClassName="atlas-toast"
+          icon={AtlasToastIcon}
+          closeButton={AtlasToastClose}
         />
-      )}
-      <PreferencesDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-      <AiChatWidget onLogin={onLogin} />
-      <ToastContainer
-        position="top-right"
-        autoClose={3500}
-        limit={3}
-        newestOnTop
-        closeOnClick={false}
-        pauseOnFocusLoss
-        aria-label={t("common.notifications")}
-        toastClassName="atlas-toast"
-        icon={AtlasToastIcon}
-        closeButton={AtlasToastClose}
-      />
-    </div>
+      </div>
     </SentenceVocabularyProvider>
   );
 }

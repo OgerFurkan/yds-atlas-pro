@@ -20,11 +20,22 @@ import { geminiPoolStatus } from "./features/ai/gemini-keys";
 import { geminiCapacityStatus } from "./features/ai/gemini-request";
 import { accountState, completeSession, saveSession } from "./features/learning/learning-service";
 import { deleteWords, importWords, listWords, saveWord } from "./features/words/word-service";
-import { inspectFeedback, assertFeedbackWordBinding, assertNoActiveAssessment, assertGameSafeDictionaryWord } from "./features/feedback/inspector-service";
+import {
+  inspectFeedback,
+  assertFeedbackWordBinding,
+  assertNoActiveAssessment,
+  assertGameSafeDictionaryWord,
+} from "./features/feedback/inspector-service";
 import { draftWord, generateTieredSentences } from "./features/feedback/tiered-sentence-generation";
 import { dictionaryWord, lookupPublicTurkish } from "./features/lexicon/public-turkish-dictionary";
-import { readSharedTooltipGloss, sentencePrefetchEnabled } from "./features/lexicon/sentence-lexicon-prefetch";
-import { enqueueLegacyGlosses, enqueueSentenceGlosses } from "./features/lexicon/persistent-tooltip-queue";
+import {
+  readSharedTooltipGloss,
+  sentencePrefetchEnabled,
+} from "./features/lexicon/sentence-lexicon-prefetch";
+import {
+  enqueueLegacyGlosses,
+  enqueueSentenceGlosses,
+} from "./features/lexicon/persistent-tooltip-queue";
 import { databaseError, HttpError } from "./shared/errors";
 import { readJson } from "./shared/http";
 import { authenticate, quotaClient, type RequestContext } from "./shared/supabase";
@@ -42,8 +53,11 @@ const uuid = z.uuid();
 const bulk = z.array(wordInputSchema).min(1).max(500);
 async function persistExampleTokens(config: ServerConfig, sentences: readonly string[]) {
   if (!sentencePrefetchEnabled(config)) return;
-  try { await enqueueSentenceGlosses(config, sentences); }
-  catch { console.error({ code: "TOOLTIP_QUEUE_ENQUEUE_FAILED" }); }
+  try {
+    await enqueueSentenceGlosses(config, sentences);
+  } catch {
+    console.error({ code: "TOOLTIP_QUEUE_ENQUEUE_FAILED" });
+  }
 }
 const sessionBody = z
   .object({ snapshot: gameSessionSchema, revision: z.number().int().min(0) })
@@ -65,7 +79,10 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
     });
     if (origin && origins.has(origin)) {
       headers.set("Access-Control-Allow-Origin", origin);
-      headers.set("Access-Control-Allow-Headers", "Authorization, Content-Type, X-Atlas-Expected-Updated-At");
+      headers.set(
+        "Access-Control-Allow-Headers",
+        "Authorization, Content-Type, X-Atlas-Expected-Updated-At",
+      );
       headers.set("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS");
     }
     try {
@@ -83,7 +100,9 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
             ai: {
               configured: !!(config.GEMINI_KEYS.length && config.SUPABASE_SECRET_KEY),
               keyCount: config.GEMINI_KEYS.length,
-              projectGroupsConfigured: (config.GEMINI_KEY_GROUP_IDS?.length ?? 0) === config.GEMINI_KEYS.length && config.GEMINI_KEYS.length > 0,
+              projectGroupsConfigured:
+                (config.GEMINI_KEY_GROUP_IDS?.length ?? 0) === config.GEMINI_KEYS.length &&
+                config.GEMINI_KEYS.length > 0,
               ...geminiCapacityStatus(),
               quotaConfigured: !!config.SUPABASE_SECRET_KEY,
               modelWord: config.GEMINI_MODEL_WORD,
@@ -104,12 +123,18 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         const inspected = await inspectFeedback(ctx, config, new URL(request.url).searchParams);
         result = inspected;
         if (sentencePrefetchEnabled(config) && inspected.status === "ready")
-          await persistExampleTokens(config, inspected.entry.examples.map((item) => item.sentence));
+          await persistExampleTokens(
+            config,
+            inspected.entry.examples.map((item) => item.sentence),
+          );
       } else if (path === "/api/dictionary/turkish" && request.method === "GET") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
           throw new HttpError(404, "Sözlük etkin değil.", "DICTIONARY_DISABLED");
         const parameters = new URL(request.url).searchParams;
-        if ([...parameters.keys()].some((key) => key !== "word") || parameters.getAll("word").length !== 1)
+        if (
+          [...parameters.keys()].some((key) => key !== "word") ||
+          parameters.getAll("word").length !== 1
+        )
           throw new HttpError(400, "Sözlük sorgusu geçersiz.", "DICTIONARY_INVALID_QUERY");
         const word = dictionaryWord(parameters.get("word") ?? "");
         await assertGameSafeDictionaryWord(ctx, word);
@@ -121,20 +146,33 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           // A missing shared cache does not justify unsafe or fabricated meanings.
           // The licensed provider is independently bounded and validated.
         }
-        result = cached ? {
-          status: "ready" as const, word,
-          entries: [{ partOfSpeech: cached.partOfSpeech, meanings: cached.meanings }],
-          source: { provider: cached.provider,
-            url: cached.url, license: "CC BY-SA 4.0" as const,
-            licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" as const },
-        } : await lookupPublicTurkish(word, ctx.userId);
-        if (result && typeof result === "object" && "status" in result && (result.status === "ready" || result.status === "choices"))
+        result = cached
+          ? {
+              status: "ready" as const,
+              word,
+              entries: [{ partOfSpeech: cached.partOfSpeech, meanings: cached.meanings }],
+              source: {
+                provider: cached.provider,
+                url: cached.url,
+                license: "CC BY-SA 4.0" as const,
+                licenseUrl: "https://creativecommons.org/licenses/by-sa/4.0/" as const,
+              },
+            }
+          : await lookupPublicTurkish(word, ctx.userId);
+        if (
+          result &&
+          typeof result === "object" &&
+          "status" in result &&
+          (result.status === "ready" || result.status === "choices")
+        )
           await persistExampleTokens(config, [word]);
       } else if (path === "/api/lexicon/examples/draft" && request.method === "POST") {
         if (!config.ATLAS_FEEDBACK_LEXICON_ENABLED)
           throw new HttpError(404, "Cümle üretimi etkin değil.", "SENTENCE_DISABLED");
         await assertNoActiveAssessment(ctx);
-        const { word: inputWord } = z.object({ word: z.string().min(1).max(45) }).strict()
+        const { word: inputWord } = z
+          .object({ word: z.string().min(1).max(45) })
+          .strict()
           .parse(await readJson(request, 2048));
         const word = draftWord(inputWord);
         if (!config.GEMINI_KEYS.length)
@@ -142,25 +180,41 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
         const allowed = dependencies.consumeQuota
           ? await dependencies.consumeQuota(ctx.userId)
           : await (async () => {
-              const quota = await quotaClient(config).rpc("consume_ai_quota", { p_user_id: ctx.userId });
+              const quota = await quotaClient(config).rpc("consume_ai_quota", {
+                p_user_id: ctx.userId,
+              });
               databaseError(quota.error);
               return quota.data === true;
             })();
-        if (!allowed) throw new HttpError(429, "AI kullanım sınırına ulaşıldı.", "AI_QUOTA_EXCEEDED");
-        const draft = await (dependencies.generateTiered ?? generateTieredSentences)(word, config, request.signal);
-        await persistExampleTokens(config, draft.examples.map((item) => item.sentence));
+        if (!allowed)
+          throw new HttpError(429, "AI kullanım sınırına ulaşıldı.", "AI_QUOTA_EXCEEDED");
+        const draft = await (dependencies.generateTiered ?? generateTieredSentences)(
+          word,
+          config,
+          request.signal,
+        );
+        await persistExampleTokens(
+          config,
+          draft.examples.map((item) => item.sentence),
+        );
         result = { status: "draft", ...draft };
       } else if (path === "/api/words" && request.method === "GET") result = await listWords(ctx);
       else if (path === "/api/words" && request.method === "POST") {
         const input = wordInputSchema.parse(await readJson(request));
         await assertFeedbackWordBinding(config, input, true);
         result = await saveWord(ctx, input);
-        await persistExampleTokens(config, input.examples.map((e) => e.sentence));
+        await persistExampleTokens(
+          config,
+          input.examples.map((e) => e.sentence),
+        );
       } else if (path === "/api/words/import" && request.method === "POST") {
         const inputs = bulk.parse(await readJson(request));
         for (const input of inputs) await assertFeedbackWordBinding(config, input, true);
         result = await importWords(ctx, inputs);
-        await persistExampleTokens(config, inputs.flatMap((input) => input.examples.map((e) => e.sentence)));
+        await persistExampleTokens(
+          config,
+          inputs.flatMap((input) => input.examples.map((e) => e.sentence)),
+        );
       } else if (path === "/api/words/bulk" && request.method === "DELETE")
         result = await deleteWords(
           ctx,
@@ -186,9 +240,14 @@ export function createApp(config: ServerConfig, dependencies: Dependencies = {})
           const input = wordInputSchema.parse(await readJson(request));
           await assertFeedbackWordBinding(config, input);
           const versionHeader = request.headers.get("X-Atlas-Expected-Updated-At");
-          const expectedUpdatedAt = versionHeader ? z.string().datetime().parse(versionHeader) : undefined;
+          const expectedUpdatedAt = versionHeader
+            ? z.string().datetime().parse(versionHeader)
+            : undefined;
           result = await saveWord(ctx, input, id, expectedUpdatedAt);
-          await persistExampleTokens(config, input.examples.map(e => e.sentence));
+          await persistExampleTokens(
+            config,
+            input.examples.map((e) => e.sentence),
+          );
         } else if (request.method === "DELETE") result = await deleteWords(ctx, [id]);
         else throw new HttpError(405, "Bu işlem desteklenmiyor.", "METHOD_NOT_ALLOWED");
       } else if (path === "/api/account" && request.method === "GET")

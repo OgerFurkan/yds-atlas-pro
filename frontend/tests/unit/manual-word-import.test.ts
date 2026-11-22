@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
-import { needsAiMeaning, parseBulkWordEntries, splitWordInputsByMeaning } from
-  "@/features/word-library/model/manual-word-import";
+import {
+  needsAiMeaning,
+  parseBulkWordEntries,
+  splitWordInputsByMeaning,
+} from "@/features/word-library/model/manual-word-import";
 
 test("mixed user-provided meanings and bare words preserve authored translations", () => {
   expect(parseBulkWordEntries("hello = merhaba\nbenefit\nrun = koşmak, çalışmak")).toEqual([
@@ -12,7 +15,9 @@ test("mixed user-provided meanings and bare words preserve authored translations
 
 test("legacy word-only comma and semicolon lists still work", () => {
   expect(parseBulkWordEntries("benefit, BENEFIT; abandon\nconsequence")).toEqual([
-    { word: "Benefit" }, { word: "Abandon" }, { word: "Consequence" },
+    { word: "Benefit" },
+    { word: "Abandon" },
+    { word: "Consequence" },
   ]);
 });
 
@@ -24,7 +29,8 @@ test("meaningful duplicate wins over a bare word without losing user meaning", (
 
 test("empty meanings remain clearly incomplete and invalid headwords are refused", () => {
   expect(parseBulkWordEntries("hello = \nworld")).toEqual([
-    { word: "Hello", meanings: [] }, { word: "World" },
+    { word: "Hello", meanings: [] },
+    { word: "World" },
   ]);
   expect(() => parseBulkWordEntries("= merhaba")).toThrow("İngilizce kelime");
   expect(() => parseBulkWordEntries("w".repeat(121))).toThrow("120");

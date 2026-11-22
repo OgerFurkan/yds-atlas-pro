@@ -46,30 +46,38 @@ async function asUser<T>(id: string, work: () => Promise<T>) {
 describe("Postgres ownership, atomicity and quotas", () => {
   test("the legacy update CAS rejects a stale tab, preserving newer score and notes", async () => {
     const original = await db.query<{ updated_at: string; score: number }>(
-      "select updated_at,score from public.words where id=$1", [wordId]);
+      "select updated_at,score from public.words where id=$1",
+      [wordId],
+    );
     const version = original.rows[0].updated_at;
     await asUser(alice, async () => {
       const winner = await db.query(
         "update public.words set score=71, content=$1::jsonb, updated_at=now()+interval '1 second' " +
-        "where id=$2 returning id",
-        [JSON.stringify({word:"Expand",meanings:["Başka sekmede yazılan kişisel not"]}),wordId],
+          "where id=$2 returning id",
+        [
+          JSON.stringify({ word: "Expand", meanings: ["Başka sekmede yazılan kişisel not"] }),
+          wordId,
+        ],
       );
       expect(winner.rows).toHaveLength(1);
       const stale = await db.query(
         "update public.words set score=0, content=$1::jsonb, updated_at=now()+interval '2 seconds' " +
-        "where id=$2 and updated_at=$3 and score=0 and word='Expand' returning id",
-        [JSON.stringify({word:"Expand",meanings:["Eski kayıt"]}),wordId,version],
+          "where id=$2 and updated_at=$3 and score=0 and word='Expand' returning id",
+        [JSON.stringify({ word: "Expand", meanings: ["Eski kayıt"] }), wordId, version],
       );
       expect(stale.rows).toHaveLength(0);
     });
-    const result = await db.query<{score:number;content:{meanings:string[]}}>(
-      "select score,content from public.words where id=$1",[wordId]);
+    const result = await db.query<{ score: number; content: { meanings: string[] } }>(
+      "select score,content from public.words where id=$1",
+      [wordId],
+    );
     expect(result.rows[0].score).toBe(71);
     expect(result.rows[0].content.meanings).toEqual(["Başka sekmede yazılan kişisel not"]);
     await asUser(bob, async () => {
       const foreign = await db.query(
         "update public.words set score=1 where id=$1 and updated_at=$2 returning id",
-        [wordId,version]);
+        [wordId, version],
+      );
       expect(foreign.rows).toHaveLength(0);
     });
   });
@@ -136,7 +144,13 @@ describe("Postgres ownership, atomicity and quotas", () => {
     ];
     // Strict schema allowlist: a new public table must be reviewed, not silently ignored.
     expect(result.rows.map((row) => row.relname)).toEqual(
-      [...baselineTables, "atlas_lexicon_entries", "atlas_lexicon_jobs", "atlas_lexicon_entry_revisions", "atlas_tooltip_queue"].sort(),
+      [
+        ...baselineTables,
+        "atlas_lexicon_entries",
+        "atlas_lexicon_jobs",
+        "atlas_lexicon_entry_revisions",
+        "atlas_tooltip_queue",
+      ].sort(),
     );
     expect(result.rows.every((row) => row.relrowsecurity)).toBe(true);
     // The exact reviewed three-table ledger keeps RLS and denies all public-role access.
@@ -165,7 +179,9 @@ describe("Postgres ownership, atomicity and quotas", () => {
     }
     // Strict exception: only the two reviewed, locked-down Lexicon RPCs may be definer.
     const functions = await db.query<{
-      proname: string; pronargs: number; proconfig: string[] | null;
+      proname: string;
+      pronargs: number;
+      proconfig: string[] | null;
     }>(
       "select p.proname, p.pronargs, p.proconfig from pg_proc p " +
         "join pg_namespace n on n.oid=p.pronamespace " +
@@ -176,10 +192,11 @@ describe("Postgres ownership, atomicity and quotas", () => {
       ["atlas_lexicon_publish_v1", 10],
     ]);
     for (const fn of functions.rows) {
-      expect(fn.proconfig).toContain("search_path=\"\"");
-      const identity = fn.proname === "atlas_lexicon_claim_v1"
-        ? "public.atlas_lexicon_claim_v1(text,text,text,uuid)"
-        : "public.atlas_lexicon_publish_v1(text,text,text,uuid,text,text,text,jsonb,jsonb,text)";
+      expect(fn.proconfig).toContain('search_path=""');
+      const identity =
+        fn.proname === "atlas_lexicon_claim_v1"
+          ? "public.atlas_lexicon_claim_v1(text,text,text,uuid)"
+          : "public.atlas_lexicon_publish_v1(text,text,text,uuid,text,text,text,jsonb,jsonb,text)";
       for (const role of ["anon", "authenticated", "service_role"] as const) {
         const privilege = await db.query<{ allowed: boolean }>(
           "select has_function_privilege($1, $2, 'EXECUTE') as allowed",
@@ -189,41 +206,55 @@ describe("Postgres ownership, atomicity and quotas", () => {
       }
     }
   });
-  test("durable tooltip SQL is service-only, atomic and fencing-token protected",async()=>{
-    const token="dddddddd-dddd-4ddd-8ddd-dddddddddddd";
-    const stale="eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
-    await db.query("insert into public.atlas_tooltip_queue(word_key) values('evidence'),('climate')");
-    await asUser(alice,async()=>{
+  test("durable tooltip SQL is service-only, atomic and fencing-token protected", async () => {
+    const token = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
+    const stale = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+    await db.query(
+      "insert into public.atlas_tooltip_queue(word_key) values('evidence'),('climate')",
+    );
+    await asUser(alice, async () => {
       await expect(db.query("select * from public.atlas_tooltip_queue")).rejects.toThrow();
-      await expect(db.query("select * from public.atlas_tooltip_claim_v1(1,$1::uuid)",[token]))
-        .rejects.toThrow();
+      await expect(
+        db.query("select * from public.atlas_tooltip_claim_v1(1,$1::uuid)", [token]),
+      ).rejects.toThrow();
     });
     await db.exec("set role service_role");
     try {
-      const first=await db.query<{word_key:string,lease_token:string}>(
-        "select * from public.atlas_tooltip_claim_v1(1,$1::uuid)",[token]);
+      const first = await db.query<{ word_key: string; lease_token: string }>(
+        "select * from public.atlas_tooltip_claim_v1(1,$1::uuid)",
+        [token],
+      );
       expect(first.rows).toHaveLength(1);
       expect(first.rows[0].lease_token).toBe(token);
-      const key=first.rows[0].word_key;
-      const wrong=await db.query<{finished:boolean}>(
+      const key = first.rows[0].word_key;
+      const wrong = await db.query<{ finished: boolean }>(
         "select public.atlas_tooltip_finish_v1($1,$2::uuid,'ready',null) as finished",
-        [key,stale]);
+        [key, stale],
+      );
       expect(wrong.rows[0].finished).toBe(false);
-      const done=await db.query<{finished:boolean}>(
+      const done = await db.query<{ finished: boolean }>(
         "select public.atlas_tooltip_finish_v1($1,$2::uuid,'ready',null) as finished",
-        [key,token]);
+        [key, token],
+      );
       expect(done.rows[0].finished).toBe(true);
-      const second=await db.query<{word_key:string}>(
-        "select * from public.atlas_tooltip_claim_v1(2,$1::uuid)",[stale]);
-      expect(second.rows.map(row=>row.word_key)).not.toContain(key);
-      const retry=await db.query<{finished:boolean}>(
+      const second = await db.query<{ word_key: string }>(
+        "select * from public.atlas_tooltip_claim_v1(2,$1::uuid)",
+        [stale],
+      );
+      expect(second.rows.map((row) => row.word_key)).not.toContain(key);
+      const retry = await db.query<{ finished: boolean }>(
         "select public.atlas_tooltip_finish_v1($1,$2::uuid,'retry','LOOKUP_FAILED') as finished",
-        [second.rows[0].word_key,stale]);
+        [second.rows[0].word_key, stale],
+      );
       expect(retry.rows[0].finished).toBe(true);
-      const next=await db.query<{word_key:string}>(
-        "select * from public.atlas_tooltip_claim_v1(10,$1::uuid)",[token]);
+      const next = await db.query<{ word_key: string }>(
+        "select * from public.atlas_tooltip_claim_v1(10,$1::uuid)",
+        [token],
+      );
       expect(next.rows).toHaveLength(0); // delayed backoff; no duplicate claim
-    } finally { await db.exec("reset role"); }
+    } finally {
+      await db.exec("reset role");
+    }
   });
   test("anonymous callers cannot read tables or execute app functions", async () => {
     await db.exec("set role anon");

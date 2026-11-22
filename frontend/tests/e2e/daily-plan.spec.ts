@@ -32,7 +32,9 @@ test("daily plan groups words by day and starts the selected group directly", as
   await page.goto("/#library");
   await page.getByRole("tab", { name: /Günlük Plan/ }).click();
 
-  const firstGroup = page.locator("article").filter({ has: page.getByRole("button", { name: "1. günü aç, 20 kelimeyi yönet" }) });
+  const firstGroup = page
+    .locator("article")
+    .filter({ has: page.getByRole("button", { name: "1. günü aç, 20 kelimeyi yönet" }) });
   await expect(firstGroup.getByText("15/20")).toBeVisible();
   await expect(firstGroup.getByText("3 zor")).toBeVisible();
   await expect(firstGroup.getByText("2 tekrar")).toBeVisible();
@@ -45,9 +47,9 @@ test("daily plan groups words by day and starts the selected group directly", as
   await firstGroup.getByRole("button", { name: "1. günün kelimeleriyle çalış" }).click();
   await expect(page.getByRole("button", { name: "Kartı çevir ve anlamı göster" })).toBeVisible();
   // The initial session is persisted after the new game view mounts.
-  await expect.poll(async () => page.evaluate((key) =>
-    localStorage.getItem(key), sessionKey,
-  )).not.toBeNull();
+  await expect
+    .poll(async () => page.evaluate((key) => localStorage.getItem(key), sessionKey))
+    .not.toBeNull();
   const session = await page.evaluate(
     (key) => JSON.parse(localStorage.getItem(key) ?? "null"),
     sessionKey,
@@ -57,17 +59,29 @@ test("daily plan groups words by day and starts the selected group directly", as
   expect(session.words.some((word: { id: string }) => word.id === "daily-word-19")).toBe(true);
 });
 
-
 test("daily day dialog lists words and remembers remove/reassign actions", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("yds-atlas-words-v1", JSON.stringify([
-      {
-        id: "editable-a", word: "abandon", meanings: ["terk etmek"],
-        alternatives: [], usageNote: "", partOfSpeech: "verb", cefr: "B2", score: 10,
-        examples: [], pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
-        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
-      },
-    ]));
+    localStorage.setItem(
+      "yds-atlas-words-v1",
+      JSON.stringify([
+        {
+          id: "editable-a",
+          word: "abandon",
+          meanings: ["terk etmek"],
+          alternatives: [],
+          usageNote: "",
+          partOfSpeech: "verb",
+          cefr: "B2",
+          score: 10,
+          examples: [],
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ]),
+    );
   });
   await page.goto("/#library");
   await page.getByRole("tab", { name: /Günlük Plan/ }).click();
@@ -76,29 +90,45 @@ test("daily day dialog lists words and remembers remove/reassign actions", async
   await expect(dialog.getByText("terk etmek")).toBeVisible();
   await dialog.getByRole("button", { name: "abandon kelimesini günden çıkar" }).click();
   await expect(dialog.getByText("Bu gün henüz boş")).toBeVisible();
-  await dialog.getByLabel("Kütüphaneden kelime ekle / başka günden taşı").selectOption("editable-a");
+  await dialog
+    .getByLabel("Kütüphaneden kelime ekle / başka günden taşı")
+    .selectOption("editable-a");
   await dialog.getByRole("button", { name: "Güne ekle" }).click();
   await expect(dialog.getByText("terk etmek")).toBeVisible();
 });
 
 test("daily plan can bulk-move several library words into another day", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("yds-atlas-words-v1", JSON.stringify(
-      ["abandon", "benefit", "indicate"].map((word, index) => ({
-        id: `bulk-word-${index}`, word, meanings: [`anlam ${index}`],
-        alternatives: [], usageNote: "", partOfSpeech: "Noun", cefr: "B2", score: 10,
-        examples: [], pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
-        createdAt: `2026-01-01T00:00:0${index}.000Z`,
-        updatedAt: `2026-01-01T00:00:0${index}.000Z`,
-      })),
-    ));
+    localStorage.setItem(
+      "yds-atlas-words-v1",
+      JSON.stringify(
+        ["abandon", "benefit", "indicate"].map((word, index) => ({
+          id: `bulk-word-${index}`,
+          word,
+          meanings: [`anlam ${index}`],
+          alternatives: [],
+          usageNote: "",
+          partOfSpeech: "Noun",
+          cefr: "B2",
+          score: 10,
+          examples: [],
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: `2026-01-01T00:00:0${index}.000Z`,
+          updatedAt: `2026-01-01T00:00:0${index}.000Z`,
+        })),
+      ),
+    );
   });
   await page.goto("/#library");
   await page.getByRole("tab", { name: /Günlük Plan/ }).click();
   await page.getByRole("button", { name: "2. güne kelime ekle" }).click();
   const dayDialog = page.getByRole("dialog", { name: "2. günün kelimeleri" });
   await dayDialog.getByRole("button", { name: "Kütüphaneden toplu seç" }).click();
-  await expect(dayDialog.getByRole("region", { name: "Kütüphaneden toplu kelime seç" })).toBeVisible();
+  await expect(
+    dayDialog.getByRole("region", { name: "Kütüphaneden toplu kelime seç" }),
+  ).toBeVisible();
   const selection = dayDialog.getByRole("region", { name: "Kütüphaneden toplu kelime seç" });
   await selection.getByRole("checkbox", { name: /abandon/ }).check();
   await selection.getByRole("checkbox", { name: /benefit/ }).check();
@@ -106,25 +136,50 @@ test("daily plan can bulk-move several library words into another day", async ({
   await dayDialog.getByRole("button", { name: "Seçilen 2 kelimeyi güne ekle" }).click();
   await expect(dayDialog.getByText("anlam 0")).toBeVisible();
   await expect(dayDialog.getByText("anlam 1")).toBeVisible();
-  const groups = await page.evaluate(() => JSON.parse(localStorage.getItem("yds-atlas-daily-word-groups-v1") ?? "[]"));
-  expect(groups.some((group: { day: number; words: string[] }) => group.day === 2 &&
-    group.words.includes("bulk-word-0") && group.words.includes("bulk-word-1"))).toBe(true);
+  const groups = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("yds-atlas-daily-word-groups-v1") ?? "[]"),
+  );
+  expect(
+    groups.some(
+      (group: { day: number; words: string[] }) =>
+        group.day === 2 &&
+        group.words.includes("bulk-word-0") &&
+        group.words.includes("bulk-word-1"),
+    ),
+  ).toBe(true);
 });
 
 test("bulk-created words are assigned to the day chosen before import", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.setItem("yds-atlas-words-v1", JSON.stringify([{
-      id: "existing-day-one", word: "abandon", meanings: ["terk etmek"],
-      alternatives: [], usageNote: "", partOfSpeech: "Noun", cefr: "B2", score: 10,
-      examples: [], pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
-      createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
-    }]));
+    localStorage.setItem(
+      "yds-atlas-words-v1",
+      JSON.stringify([
+        {
+          id: "existing-day-one",
+          word: "abandon",
+          meanings: ["terk etmek"],
+          alternatives: [],
+          usageNote: "",
+          partOfSpeech: "Noun",
+          cefr: "B2",
+          score: 10,
+          examples: [],
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        },
+      ]),
+    );
   });
   await page.goto("/#library");
   await page.getByRole("tab", { name: /Günlük Plan/ }).click();
   await page.getByRole("button", { name: "2. güne kelime ekle" }).click();
-  await page.getByRole("dialog", { name: "2. günün kelimeleri" })
-    .getByRole("button", { name: "Yeni kelimeleri toplu yaz" }).click();
+  await page
+    .getByRole("dialog", { name: "2. günün kelimeleri" })
+    .getByRole("button", { name: "Yeni kelimeleri toplu yaz" })
+    .click();
   const bulk = page.getByRole("dialog", { name: "2. güne toplu kelime ekle" });
   await expect(bulk).toBeVisible();
   await bulk.getByLabel("İngilizce kelime listesi").fill("benefit\nindicate");
@@ -133,7 +188,7 @@ test("bulk-created words are assigned to the day chosen before import", async ({
   // In the offline spelling fallback, allow the user-approved spelling.
   for (let index = 0; index < 2; index += 1) {
     const approval = bulk.getByRole("button", { name: "Bu yazımı kullan" });
-    if (await approval.count() === 0) break;
+    if ((await approval.count()) === 0) break;
     await approval.first().click();
   }
   await bulk.getByRole("button", { name: /Kelimeleri ekle/ }).click();
@@ -144,42 +199,60 @@ test("bulk-created words are assigned to the day chosen before import", async ({
   await expect(day2.getByText("Indicate", { exact: true })).toBeVisible();
 });
 
-
 for (const score of [90, 20]) {
-  test("filled day with incomplete examples keeps both Study actions enabled and never overwrites progress (" + score + ")", async ({ page }) => {
-    await page.addInitScript((value) => {
-      const word = {
-        id: "unready-word", word: "Abandon", meanings: ["terk etmek"],
-        alternatives: [], usageNote: "", partOfSpeech: "Verb", cefr: "B2",
-        score: value, examples: [], pronunciationUk: "", pronunciationUs: "", sourceUrl: "",
-        createdAt: "2026-01-01T00:00:00.000Z", updatedAt: "2026-01-01T00:00:00.000Z",
-      };
-      localStorage.setItem("yds-atlas-words-v1", JSON.stringify([word]));
-      // Preserve even a legacy/malformed saved session; starting an unready day cannot rewrite it.
-      localStorage.setItem("yds-atlas-learning-session-v2", '{"oldGame":"preserve"}');
-    }, score);
-    await page.goto("/#library");
-    await page.getByRole("tab", { name: "Günlük Plan" }).click();
-    const original = await page.evaluate(() => ({
-      words: localStorage.getItem("yds-atlas-words-v1"),
-      game: localStorage.getItem("yds-atlas-learning-session-v2"),
-    }));
-    const studyCard = page.getByRole("button", { name: "1. günün kelimeleriyle çalış" });
-    await expect(studyCard).toBeEnabled();
-    await studyCard.click();
-    await expect(page.getByTestId("no-ready-study-help")).toContainText("beş uygun örnek cümleyi");
-    await expect(page).toHaveURL(/#library/);
-    await page.getByRole("button", { name: "1. günü aç, 1 kelimeyi yönet" }).click();
-    const dialog = page.getByRole("dialog", { name: "1. günün kelimeleri" });
-    const dialogStudy = dialog.getByRole("button", { name: "Bu günü çalış" });
-    await expect(dialogStudy).toBeEnabled();
-    await dialogStudy.click();
-    await expect(dialog.getByTestId("no-ready-study-help")).toContainText("Eski puanların, ilerlemen");
-    const after = await page.evaluate(() => ({
-      words: localStorage.getItem("yds-atlas-words-v1"),
-      game: localStorage.getItem("yds-atlas-learning-session-v2"),
-    }));
-    expect(after).toEqual(original);
-    await expect(page).toHaveURL(/#library/);
-  });
+  test(
+    "filled day with incomplete examples keeps both Study actions enabled and never overwrites progress (" +
+      score +
+      ")",
+    async ({ page }) => {
+      await page.addInitScript((value) => {
+        const word = {
+          id: "unready-word",
+          word: "Abandon",
+          meanings: ["terk etmek"],
+          alternatives: [],
+          usageNote: "",
+          partOfSpeech: "Verb",
+          cefr: "B2",
+          score: value,
+          examples: [],
+          pronunciationUk: "",
+          pronunciationUs: "",
+          sourceUrl: "",
+          createdAt: "2026-01-01T00:00:00.000Z",
+          updatedAt: "2026-01-01T00:00:00.000Z",
+        };
+        localStorage.setItem("yds-atlas-words-v1", JSON.stringify([word]));
+        // Preserve even a legacy/malformed saved session; starting an unready day cannot rewrite it.
+        localStorage.setItem("yds-atlas-learning-session-v2", '{"oldGame":"preserve"}');
+      }, score);
+      await page.goto("/#library");
+      await page.getByRole("tab", { name: "Günlük Plan" }).click();
+      const original = await page.evaluate(() => ({
+        words: localStorage.getItem("yds-atlas-words-v1"),
+        game: localStorage.getItem("yds-atlas-learning-session-v2"),
+      }));
+      const studyCard = page.getByRole("button", { name: "1. günün kelimeleriyle çalış" });
+      await expect(studyCard).toBeEnabled();
+      await studyCard.click();
+      await expect(page.getByTestId("no-ready-study-help")).toContainText(
+        "beş uygun örnek cümleyi",
+      );
+      await expect(page).toHaveURL(/#library/);
+      await page.getByRole("button", { name: "1. günü aç, 1 kelimeyi yönet" }).click();
+      const dialog = page.getByRole("dialog", { name: "1. günün kelimeleri" });
+      const dialogStudy = dialog.getByRole("button", { name: "Bu günü çalış" });
+      await expect(dialogStudy).toBeEnabled();
+      await dialogStudy.click();
+      await expect(dialog.getByTestId("no-ready-study-help")).toContainText(
+        "Eski puanların, ilerlemen",
+      );
+      const after = await page.evaluate(() => ({
+        words: localStorage.getItem("yds-atlas-words-v1"),
+        game: localStorage.getItem("yds-atlas-learning-session-v2"),
+      }));
+      expect(after).toEqual(original);
+      await expect(page).toHaveURL(/#library/);
+    },
+  );
 }

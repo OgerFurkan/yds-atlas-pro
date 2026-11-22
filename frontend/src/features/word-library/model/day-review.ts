@@ -38,12 +38,18 @@ export function dayReviewMissingMeanings(words: readonly WordEntry[]): WordEntry
 }
 
 /** Synthetic matching session is never passed to the persistent game component. */
-export function createDayReviewMatching(words: WordEntry[], maxVisiblePairs = DAY_REVIEW_ROUND_SIZE): GameSession {
+export function createDayReviewMatching(
+  words: WordEntry[],
+  maxVisiblePairs = DAY_REVIEW_ROUND_SIZE,
+): GameSession {
   const base = createSession(words, 10);
-  return startMatchingBoard({
-    ...base,
-    phase: "matching",
-    queue: words.map((word) => word.id),
-    words,
-  }, Math.min(maxVisiblePairs, DAY_REVIEW_ROUND_SIZE));
+  return startMatchingBoard(
+    {
+      ...base,
+      phase: "matching",
+      queue: words.map((word) => word.id),
+      words,
+    },
+    Math.min(maxVisiblePairs, DAY_REVIEW_ROUND_SIZE),
+  );
 }

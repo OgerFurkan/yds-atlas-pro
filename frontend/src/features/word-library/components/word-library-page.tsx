@@ -89,19 +89,33 @@ export function WordLibraryPage({
   const [autoConsent, setAutoConsent] = useState(false);
   useEffect(() => {
     try {
-      setAutoConsent(Boolean(accountId) &&
-        localStorage.getItem(`atlas:legacy-repair-consent:${accountId}`) === "v1");
-    } catch { setAutoConsent(false); }
+      setAutoConsent(
+        Boolean(accountId) &&
+          localStorage.getItem(`atlas:legacy-repair-consent:${accountId}`) === "v1",
+      );
+    } catch {
+      setAutoConsent(false);
+    }
   }, [accountId]);
-  const legacyCandidatesExist = words.some(word => !hasAtlasTiers(word.examples) && !word.lexicon);
+  const legacyCandidatesExist = words.some(
+    (word) => !hasAtlasTiers(word.examples) && !word.lexicon,
+  );
   const mayAutoRepair = automaticLegacyRepair && autoConsent && !!accountId;
   function enableAutoRepair() {
-    if (!accountId || !window.confirm(
-      "Eksik eski kelime örneklerini Gemini yardımıyla otomatik tamamla ve cümlelerdeki yalnız İngilizce sözcükleri ortak Türkçe sözlük doğrulama kuyruğuna al. " +
-      "Tam cümleler, kullanıcı kimliğin ve puanların ortak sözlüğe aktarılmaz; mevcut örneklerin silinmez. İşlem kota kullanabilir. Onaylıyor musun?"
-    )) return;
-    try { localStorage.setItem(`atlas:legacy-repair-consent:${accountId}`, "v1"); }
-    catch { onNotify.error("Tarayıcı tercihi kaydedilemedi. Bu cihazda otomatik tamamlama başlatılmadı."); return; }
+    if (
+      !accountId ||
+      !window.confirm(
+        "Eksik eski kelime örneklerini Gemini yardımıyla otomatik tamamla ve cümlelerdeki yalnız İngilizce sözcükleri ortak Türkçe sözlük doğrulama kuyruğuna al. " +
+          "Tam cümleler, kullanıcı kimliğin ve puanların ortak sözlüğe aktarılmaz; mevcut örneklerin silinmez. İşlem kota kullanabilir. Onaylıyor musun?",
+      )
+    )
+      return;
+    try {
+      localStorage.setItem(`atlas:legacy-repair-consent:${accountId}`, "v1");
+    } catch {
+      onNotify.error("Tarayıcı tercihi kaydedilemedi. Bu cihazda otomatik tamamlama başlatılmadı.");
+      return;
+    }
     setAutoConsent(true);
     onNotify.success("Kütüphane tamamlama etkinleştirildi. İşlem kontrollü biçimde başlayacak.");
   }
@@ -119,9 +133,24 @@ export function WordLibraryPage({
     if (sessionStorage.getItem("atlas:daily-plan-help") === "1") setActiveView("plan");
   }, []);
   const librarySteps: GuideStep[] = [
-    { id: "library-overview", target: "#library-page-header", title: t("nav.libraryGuideIntro"), description: t("nav.libraryGuideIntroDescription") },
-    { id: "library-tabs", target: "#library-view-tabs", title: t("nav.libraryGuideTabs"), description: t("nav.libraryGuideTabsDescription") },
-    { id: "library-words", target: "#library-word-controls", title: t("nav.libraryGuideWords"), description: t("nav.libraryGuideWordsDescription") },
+    {
+      id: "library-overview",
+      target: "#library-page-header",
+      title: t("nav.libraryGuideIntro"),
+      description: t("nav.libraryGuideIntroDescription"),
+    },
+    {
+      id: "library-tabs",
+      target: "#library-view-tabs",
+      title: t("nav.libraryGuideTabs"),
+      description: t("nav.libraryGuideTabsDescription"),
+    },
+    {
+      id: "library-words",
+      target: "#library-word-controls",
+      title: t("nav.libraryGuideWords"),
+      description: t("nav.libraryGuideWordsDescription"),
+    },
   ];
   const [formOpen, setFormOpen] = useState(initialCreate);
   const [bulkOpen, setBulkOpen] = useState(false);
@@ -139,7 +168,8 @@ export function WordLibraryPage({
     const pending = pendingCreate.current;
     if (!pending) return;
     const created = words.find(
-      (word) => !pending.previousIds.has(word.id) &&
+      (word) =>
+        !pending.previousIds.has(word.id) &&
         word.word.trim().toLocaleLowerCase("en") === pending.label,
     );
     if (!created) return;
@@ -148,7 +178,9 @@ export function WordLibraryPage({
       if (daily.assign(created.id, pending.day))
         onNotify.success(`Kelime ${pending.day}. güne eklendi.`);
       else
-        onNotify.error("Kelime kütüphaneye kaydedildi ancak seçilen gün dolu; başka bir güne ekleyebilirsin.");
+        onNotify.error(
+          "Kelime kütüphaneye kaydedildi ancak seçilen gün dolu; başka bir güne ekleyebilirsin.",
+        );
     } catch (reason) {
       onNotify.error(reason instanceof Error ? reason.message : "Kelime güne atanamadı.");
     }
@@ -163,7 +195,10 @@ export function WordLibraryPage({
     const found = words.filter((word) => pending.keys.has(wordKey(word.word)));
     if (!found.length) return;
     try {
-      const result = daily.assignMany(found.map((word) => word.id), pending.day);
+      const result = daily.assignMany(
+        found.map((word) => word.id),
+        pending.day,
+      );
       for (const word of found) pending.keys.delete(wordKey(word.word));
       if (result.added || result.moved) {
         onNotify.success(`${found.length} kelime ${pending.day}. güne yerleştirildi.`);
@@ -171,7 +206,9 @@ export function WordLibraryPage({
     } catch (reason) {
       // A full target day must never remove the imported words from the library.
       for (const word of found) pending.keys.delete(wordKey(word.word));
-      onNotify.error(reason instanceof Error ? reason.message : "Toplu eklenen kelimeler güne atanamadı.");
+      onNotify.error(
+        reason instanceof Error ? reason.message : "Toplu eklenen kelimeler güne atanamadı.",
+      );
     }
     if (pending.keys.size === 0) pendingBulk.current = null;
   }, [words, daily, onNotify]);
@@ -197,22 +234,35 @@ export function WordLibraryPage({
     }
   }
 
-  async function addManyToTargetDay(inputs: WordInput[], onProgress?: (progress: WordFillProgress) => void, mode?: WordAddMode) {
+  async function addManyToTargetDay(
+    inputs: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
+  ) {
     if (bulkTargetDay === null) return onAddMany(inputs, onProgress, mode);
     const day = bulkTargetDay;
-    const alreadyInDay = new Set(daily.plan.groups[day - 1]?.words.map((word) => wordKey(word.word)) ?? []);
-    const requested = new Set(inputs.map((input) => wordKey(input.word)).filter((key) => !alreadyInDay.has(key)));
+    const alreadyInDay = new Set(
+      daily.plan.groups[day - 1]?.words.map((word) => wordKey(word.word)) ?? [],
+    );
+    const requested = new Set(
+      inputs.map((input) => wordKey(input.word)).filter((key) => !alreadyInDay.has(key)),
+    );
     const freeSlots = Math.max(0, 40 - (daily.plan.groups[day - 1]?.total ?? 0));
     if (requested.size > freeSlots) {
       throw new Error(`${day}. günde ${freeSlots} boş yer var. Lütfen listeyi küçült.`);
     }
     const requestedKeys = new Set(inputs.map((input) => wordKey(input.word)));
-    const elsewhere = daily.plan.groups.filter((group) => group.day !== day)
+    const elsewhere = daily.plan.groups
+      .filter((group) => group.day !== day)
       .flatMap((group) => group.words)
       .filter((word) => requestedKeys.has(wordKey(word.word)));
-    if (elsewhere.length && !window.confirm(
-      `${elsewhere.length} mevcut kelime diğer günlerden ${day}. güne taşınacak. Devam edilsin mi?`,
-    )) throw new Error("Günler arası kelime taşıma iptal edildi.");
+    if (
+      elsewhere.length &&
+      !window.confirm(
+        `${elsewhere.length} mevcut kelime diğer günlerden ${day}. güne taşınacak. Devam edilsin mi?`,
+      )
+    )
+      throw new Error("Günler arası kelime taşıma iptal edildi.");
     if (pendingBulk.current && pendingBulk.current.day !== day && pendingBulk.current.keys.size)
       throw new Error("Önce önceki toplu ekleme işlemi tamamlansın.");
     const pending = pendingBulk.current ?? { day, keys: new Set<string>() };
@@ -220,10 +270,14 @@ export function WordLibraryPage({
     for (const key of requested) pending.keys.add(key);
     let failedWords = new Set<string>();
     try {
-      const result = await onAddMany(inputs, (progress) => {
-        failedWords = new Set((progress.failedWords ?? []).map(wordKey));
-        onProgress?.(progress);
-      }, mode);
+      const result = await onAddMany(
+        inputs,
+        (progress) => {
+          failedWords = new Set((progress.failedWords ?? []).map(wordKey));
+          onProgress?.(progress);
+        },
+        mode,
+      );
       // Missing AI words are not saved. Retried words can be enqueued later.
       for (const key of failedWords) pending.keys.delete(key);
       if (!pending.keys.size) pendingBulk.current = null;
@@ -235,7 +289,12 @@ export function WordLibraryPage({
     }
   }
 
-  async function saveWord(input: WordInput, id?: string, onProgress?: (progress: WordFillProgress) => void, mode?: WordAddMode) {
+  async function saveWord(
+    input: WordInput,
+    id?: string,
+    onProgress?: (progress: WordFillProgress) => void,
+    mode?: WordAddMode,
+  ) {
     if (!id && createTargetDay !== null) {
       pendingCreate.current = {
         day: createTargetDay,
@@ -336,7 +395,10 @@ export function WordLibraryPage({
 
   return (
     <>
-      <div id="library-page-header" className="mb-5 flex items-end justify-between gap-6 max-sm:flex-col max-sm:items-stretch">
+      <div
+        id="library-page-header"
+        className="mb-5 flex items-end justify-between gap-6 max-sm:flex-col max-sm:items-stretch"
+      >
         <div>
           <p className="text-xs text-slate-400">
             Atlas <span className="px-1.5">/</span>
@@ -389,22 +451,46 @@ export function WordLibraryPage({
         <>
           <div id="library-word-controls" className="mt-4">
             <LibrarySummary counts={view.counts} onDeleteAll={() => void deleteAll()} />
-            {!loading && !loadError && automaticLegacyRepair && accountId && legacyCandidatesExist && !autoConsent && (
-              <div role="note" className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-atlas-muted">
-                <span>Eski kelimelerini ve Türkçe anlamlarını otomatik tamamla. Önce bir kez izin vermen yeterli.</span>
-                <button type="button" onClick={enableAutoRepair} className="rounded-md border border-atlas-line bg-card px-3 py-1.5 font-semibold text-atlas-ink hover:bg-muted focus-visible:outline-2 focus-visible:outline-atlas-blue">
-                  Otomatik tamamlamayı aç
-                </button>
-              </div>
-            )}
+            {!loading &&
+              !loadError &&
+              automaticLegacyRepair &&
+              accountId &&
+              legacyCandidatesExist &&
+              !autoConsent && (
+                <div
+                  role="note"
+                  className="mt-2 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-atlas-muted"
+                >
+                  <span>
+                    Eski kelimelerini ve Türkçe anlamlarını otomatik tamamla. Önce bir kez izin
+                    vermen yeterli.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={enableAutoRepair}
+                    className="rounded-md border border-atlas-line bg-card px-3 py-1.5 font-semibold text-atlas-ink hover:bg-muted focus-visible:outline-2 focus-visible:outline-atlas-blue"
+                  >
+                    Otomatik tamamlamayı aç
+                  </button>
+                </div>
+              )}
             {!loading && !loadError && words.length > 0 && (
               <details className="mt-2 text-xs text-atlas-muted">
                 <summary className="inline-flex cursor-pointer rounded-md px-2 py-1.5 font-medium text-atlas-muted hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-atlas-blue">
                   Gelişmiş kütüphane bakımı
                 </summary>
                 <div className="mt-2 space-y-2">
-                  <LegacyTierUpgrade words={words} onSave={onSaveProtected} onNotify={onNotify} automatic={mayAutoRepair} />
-                  <TooltipBackfill onNotify={onNotify} automatic={mayAutoRepair} accountId={accountId} />
+                  <LegacyTierUpgrade
+                    words={words}
+                    onSave={onSaveProtected}
+                    onNotify={onNotify}
+                    automatic={mayAutoRepair}
+                  />
+                  <TooltipBackfill
+                    onNotify={onNotify}
+                    automatic={mayAutoRepair}
+                    accountId={accountId}
+                  />
                 </div>
               </details>
             )}
@@ -456,7 +542,11 @@ export function WordLibraryPage({
           index={libraryGuide}
           total={librarySteps.length}
           name={t("nav.libraryGuide")}
-          onNext={() => setLibraryGuide((current) => current === null || current >= librarySteps.length - 1 ? null : current + 1)}
+          onNext={() =>
+            setLibraryGuide((current) =>
+              current === null || current >= librarySteps.length - 1 ? null : current + 1,
+            )
+          }
           onExit={() => setLibraryGuide(null)}
         />
       )}

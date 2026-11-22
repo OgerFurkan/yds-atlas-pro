@@ -37,14 +37,19 @@ export function QuizPanel({
               : "font-display text-4xl sm:text-5xl",
           )}
         >
-          {feedback
-            ? <SentenceWordTooltips text={question.context ? question.sentence : question.word.word}
-                focusWord={question.word} allowDuringGame />
-            : question.context
-              // The cloze itself is already blanked by game-engine; let learners
-              // inspect surrounding English without exposing the answer word.
-              ? <SentenceWordTooltips text={question.sentence} allowDuringGame />
-              : question.word.word}
+          {feedback ? (
+            <SentenceWordTooltips
+              text={question.context ? question.sentence : question.word.word}
+              focusWord={question.word}
+              allowDuringGame
+            />
+          ) : question.context ? (
+            // The cloze itself is already blanked by game-engine; let learners
+            // inspect surrounding English without exposing the answer word.
+            <SentenceWordTooltips text={question.sentence} allowDuringGame />
+          ) : (
+            question.word.word
+          )}
         </h2>
       </div>
       <div id="question-choices" className="grid gap-3 sm:grid-cols-2">
@@ -89,8 +94,10 @@ export function QuizPanel({
       {feedback && (
         <>
           {feedback.correct && isFinal(session) && (
-            <fieldset id="answer-confidence"
-              className="sticky bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-xl border bg-slate-50 p-3 shadow-lg sm:p-4">
+            <fieldset
+              id="answer-confidence"
+              className="sticky bottom-[max(0.5rem,env(safe-area-inset-bottom))] z-10 rounded-xl border bg-slate-50 p-3 shadow-lg sm:p-4"
+            >
               <legend className="px-2 text-sm font-semibold text-slate-700">
                 Bu kelimeyi nasıl hatırladın?
               </legend>

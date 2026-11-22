@@ -27,7 +27,13 @@ interface BulkWordDialogProps {
   targetDay?: number;
 }
 
-export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, targetDay }: BulkWordDialogProps) {
+export function BulkWordDialog({
+  open,
+  onOpenChange,
+  onAddMany,
+  onNotify,
+  targetDay,
+}: BulkWordDialogProps) {
   const [saving, setSaving] = useState(false);
   const [missingWords, setMissingWords] = useState<WordInput[]>([]);
   const [requestedTotal, setRequestedTotal] = useState(0);
@@ -42,7 +48,11 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
     onOpenChange(nextOpen);
   }
 
-  async function submitWords(words: WordInput[], onProgress?: (progress: WordFillProgress) => void, mode: WordAddMode = "auto") {
+  async function submitWords(
+    words: WordInput[],
+    onProgress?: (progress: WordFillProgress) => void,
+    mode: WordAddMode = "auto",
+  ) {
     if (saving) return;
 
     setSaving(true);
@@ -98,7 +108,9 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
       <DialogContent>
         <DialogHeader>
           <div>
-            <DialogTitle>{targetDay ? `${targetDay}. güne toplu kelime ekle` : "Toplu kelime ekle"}</DialogTitle>
+            <DialogTitle>
+              {targetDay ? `${targetDay}. güne toplu kelime ekle` : "Toplu kelime ekle"}
+            </DialogTitle>
             <DialogDescription>
               Anlamı yazdıysan direkt kaydederiz. Boşsa AI dener; sonra düzenleyebilirsin.
             </DialogDescription>
@@ -151,11 +163,11 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
                 </p>
               </div>
 
-              <p className="text-xs leading-relaxed">
-                AI bu kelimeleri tamamlayamadı:
-              </p>
+              <p className="text-xs leading-relaxed">AI bu kelimeleri tamamlayamadı:</p>
 
-              <p className="break-words text-xs font-medium">{missingWords.map((entry) => entry.word).join(", ")}</p>
+              <p className="break-words text-xs font-medium">
+                {missingWords.map((entry) => entry.word).join(", ")}
+              </p>
 
               {retryError && (
                 <p className="text-xs font-medium" role="alert">
@@ -165,19 +177,23 @@ export function BulkWordDialog({ open, onOpenChange, onAddMany, onNotify, target
 
               <p className="text-xs">Kelimeyi şimdi kaydedip anlamını daha sonra yazabilirsin.</p>
               <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="secondary" disabled={saving}
-                  onClick={() => void submitWords([...missingWords], undefined, "manual")}>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  disabled={saving}
+                  onClick={() => void submitWords([...missingWords], undefined, "manual")}
+                >
                   AI olmadan kaydet
                 </Button>
-              <Button
-                type="button"
-                variant="outline"
-                disabled={saving}
-                onClick={() => void retryMissing()}
-              >
-                <RefreshCw size={15} className={saving ? "animate-spin" : ""} />
-                {saving ? "Deneniyor..." : "AI ile tekrar dene"}
-              </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={saving}
+                  onClick={() => void retryMissing()}
+                >
+                  <RefreshCw size={15} className={saving ? "animate-spin" : ""} />
+                  {saving ? "Deneniyor..." : "AI ile tekrar dene"}
+                </Button>
               </div>
             </div>
           )}

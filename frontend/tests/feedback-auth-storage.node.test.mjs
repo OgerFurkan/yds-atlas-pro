@@ -4,9 +4,13 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import { runInNewContext } from "node:vm";
 
-const source = readFileSync(new URL("../src/features/auth/model/auth-storage.ts", import.meta.url), "utf8");
-const compiled = stripTypeScriptTypes(source, { mode: "transform" })
-  .replace(/^export /gm, "") + "\nObject.assign(module.exports, { setRememberSession, authStorage });";
+const source = readFileSync(
+  new URL("../src/features/auth/model/auth-storage.ts", import.meta.url),
+  "utf8",
+);
+const compiled =
+  stripTypeScriptTypes(source, { mode: "transform" }).replace(/^export /gm, "") +
+  "\nObject.assign(module.exports, { setRememberSession, authStorage });";
 function load(globals = {}) {
   const module = { exports: {} };
   runInNewContext(compiled, { module, exports: module.exports, ...globals });
@@ -14,9 +18,12 @@ function load(globals = {}) {
 }
 function memoryStorage() {
   const values = new Map();
-  return { getItem: (key) => values.get(key) ?? null,
+  return {
+    getItem: (key) => values.get(key) ?? null,
     setItem: (key, value) => values.set(key, value),
-    removeItem: (key) => values.delete(key), values };
+    removeItem: (key) => values.delete(key),
+    values,
+  };
 }
 test("SSR/Bun test isolation never persists tokens without browser storage", () => {
   const { authStorage, setRememberSession } = load();
@@ -27,7 +34,8 @@ test("SSR/Bun test isolation never persists tokens without browser storage", () 
   assert.equal(authStorage.getItem("sb-session"), null);
 });
 test("real browser storage keeps remember=false isolated to the tab", () => {
-  const sessionStorage = memoryStorage(), localStorage = memoryStorage();
+  const sessionStorage = memoryStorage(),
+    localStorage = memoryStorage();
   const { authStorage, setRememberSession } = load({ sessionStorage, localStorage });
   setRememberSession(false);
   authStorage.setItem("sb-session", "token");
@@ -37,7 +45,8 @@ test("real browser storage keeps remember=false isolated to the tab", () => {
   assert.equal(authStorage.getItem("sb-session"), null);
 });
 test("real browser storage keeps remember=true persistent without cross-copy", () => {
-  const sessionStorage = memoryStorage(), localStorage = memoryStorage();
+  const sessionStorage = memoryStorage(),
+    localStorage = memoryStorage();
   const { authStorage, setRememberSession } = load({ sessionStorage, localStorage });
   setRememberSession(true);
   authStorage.setItem("sb-session", "token");

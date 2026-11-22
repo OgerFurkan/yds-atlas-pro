@@ -6,11 +6,7 @@ export const trAccountAi = {
     subtitle: "Atlas · YDS İngilizce öğretmenin",
     close: "Sohbeti kapat",
     welcome: "Merhaba! Bir kelime, çeviri veya YDS sorusu sorabilirsin.",
-    suggestions: [
-      "Indicate ne demek?",
-      "Bana bir örnek cümle ver",
-      "YDS için nasıl çalışmalıyım?",
-    ],
+    suggestions: ["Indicate ne demek?", "Bana bir örnek cümle ver", "YDS için nasıl çalışmalıyım?"],
     placeholder: "Atlas'a bir şey sor...",
     send: "Mesajı gönder",
     thinking: "Atlas düşünüyor…",
@@ -42,10 +38,12 @@ export const trAccountAi = {
     requestRejected:
       "Gemini isteği kabul etmedi. Daha kısa bir soru deneyip aynı hata sürerse Render loglarını kontrol et.",
     timeout: "Gemini zamanında yanıt vermedi. Aynı soruyu yeniden deneyebilirsin.",
-    timeoutAgain: "Gemini yeniden denendi ancak zamanında yanıt gelmedi. Sorun sürerse Render servis günlüklerini kontrol et.",
+    timeoutAgain:
+      "Gemini yeniden denendi ancak zamanında yanıt gelmedi. Sorun sürerse Render servis günlüklerini kontrol et.",
     rateLimited: "Gemini istek sınırına ulaşıldı. Kısa süre sonra tekrar dene.",
     rateLimitedFor: "İstek sınırına ulaşıldı. {{seconds}} saniye sonra tekrar dene.",
-    providerBusy: "Gemini şu anda geçici olarak yanıt veremiyor. Sistem alternatif anahtarları denedi; kısa süre sonra aynı soruyu tekrar deneyebilirsin.",
+    providerBusy:
+      "Gemini şu anda geçici olarak yanıt veremiyor. Sistem alternatif anahtarları denedi; kısa süre sonra aynı soruyu tekrar deneyebilirsin.",
     retrySameQuestion: "Aynı soruyu tekrar dene",
     retrying: "Yeniden deneniyor ({{count}}. deneme)…",
     footer: "Atlas yanıtları AI tarafından oluşturulur.",

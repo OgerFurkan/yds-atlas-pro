@@ -3,7 +3,12 @@ export class ApiError extends Error {
   readonly status: number;
   readonly code: string;
   readonly retryAfterSeconds?: number;
-  constructor(message: string, status: number, code = "REQUEST_FAILED", retryAfterSeconds?: number) {
+  constructor(
+    message: string,
+    status: number,
+    code = "REQUEST_FAILED",
+    retryAfterSeconds?: number,
+  ) {
     super(message);
     this.name = "ApiError";
     this.status = status;
@@ -34,8 +39,10 @@ export async function apiRequest<T>(
         : AbortSignal.timeout(timeoutMs),
     });
   } catch (error) {
-    if (error instanceof Error && (error.name === "TimeoutError" ||
-        (error.name === "AbortError" && !init?.signal?.aborted))) {
+    if (
+      error instanceof Error &&
+      (error.name === "TimeoutError" || (error.name === "AbortError" && !init?.signal?.aborted))
+    ) {
       throw new ApiError("İstek zaman aşımına uğradı.", 408, "AI_TIMEOUT");
     }
     throw new ApiError(
@@ -48,11 +55,12 @@ export async function apiRequest<T>(
   const headerRetry = response.headers.get("Retry-After");
   const retrySeconds = headerRetry === null ? undefined : Number(headerRetry);
   const payloadRetry = payload?.retryAfterSeconds ?? payload?.retryInSeconds;
-  const retryAfterSeconds = typeof payloadRetry === "number" && Number.isFinite(payloadRetry)
-    ? Math.max(0, payloadRetry)
-    : retrySeconds !== undefined && Number.isFinite(retrySeconds)
-      ? Math.max(0, retrySeconds)
-      : undefined;
+  const retryAfterSeconds =
+    typeof payloadRetry === "number" && Number.isFinite(payloadRetry)
+      ? Math.max(0, payloadRetry)
+      : retrySeconds !== undefined && Number.isFinite(retrySeconds)
+        ? Math.max(0, retrySeconds)
+        : undefined;
   if (!response.ok)
     throw new ApiError(
       payload?.error ?? "API sunucusundan geçerli yanıt alınamadı.",

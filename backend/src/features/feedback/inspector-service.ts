@@ -18,10 +18,13 @@ export async function assertNoActiveAssessment(ctx: RequestContext) {
     throw new HttpError(503, "Oyun oturumu doğrulanamadı.", "INSPECTOR_SESSION_UNAVAILABLE");
   }
   if (data.length > 0) {
-    throw new HttpError(409, "Devam eden oyun tamamlanmadan kelime inceleme kapalı.", "INSPECTOR_ACTIVE_ASSESSMENT");
+    throw new HttpError(
+      409,
+      "Devam eden oyun tamamlanmadan kelime inceleme kapalı.",
+      "INSPECTOR_ACTIVE_ASSESSMENT",
+    );
   }
 }
-
 
 /**
  * A cloze may expose unrelated vocabulary, but never any word assigned to an
@@ -29,8 +32,12 @@ export async function assertNoActiveAssessment(ctx: RequestContext) {
  * Malformed snapshots and unavailable sessions fail closed.
  */
 export async function assertGameSafeDictionaryWord(ctx: RequestContext, requested: string) {
-  const { data, error } = await ctx.db.from("learning_sessions")
-    .select("snapshot").eq("user_id", ctx.userId).is("completed_at", null).limit(20);
+  const { data, error } = await ctx.db
+    .from("learning_sessions")
+    .select("snapshot")
+    .eq("user_id", ctx.userId)
+    .is("completed_at", null)
+    .limit(20);
   databaseError(error);
   if (!Array.isArray(data) || data.length >= 20)
     throw new HttpError(503, "Oyun sözlük güvenliği doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
@@ -49,7 +56,11 @@ export async function assertGameSafeDictionaryWord(ctx: RequestContext, requeste
         if (token.endsWith("e")) protectedForms.push(token + "d", token.slice(0, -1) + "ing");
         if (token.endsWith("y")) protectedForms.push(token.slice(0, -1) + "ies");
         if (protectedForms.includes(requested))
-          throw new HttpError(409, "Çalışılan kelimenin anlamı soru sırasında kapalı.", "DICTIONARY_ANSWER_PROTECTED");
+          throw new HttpError(
+            409,
+            "Çalışılan kelimenin anlamı soru sırasında kapalı.",
+            "DICTIONARY_ANSWER_PROTECTED",
+          );
       }
     }
   }
@@ -80,7 +91,11 @@ function validateQuery(raw: URLSearchParams) {
 }
 
 /** Read-only pool lookup; no Gemini, external dictionary, lease, quota or DB writes. */
-export async function inspectFeedback(ctx: RequestContext, config: ServerConfig, raw: URLSearchParams) {
+export async function inspectFeedback(
+  ctx: RequestContext,
+  config: ServerConfig,
+  raw: URLSearchParams,
+) {
   requireFlag(config);
   const query = validateQuery(raw);
   await assertNoActiveAssessment(ctx);
@@ -149,6 +164,10 @@ export async function assertFeedbackWordBinding(
         })),
       );
   if (!matching) {
-    throw new HttpError(409, "Seçilen anlam ve örnekler havuzla eşleşmiyor.", "INSPECTOR_BINDING_INVALID");
+    throw new HttpError(
+      409,
+      "Seçilen anlam ve örnekler havuzla eşleşmiyor.",
+      "INSPECTOR_BINDING_INVALID",
+    );
   }
 }

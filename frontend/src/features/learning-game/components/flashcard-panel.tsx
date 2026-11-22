@@ -82,11 +82,15 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
           )}
           {hasAtlasTiers(word.examples) && (
             <details className="rounded-xl border border-slate-200 bg-white p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-atlas-navy">Tüm 5 seviyeli cümleyi gör</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-atlas-navy">
+                Tüm 5 seviyeli cümleyi gör
+              </summary>
               <ol className="mt-3 space-y-4">
                 {word.examples.slice(0, 5).map((item, index) => (
                   <li key={index} className="border-t pt-3">
-                    <span className="mb-1 block text-xs font-semibold uppercase text-atlas-blue">{ATLAS_TIER_ORDER[index]}</span>
+                    <span className="mb-1 block text-xs font-semibold uppercase text-atlas-blue">
+                      {ATLAS_TIER_ORDER[index]}
+                    </span>
                     <WordExample word={word} example={item} compact allowDuringGame />
                   </li>
                 ))}

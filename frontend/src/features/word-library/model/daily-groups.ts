@@ -3,7 +3,9 @@ import { usableExamples } from "@/features/learning-game/model/game-engine";
 
 /** Finished days remain available for regular scored study without resetting progress. */
 export function isDayStudyReady(word: WordEntry) {
-  return word.meanings.some((meaning) => meaning.trim().length > 0) && usableExamples(word).length >= 5;
+  return (
+    word.meanings.some((meaning) => meaning.trim().length > 0) && usableExamples(word).length >= 5
+  );
 }
 
 export const DAILY_PLAN_DAYS = 60;
@@ -79,7 +81,11 @@ export function buildDailyPlan(
 
   if (assignments) {
     for (const assignment of assignments) {
-      if (!Number.isInteger(assignment.day) || assignment.day < 1 || assignment.day > DAILY_PLAN_DAYS)
+      if (
+        !Number.isInteger(assignment.day) ||
+        assignment.day < 1 ||
+        assignment.day > DAILY_PLAN_DAYS
+      )
         continue;
       const dayWords = byDay.get(assignment.day) ?? [];
       for (const id of assignment.words) {

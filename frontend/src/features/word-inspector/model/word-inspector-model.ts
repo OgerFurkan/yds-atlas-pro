@@ -6,17 +6,30 @@ export const inspectorDifficultyLabels = {
   yds: "YDS",
 } as const;
 
-export function matchingInspectorChoice(choice: InspectorChoice, current: InspectorChoice | null): boolean {
-  return current !== null && choice.id === current.id &&
-    choice.revision === current.revision && choice.partOfSpeech === current.partOfSpeech &&
-    choice.meaning === current.meaning;
+export function matchingInspectorChoice(
+  choice: InspectorChoice,
+  current: InspectorChoice | null,
+): boolean {
+  return (
+    current !== null &&
+    choice.id === current.id &&
+    choice.revision === current.revision &&
+    choice.partOfSpeech === current.partOfSpeech &&
+    choice.meaning === current.meaning
+  );
 }
 
 /** A stale asynchronous save cannot display success for a different entry. */
-export function inspectorSaveBelongsTo(entry: InspectorEntry | null, saved: {
-  id: string; revision: number;
-} | null) {
-  return entry !== null && saved !== null && entry.id === saved.id && entry.revision === saved.revision;
+export function inspectorSaveBelongsTo(
+  entry: InspectorEntry | null,
+  saved: {
+    id: string;
+    revision: number;
+  } | null,
+) {
+  return (
+    entry !== null && saved !== null && entry.id === saved.id && entry.revision === saved.revision
+  );
 }
 
 export function countInspectorTiers(entry: InspectorEntry) {

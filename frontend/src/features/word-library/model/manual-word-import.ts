@@ -9,7 +9,8 @@ export function needsAiMeaning(input: WordInput): boolean {
 }
 
 export function splitWordInputsByMeaning(
-  inputs: WordInput[], existing: readonly { word: string }[] = [],
+  inputs: WordInput[],
+  existing: readonly { word: string }[] = [],
 ) {
   const known = new Set(existing.map((entry) => wordKey(entry.word)));
   return {
@@ -28,15 +29,23 @@ export function parseBulkWordEntries(text: string): WordInput[] {
   for (const row of text.split(/[\r\n;]+/)) {
     if (!row.trim()) continue;
     const equals = row.indexOf("=");
-    const candidates: WordInput[] = equals >= 0
-      ? [{
-          word: normalizeWord(row.slice(0, equals)),
-          meanings: row.slice(equals + 1).split(",").map((meaning) => meaning.trim()).filter(Boolean),
-        }]
-      : parseWordList(row).map((word) => ({ word }));
+    const candidates: WordInput[] =
+      equals >= 0
+        ? [
+            {
+              word: normalizeWord(row.slice(0, equals)),
+              meanings: row
+                .slice(equals + 1)
+                .split(",")
+                .map((meaning) => meaning.trim())
+                .filter(Boolean),
+            },
+          ]
+        : parseWordList(row).map((word) => ({ word }));
     for (const candidate of candidates) {
       if (!candidate.word) throw new Error("Eşittir işaretinden önce İngilizce kelime yaz.");
-      if (candidate.word.length > 120) throw new Error("Bir kelime en fazla 120 karakter olabilir.");
+      if (candidate.word.length > 120)
+        throw new Error("Bir kelime en fazla 120 karakter olabilir.");
       if ((candidate.meanings ?? []).some((meaning) => meaning.length > 200))
         throw new Error("Bir Türkçe anlam en fazla 200 karakter olabilir.");
       const key = wordKey(candidate.word);
@@ -44,8 +53,7 @@ export function parseBulkWordEntries(text: string): WordInput[] {
       // A user-provided meaning wins over a bare duplicate, never the other way around.
       if (!original || (needsAiMeaning(original) && !needsAiMeaning(candidate)))
         entries.set(key, candidate);
-      if (entries.size > 200)
-        throw new Error("Bir seferde en fazla 200 kelime ekleyebilirsin.");
+      if (entries.size > 200) throw new Error("Bir seferde en fazla 200 kelime ekleyebilirsin.");
     }
   }
   return [...entries.values()];

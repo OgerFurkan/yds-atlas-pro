@@ -47,10 +47,7 @@ export const trLearning = {
     stages: [
       ["Kelimeleri keşfet", "Kartlar, telaffuz ve çevrilmiş örnekler."],
       ["Öğrendiklerini pekiştir", "Anlam ve cümle tamamlama soruları."],
-      [
-        "Görevi tamamla",
-        "Eşleştir, anlamı hatırla, cümlede kullan. Sonunda öğrenme grupların.",
-      ],
+      ["Görevi tamamla", "Eşleştir, anlamı hatırla, cümlede kullan. Sonunda öğrenme grupların."],
     ],
   },
   game: {
@@ -61,13 +58,7 @@ export const trLearning = {
     taskCount: "{{count}} kelimelik görev",
     percent: "%{{percent}} tamamlandı",
     progressAria: "Oyun ilerlemesi",
-    progressSteps: [
-      "Keşfet",
-      "Eşleştir",
-      "Anlamı bul",
-      "Bağlamda öğren",
-      "Genel değerlendirme",
-    ],
+    progressSteps: ["Keşfet", "Eşleştir", "Anlamı bul", "Bağlamda öğren", "Genel değerlendirme"],
     phases: {
       flashcards: "Kelime kartlarını keşfet",
       matching: "Kelime ve anlamları eşleştir",

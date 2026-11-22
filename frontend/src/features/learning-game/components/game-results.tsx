@@ -112,7 +112,9 @@ export function GameResults({
                   {words.length ? (
                     words.map((word) => (
                       <li key={word.id} className="py-3">
-                        <strong className="text-sm text-atlas-navy"><SentenceWordTooltips text={word.word} focusWord={word} allowDuringGame /></strong>
+                        <strong className="text-sm text-atlas-navy">
+                          <SentenceWordTooltips text={word.word} focusWord={word} allowDuringGame />
+                        </strong>
                         <p className="mt-1 text-xs leading-5 text-slate-500">
                           {word.meanings.join(", ")}
                         </p>

@@ -79,13 +79,20 @@ export function WordFormDialog({
       const input = toWordInput(values, checked.normalized);
       const source = wordInputSchema.parse(aiSource.current ?? word ?? { word: input.word });
       const preserved = preserveExampleMetadata(input, source);
-      await onSave(enrichWordInput(preserved), word?.id, mode === "manual" ? undefined : setProgress, mode);
+      await onSave(
+        enrichWordInput(preserved),
+        word?.id,
+        mode === "manual" ? undefined : setProgress,
+        mode,
+      );
       onOpenChange(false);
-      onNotify.success(word
-        ? "Kelime güncellendi."
-        : mode === "manual" && needsAiMeaning(input)
-          ? "Kelime kaydedildi. Türkçe anlamını sonra ekleyebilirsin."
-          : "Kelime kaydedildi. Eksik bilgilerini daha sonra düzenleyebilirsin.");
+      onNotify.success(
+        word
+          ? "Kelime güncellendi."
+          : mode === "manual" && needsAiMeaning(input)
+            ? "Kelime kaydedildi. Türkçe anlamını sonra ekleyebilirsin."
+            : "Kelime kaydedildi. Eksik bilgilerini daha sonra düzenleyebilirsin.",
+      );
     } catch (error) {
       onNotify.error(error instanceof Error ? error.message : "Kelime kaydedilemedi.");
     } finally {
@@ -136,8 +143,8 @@ export function WordFormDialog({
           <div className="flex items-start gap-2 rounded-md bg-sky-50 px-3 py-2.5 text-[10px] leading-4 text-slate-600">
             <Sparkles className="mt-0.5 shrink-0 text-atlas-blue" size={15} />
             <p>
-              Türkçe anlam yazdıysan kelime doğrudan kaydedilir. Anlam boşsa AI ile
-              tamamlamayı deneriz. Kaydını her zaman düzenleyebilirsin.
+              Türkçe anlam yazdıysan kelime doğrudan kaydedilir. Anlam boşsa AI ile tamamlamayı
+              deneriz. Kaydını her zaman düzenleyebilirsin.
             </p>
           </div>
           <AiWordAssist
@@ -164,8 +171,12 @@ export function WordFormDialog({
               Vazgeç
             </Button>
             {!word && !currentMeanings?.trim() && (
-              <Button variant="outline" type="button" disabled={isSubmitting || spelling.checking}
-                onClick={() => void handleSubmit((values) => save(values, "manual"))()}>
+              <Button
+                variant="outline"
+                type="button"
+                disabled={isSubmitting || spelling.checking}
+                onClick={() => void handleSubmit((values) => save(values, "manual"))()}
+              >
                 Yalnız kelimeyi kaydet
               </Button>
             )}

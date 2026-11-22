@@ -15,10 +15,12 @@ describe("Atlas AI manual retry", () => {
   });
 
   test("never sends an assistant reply as the retry request", () => {
-    expect(lastFailedUserQuestion([
-      { role: "user", content: "Indicate ne demek?" },
-      { role: "assistant", content: "Göstermek." },
-    ])).toEqual([{ role: "user", content: "Indicate ne demek?" }]);
+    expect(
+      lastFailedUserQuestion([
+        { role: "user", content: "Indicate ne demek?" },
+        { role: "assistant", content: "Göstermek." },
+      ]),
+    ).toEqual([{ role: "user", content: "Indicate ne demek?" }]);
   });
 
   test("empty or assistant-only history yields no retry request", () => {

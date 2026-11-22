@@ -62,11 +62,16 @@ export function preserveExampleMetadata(input: WordInput, source: WordInput): Wo
   return {
     ...input,
     examples: input.examples.map((example) => {
-      const original = source.examples?.find((entry) =>
-        entry.sentence === example.sentence && entry.translation === example.translation);
+      const original = source.examples?.find(
+        (entry) => entry.sentence === example.sentence && entry.translation === example.translation,
+      );
       return original
-        ? { ...example, difficulty: original.difficulty,
-            translationFocus: original.translationFocus, source: original.source }
+        ? {
+            ...example,
+            difficulty: original.difficulty,
+            translationFocus: original.translationFocus,
+            source: original.source,
+          }
         : example;
     }),
   };

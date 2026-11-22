@@ -45,7 +45,8 @@ export const enAccountAi = {
     timeoutAgain: "Gemini timed out again. If it persists, inspect the Render service logs.",
     rateLimited: "Gemini's request limit was reached. Please retry shortly.",
     rateLimitedFor: "Request limit reached. Retry in {{seconds}} seconds.",
-    providerBusy: "Gemini is temporarily unavailable. Other configured keys were attempted; retry your question shortly.",
+    providerBusy:
+      "Gemini is temporarily unavailable. Other configured keys were attempted; retry your question shortly.",
     retrySameQuestion: "Retry the same question",
     retrying: "Retrying (attempt {{count}})…",
     footer: "Atlas answers are AI-generated.",

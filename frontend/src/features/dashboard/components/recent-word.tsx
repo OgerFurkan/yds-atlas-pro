@@ -11,7 +11,9 @@ export function RecentWord({ word }: { word: WordEntry }) {
         {word.word.charAt(0).toUpperCase()}
       </span>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <strong className="text-base text-slate-800"><SentenceWordTooltips text={word.word} focusWord={word}/></strong>
+        <strong className="text-base text-slate-800">
+          <SentenceWordTooltips text={word.word} focusWord={word} />
+        </strong>
         <span className="truncate text-sm text-slate-400">
           {word.meanings[0] || t("recentWord.pending")}
         </span>

@@ -22,11 +22,14 @@ export const trCore = {
     helpGame: "Günlük Görev hazırlık rehberi",
     libraryGuide: "Kütüphane rehberi",
     libraryGuideIntro: "Kelime kütüphanen",
-    libraryGuideIntroDescription: "Kelimelerini burada eklersin ve yönetirsin. Bu rehber hiçbir kaydını değiştirmez.",
+    libraryGuideIntroDescription:
+      "Kelimelerini burada eklersin ve yönetirsin. Bu rehber hiçbir kaydını değiştirmez.",
     libraryGuideTabs: "Kelimeler ve Günlük Plan",
-    libraryGuideTabsDescription: "Kelimeler sekmesinde kayıtlarını, Günlük Plan sekmesinde günlerine atanan sözcükleri görürsün.",
+    libraryGuideTabsDescription:
+      "Kelimeler sekmesinde kayıtlarını, Günlük Plan sekmesinde günlerine atanan sözcükleri görürsün.",
     libraryGuideWords: "Kelime yönetimi",
-    libraryGuideWordsDescription: "Kelime ara, düzenle, toplu ekle ve öğrenme durumuna göre filtrele.",
+    libraryGuideWordsDescription:
+      "Kelime ara, düzenle, toplu ekle ve öğrenme durumuna göre filtrele.",
     learningGames: "ÖĞRENME OYUNLARI",
     dailyTask: "Günlük Görev",
     new: "Yeni",

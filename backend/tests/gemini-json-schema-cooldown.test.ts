@@ -1,6 +1,9 @@
 import { expect, test } from "bun:test";
 import type { ServerConfig } from "../src/config/env";
-import { requestGeminiJson, resetGeminiJsonSchemaCooldown } from "../src/features/ai/gemini-request";
+import {
+  requestGeminiJson,
+  resetGeminiJsonSchemaCooldown,
+} from "../src/features/ai/gemini-request";
 
 type MockFetch = (url: unknown, init?: RequestInit) => Promise<Response>;
 function options(fetcher: MockFetch, key: string) {

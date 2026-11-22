@@ -44,9 +44,12 @@ const schema = z
   })
   .transform((value) => {
     const GEMINI_KEYS = apiKeys(value.GEMINI_API_KEYS, value.GEMINI_API_KEY);
-    const ids = value.GEMINI_KEY_PROJECT_GROUPS?.split(",").map(group => group.trim()) ?? [];
-    if (ids.length && (ids.length !== GEMINI_KEYS.length ||
-      !ids.every(group => /^[a-z0-9_-]{1,40}$/i.test(group)))) {
+    const ids = value.GEMINI_KEY_PROJECT_GROUPS?.split(",").map((group) => group.trim()) ?? [];
+    if (
+      ids.length &&
+      (ids.length !== GEMINI_KEYS.length ||
+        !ids.every((group) => /^[a-z0-9_-]{1,40}$/i.test(group)))
+    ) {
       throw new Error("GEMINI_KEY_PROJECT_GROUPS must match unique key order");
     }
     return { ...value, GEMINI_KEYS, GEMINI_KEY_GROUP_IDS: ids };

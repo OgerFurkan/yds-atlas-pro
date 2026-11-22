@@ -3,8 +3,10 @@ import { extractGlossKeys } from "../src/features/lexicon/persistent-tooltip-que
 
 test("the 425-sentence history scan reaches the final batch and retains lowercase initial", () => {
   // Synthetic sentences only. No personal text, DB, API or background worker.
-  const sentences = Array.from({ length: 425 }, () =>
-    "The learners compare evidence in carefully written sentences.");
+  const sentences = Array.from(
+    { length: 425 },
+    () => "The learners compare evidence in carefully written sentences.",
+  );
   sentences[424] = "Learners discuss initial evidence in context.";
   const keys = extractGlossKeys(sentences);
   expect(keys).toContain("initial");

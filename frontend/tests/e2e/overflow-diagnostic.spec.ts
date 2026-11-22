@@ -24,7 +24,10 @@ async function logOverflow(page: Page, state: string) {
     return { viewport, scrollWidth: width, overflow: width - viewport, offenders };
   });
   console.log(`[OVERFLOW][${state}] ${JSON.stringify(report, null, 2)}`);
-  expect(report.scrollWidth, `${state}: yatay tasma var; yukaridaki elemanlari kontrol et`).toBeLessThanOrEqual(report.viewport + 1);
+  expect(
+    report.scrollWidth,
+    `${state}: yatay tasma var; yukaridaki elemanlari kontrol et`,
+  ).toBeLessThanOrEqual(report.viewport + 1);
 }
 
 test("diagnose horizontal overflow across key pages", async ({ page }) => {

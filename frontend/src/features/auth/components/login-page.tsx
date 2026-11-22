@@ -29,11 +29,11 @@ export function LoginPage({
   return (
     <div className="flex min-h-dvh flex-col bg-atlas-canvas">
       <header className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-6">
-        <a href="#home" aria-label={t("auth.brandHome")} className="flex items-center gap-3">
+        <a href="#home" className="flex items-center gap-3">
           <AtlasLogo className="size-10 shadow-sm" />
           <span className="grid gap-1">
             <strong className="font-display text-lg leading-none text-atlas-navy">
-              YDS Atlas <span className="text-atlas-orange">Pro</span>
+              YDS Atlas <span className="text-atlas-orange-dark">Pro</span>
             </strong>
             <small className="text-[9px] font-semibold tracking-[0.12em] text-atlas-muted">
               {t("brand.tagline")}
@@ -115,7 +115,7 @@ export function LoginPage({
           />
         </section>
       </main>
-      <footer className="px-4 pb-5 text-center text-xs text-slate-500">{t("auth.footer")}</footer>
+      <footer className="px-4 pb-5 text-center text-xs text-slate-600">{t("auth.footer")}</footer>
     </div>
   );
 }

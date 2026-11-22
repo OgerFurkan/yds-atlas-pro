@@ -67,7 +67,7 @@ export function AuthForm({
   return (
     <div className="space-y-7">
       <div>
-        <p className="mb-3 text-xs font-bold tracking-[0.18em] text-atlas-orange">
+        <p className="mb-3 text-xs font-bold tracking-[0.18em] text-atlas-orange-dark">
           {t("auth.eyebrow")}
         </p>
         <h1 className="font-display text-3xl leading-tight text-atlas-navy sm:text-4xl">

@@ -249,6 +249,8 @@ type JsonRequest = {
   system: string;
   payload: unknown;
   schema: unknown;
+  /** Bounded schema-free transport retry; caller still validates every field. */
+  preferPlainJson?: boolean;
   maxOutputTokens: number;
   timeoutMs: number;
   signal?: AbortSignal;
@@ -283,6 +285,15 @@ export async function requestGeminiJson(request: JsonRequest): Promise<Response>
       signal: request.signal,
       fetcher: request.fetcher,
     });
+  }
+
+  // When a caller observed an invalid HTTP 200 envelope, it can spend its
+  // one remaining bounded retry without the provider schema. This does not
+  // bypass the strict Zod validation performed by the caller.
+  if (request.preferPlainJson) {
+    const plain = await send(false);
+    await assertGeminiResponse(plain, request.service);
+    return plain;
   }
 
   // Skip a repeatedly rejected schema only after a prior plain JSON success.

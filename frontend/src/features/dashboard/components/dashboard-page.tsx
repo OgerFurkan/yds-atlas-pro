@@ -60,7 +60,7 @@ function MetricCard({ label, value, hint, tone, icon, onClick }: MetricCardProps
       <strong className="col-start-2 mt-2 text-[26px] leading-none font-semibold text-atlas-ink">
         {value}
       </strong>
-      <small className="col-start-2 mt-1 text-[10px] text-slate-400">{hint}</small>
+      <small className="col-start-2 mt-1 text-[10px] text-slate-600">{hint}</small>
     </button>
   );
 }
@@ -105,7 +105,7 @@ export function DashboardPage({
     <>
       <div className="mb-6 flex items-end justify-between gap-6 max-sm:flex-col max-sm:items-start">
         <div>
-          <p className="text-[10px] font-bold tracking-[1px] text-[#9a6d54]">{today.label}</p>
+          <p className="text-[10px] font-bold tracking-[1px] text-atlas-muted">{today.label}</p>
           <h1 className="mt-1 mb-1 text-[clamp(25px,2.4vw,34px)] leading-tight font-semibold text-atlas-ink">
             {t("dashboard.heading")}
           </h1>
@@ -126,7 +126,7 @@ export function DashboardPage({
       <section className="mt-8">
         <div className="mb-4 flex items-end justify-between gap-4">
           <div>
-            <p className="text-[9px] font-bold tracking-[1px] text-[#9a6d54]">
+            <p className="text-[9px] font-bold tracking-[1px] text-atlas-muted">
               {t("dashboard.libraryEyebrow")}
             </p>
             <h2 className="mt-1 text-xl font-semibold text-atlas-ink">{t("dashboard.summary")}</h2>
@@ -180,7 +180,7 @@ export function DashboardPage({
         <div className="min-w-0 rounded-lg border border-slate-200 bg-white p-5">
           <div className="mb-3 flex items-end justify-between gap-4">
             <div>
-              <p className="text-[9px] font-bold tracking-[1px] text-[#9a6d54]">
+              <p className="text-[9px] font-bold tracking-[1px] text-atlas-muted">
                 {t("dashboard.recent")}
               </p>
               <h2 className="mt-1 text-lg font-semibold text-atlas-ink">{t("dashboard.words")}</h2>

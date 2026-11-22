@@ -78,14 +78,13 @@ export function AppHeader({
         <button
           type="button"
           className="group flex min-w-0 shrink-0 cursor-pointer items-center gap-3 rounded-lg text-left focus-visible:outline-offset-4"
-          aria-label={t("nav.home")}
           onClick={() => go("home")}
         >
           <AtlasLogo className="size-10 shrink-0 transition-transform duration-200 group-hover:scale-[1.03] sm:size-11" />
           <span className="flex min-w-0 flex-col justify-center gap-0.5">
             <span className="flex items-center gap-2">
               <strong className="whitespace-nowrap font-sans text-[17px] font-bold tracking-[-0.045em] text-atlas-navy sm:text-[19px]">
-                YDS Atlas <span className="text-atlas-orange">Pro</span>
+                YDS Atlas <span className="text-atlas-orange-dark">Pro</span>
               </strong>
               <span className="hidden rounded border border-atlas-line px-1.5 py-0.5 text-[9px] font-bold tracking-[0.12em] text-atlas-muted sm:inline-flex">
                 BETA

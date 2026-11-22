@@ -493,7 +493,7 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         <Button
           className="h-16 w-[min(350px,calc(100vw-32px))] justify-start gap-3 rounded-full border border-border bg-card px-3 text-foreground shadow-[0_8px_32px_rgba(18,59,89,0.14)] hover:bg-muted"
           aria-expanded={false}
-          aria-label={t("chat.launcher")}
+          aria-label={`${t("chat.placeholder")} · ${t("chat.launcher")}`}
           onClick={() => setOpen(true)}
         >
           <img

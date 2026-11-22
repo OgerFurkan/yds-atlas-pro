@@ -37,7 +37,7 @@ export function StreakCard({ now }: { now: Date }) {
             <span
               className={cn(
                 "text-xs",
-                day.today ? "font-bold text-atlas-orange-dark" : "text-slate-400",
+                day.today ? "font-bold text-atlas-orange-dark" : "text-slate-600",
               )}
             >
               {weekdays[index]}
@@ -67,7 +67,7 @@ export function StreakCard({ now }: { now: Date }) {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-xs leading-5 text-slate-400">{t("streak.footer")}</p>
+      <p className="mt-4 text-xs leading-5 text-slate-600">{t("streak.footer")}</p>
     </aside>
   );
 }

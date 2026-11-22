@@ -110,7 +110,7 @@ jobs:
           docker build -f backend/Dockerfile -t atlas-f1-ci-api .
           test "$(docker image inspect atlas-f1-ci-api --format '{{.Config.User}}')" = bun
           docker run -d --name atlas-f1-ci-api --network none -e HOST=127.0.0.1 -e PORT=3000 atlas-f1-ci-api
-          docker exec atlas-f1-ci-api bun -e "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(r.status!==200)process.exit(1);console.log('LOCAL_DOCKER_LIVENESS_PASS')})"
+          docker exec atlas-f1-ci-api bun -e "for(let i=0;i<20;i++){try{const r=await fetch('http://127.0.0.1:3000/api/health');if(r.status===200){console.log('LOCAL_DOCKER_LIVENESS_PASS');process.exit(0)}}catch{}await Bun.sleep(250)}console.error('LOCAL_DOCKER_STARTUP_TIMEOUT');process.exit(1)"
       - name: Cleanup LOCAL disposable containers
         if: always()
         run: |

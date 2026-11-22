@@ -10,109 +10,50 @@ permissions:
 
 jobs:
   format-once:
-    # One-time strictly scoped repair for PR #26; removed by Builder after audit.
+    # One-time PM-requested formatter repair; removed in follow-up Builder commit.
     if: github.event_name == 'pull_request' && github.event.pull_request.number == 26 && github.event.pull_request.head.repo.full_name == 'OgerFurkan/yds-atlas-pro' && github.event.pull_request.head.ref == 'feature/platform-foundation-f1-f3-20261122-builder'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
     steps:
-      - name: Checkout exact authorized source branch
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
         with:
           ref: feature/platform-foundation-f1-f3-20261122-builder
           persist-credentials: true
           fetch-depth: 2
-      - name: Deny stale or unexpected checkout
-        run: test "$(git rev-parse HEAD^)" = 8a0c071eccdc8b28fc72335fe666168bfdd14002
+      - name: Deny stale or unintended checkout
+        run: test "$(git rev-parse HEAD^)" = cdac294320755d1c08a894eee0e9804b8b4aac86
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.5'
-      - name: Frozen install
+      - name: Frozen dependencies
         run: bun install --frozen-lockfile
-      - name: Format only 20 confirmed main-inherited files (no lint fixes/import organize)
-        run: |
-          bunx biome format --write \
-            backend/src/app.ts \
-            backend/src/config/env.ts \
-            backend/src/features/ai/gemini-request.ts \
-            backend/src/features/ai/gemini.ts \
-            backend/src/features/feedback/inspector-service.ts \
-            backend/src/features/feedback/inspector-validation.ts \
-            backend/src/features/feedback/tiered-sentence-generation.ts \
-            backend/src/features/lexicon/persistent-tooltip-queue.ts \
-            backend/src/features/lexicon/public-turkish-dictionary.ts \
-            backend/src/features/lexicon/sentence-lexicon-prefetch.ts \
-            backend/src/features/lexicon/tr-wiktionary.ts \
-            backend/src/features/words/word-service.ts \
-            backend/tests/feedback-inspector-migration.node.test.mjs \
-            backend/tests/feedback-inspector-service.node.test.mjs \
-            backend/tests/feedback-inspector-validation.node.test.mjs \
-            frontend/tests/unit/legacy-curated-examples.test.ts \
-            frontend/tests/unit/manual-word-import.test.ts \
-            frontend/tests/unit/merge-legacy-tiered-examples.test.ts \
-            frontend/tests/unit/prepare-word-inputs-recovery.test.ts \
-            frontend/tests/unit/word-form-mappers-metadata.test.ts
-      - name: Verify full formatter and diff whitespace
+      - name: Run exact root Biome formatter scope (no lint fix, no organize imports)
+        run: bun run format
+      - name: Verify full formatting and diff integrity
         run: |
           bun run format:check
           git diff --check
-          git status --short
-      - name: Ensure only approved 20 paths changed
+          git diff --stat
+          git diff --name-only
+      - name: Deny unexpected secret, workflow, infrastructure or migration diff
         run: |
-          node --input-type=module -e 'import {execFileSync} from "node:child_process"; const actual=execFileSync("git",["diff","--name-only"],{encoding:"utf8"}).trim().split("\n").filter(Boolean); const expected=new Set(process.argv.slice(1)); if(actual.length!==20||actual.some(p=>!expected.has(p))) {console.error("FAIL: unexpected formatting paths",actual); process.exit(1);} console.log("20 scoped formatting files verified");' \
-            backend/src/app.ts \
-            backend/src/config/env.ts \
-            backend/src/features/ai/gemini-request.ts \
-            backend/src/features/ai/gemini.ts \
-            backend/src/features/feedback/inspector-service.ts \
-            backend/src/features/feedback/inspector-validation.ts \
-            backend/src/features/feedback/tiered-sentence-generation.ts \
-            backend/src/features/lexicon/persistent-tooltip-queue.ts \
-            backend/src/features/lexicon/public-turkish-dictionary.ts \
-            backend/src/features/lexicon/sentence-lexicon-prefetch.ts \
-            backend/src/features/lexicon/tr-wiktionary.ts \
-            backend/src/features/words/word-service.ts \
-            backend/tests/feedback-inspector-migration.node.test.mjs \
-            backend/tests/feedback-inspector-service.node.test.mjs \
-            backend/tests/feedback-inspector-validation.node.test.mjs \
-            frontend/tests/unit/legacy-curated-examples.test.ts \
-            frontend/tests/unit/manual-word-import.test.ts \
-            frontend/tests/unit/merge-legacy-tiered-examples.test.ts \
-            frontend/tests/unit/prepare-word-inputs-recovery.test.ts \
-            frontend/tests/unit/word-form-mappers-metadata.test.ts
-      - name: Validate build/lint and regression after formatter
+          node --input-type=module -e 'import {execFileSync} from "node:child_process"; const files=execFileSync("git",["diff","--name-only"],{encoding:"utf8"}).trim().split("\n").filter(Boolean); const ok=f=>/^frontend\/(src\/|tests\/|config\/|playwright\.|vite\.config|components\.json)/.test(f)||/^backend\/(src\/|tests\/|tsconfig\.json|package\.json)/.test(f)||/^packages\/shared\/src\//.test(f)||["frontend/package.json","package.json","vercel.json"].includes(f); if(!files.length||files.some(f=>!ok(f))){console.error("BLOCKED: unexpected formatting changes",files);process.exit(1)} console.log("Formatting-only paths:",files.length);'
+      - name: Test formatter change before committing
         run: |
           bun run lint
           bun run build
           bun test backend/tests frontend/tests/unit
-      - name: Commit one format-only change on same feature branch
+          node scripts/quality/foundation-contract.mjs
+          node --test scripts/release/staging-manifest.test.mjs
+      - name: Commit format-only diff on authorized feature branch
         run: |
-          test "$(git rev-parse HEAD^)" = 8a0c071eccdc8b28fc72335fe666168bfdd14002
+          test "$(git rev-parse HEAD^)" = cdac294320755d1c08a894eee0e9804b8b4aac86
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -- \
-            backend/src/app.ts \
-            backend/src/config/env.ts \
-            backend/src/features/ai/gemini-request.ts \
-            backend/src/features/ai/gemini.ts \
-            backend/src/features/feedback/inspector-service.ts \
-            backend/src/features/feedback/inspector-validation.ts \
-            backend/src/features/feedback/tiered-sentence-generation.ts \
-            backend/src/features/lexicon/persistent-tooltip-queue.ts \
-            backend/src/features/lexicon/public-turkish-dictionary.ts \
-            backend/src/features/lexicon/sentence-lexicon-prefetch.ts \
-            backend/src/features/lexicon/tr-wiktionary.ts \
-            backend/src/features/words/word-service.ts \
-            backend/tests/feedback-inspector-migration.node.test.mjs \
-            backend/tests/feedback-inspector-service.node.test.mjs \
-            backend/tests/feedback-inspector-validation.node.test.mjs \
-            frontend/tests/unit/legacy-curated-examples.test.ts \
-            frontend/tests/unit/manual-word-import.test.ts \
-            frontend/tests/unit/merge-legacy-tiered-examples.test.ts \
-            frontend/tests/unit/prepare-word-inputs-recovery.test.ts \
-            frontend/tests/unit/word-form-mappers-metadata.test.ts
-          git commit -m 'style(foundation): apply scoped Biome formatting to 20 legacy files'
+          git add -- frontend/src frontend/tests frontend/config frontend/playwright.config.ts frontend/playwright.dev.config.ts frontend/playwright.cloud.config.ts frontend/vite.config.ts frontend/components.json frontend/package.json backend/src backend/tests backend/tsconfig.json backend/package.json packages/shared/src package.json vercel.json
+          git commit -m 'style(foundation): resolve 103 pre-existing Biome diagnostics without code refactor'
           git push origin HEAD:refs/heads/feature/platform-foundation-f1-f3-20261122-builder
   test:
     runs-on: ubuntu-latest

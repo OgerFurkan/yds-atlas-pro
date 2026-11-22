@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 
 // Lightweight local keyboard/viewport checks; not axe, UAT or approved screenshot diff.
@@ -45,4 +46,23 @@ test("approved golden baseline", async ({ page }) => {
   );
   await page.goto("/#home");
   await expect(page).toHaveScreenshot("atlas-home-approved.png", { fullPage: true });
+});
+
+test("axe WCAG A/AA audit on guest home and sign-in", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const route of ["/#home", "/#login"]) {
+    await page.goto(route);
+    await expect(page.getByRole("heading").first()).toBeVisible();
+    const results = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(
+      results.violations.map((violation) => ({
+        id: violation.id,
+        impact: violation.impact,
+        nodes: violation.nodes.length,
+      })),
+      route,
+    ).toEqual([]);
+  }
 });

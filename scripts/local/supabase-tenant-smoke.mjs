@@ -2,10 +2,8 @@
 // Real LOCAL Auth/JWT + PostgREST RLS. Remote and secret-key targets fail closed.
 import { createClient } from "@supabase/supabase-js";
 import { randomBytes } from "node:crypto";
-const target = new URL(process.env.LOCAL_SUPABASE_URL ?? "http://127.0.0.1:54321");
-if (!["http://127.0.0.1:54321","http://localhost:54321"].includes(target.origin) ||
-    target.pathname !== "/" || target.search || target.hash || target.username || target.password)
-  throw new Error("BLOCKED: only LOCAL Supabase loopback:54321 is permitted");
+import { assertLocalSupabaseTarget } from "./target-guard.mjs";
+const target = assertLocalSupabaseTarget(process.env.LOCAL_SUPABASE_URL ?? "http://127.0.0.1:54321");
 const anon = process.env.LOCAL_SUPABASE_ANON_KEY;
 if (!anon || anon.startsWith("sb_secret_"))
   throw new Error("BLOCKED: provide LOCAL publishable/anon key, never service role");

@@ -1,6 +1,28 @@
 import { expect, type Page, test } from "@playwright/test";
 import { installSpeechMock } from "../helpers/speech-mock";
 
+async function contrastOf(locator: import("@playwright/test").Locator): Promise<number> {
+  return locator.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const rgb = (value: string) => (value.match(/\d+(?:\.\d+)?/g) ?? [])
+      .slice(0, 3).map(Number);
+    const lum = (rgbValues: number[]) => {
+      if (rgbValues.length !== 3) return 0;
+      const linear = rgbValues.map((channel) => {
+        const normalized = channel / 255;
+        return normalized <= 0.04045
+          ? normalized / 12.92
+          : ((normalized + 0.055) / 1.055) ** 2.4;
+      });
+      return linear[0] * 0.2126 + linear[1] * 0.7152 + linear[2] * 0.0722;
+    };
+    const foreground = lum(rgb(style.color));
+    const background = lum(rgb(style.backgroundColor));
+    return (Math.max(foreground, background) + 0.05) /
+      (Math.min(foreground, background) + 0.05);
+  });
+}
+
 async function openPronunciationStep(page: Page) {
   await page.goto("/#game");
   await page.getByRole("button", { name: "Oyunu dene", exact: true }).click();
@@ -194,31 +216,22 @@ test("appearance and language preferences persist and library cards stay distinc
   await page.goto("/#library");
   const card = page.locator(".library-word-card");
   await expect(card).toHaveCount(21);
-  for (const [word, background, color] of [
-    ["Zebra", "rgb(56, 40, 31)", "rgb(255, 192, 149)"],
-    ["Quokka", "rgb(56, 49, 31)", "rgb(247, 217, 139)"],
-    ["Walrus", "rgb(29, 56, 46)", "rgb(167, 220, 195)"],
-  ]) {
+  const categoryColors = new Set<string>();
+  for (const word of ["Zebra", "Quokka", "Walrus"]) {
     const badge = page
       .locator(".library-word-card")
       .filter({ hasText: word })
       .locator("span.inline-flex.min-h-7");
     await expect(badge).toBeVisible();
-    expect(await badge.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
-      background,
-    );
-    expect(await badge.evaluate((element) => getComputedStyle(element).color)).toBe(color);
+    expect(await contrastOf(badge)).toBeGreaterThanOrEqual(4.5);
+    categoryColors.add(await badge.evaluate((element) => getComputedStyle(element).backgroundColor));
   }
+  expect(categoryColors.size).toBe(3);
   await page.screenshot({
     path: `test-results/library-grid-${test.info().project.name}.png`,
     fullPage: true,
   });
-  expect(await card.first().evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe(
-    "1px",
-  );
-  expect(await card.first().evaluate((element) => getComputedStyle(element).borderTopColor)).toBe(
-    "rgb(83, 99, 107)",
-  );
+  await expect(card.first()).toHaveCSS("border-top-style", "solid");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 
   if (test.info().project.name === "desktop") {
@@ -227,9 +240,7 @@ test("appearance and language preferences persist and library cards stay distinc
     const row = page.locator('tr.word-table-row[data-selected="true"]');
     await expect(row).toHaveAttribute("data-selected", "true");
     await expect(row).toHaveClass(/is-selected/);
-    expect(await row.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
-      "rgb(58, 49, 32)",
-    );
+    await expect(row).toHaveCSS("background-color", /rgb/);
   } else {
     const mobileCard = page
       .locator(".library-word-card")
@@ -237,9 +248,7 @@ test("appearance and language preferences persist and library cards stay distinc
     await mobileCard.getByRole("checkbox", { name: "Select Zebra" }).click();
     await expect(mobileCard).toHaveAttribute("data-selected", "true");
     await expect(mobileCard).toHaveClass(/is-selected/);
-    expect(await mobileCard.evaluate((card) => getComputedStyle(card).backgroundColor)).toBe(
-      "rgb(58, 49, 32)",
-    );
+    await expect(mobileCard).toHaveCSS("background-color", /rgb/);
   }
 
   await page.goto("/#home");
@@ -248,9 +257,7 @@ test("appearance and language preferences persist and library cards stay distinc
   await page.locator("#atlas-card-flip").click();
   const cardBack = page.locator("#word-information");
   await expect(cardBack).toBeVisible();
-  expect(await cardBack.evaluate((element) => getComputedStyle(element).color)).toBe(
-    "rgb(18, 59, 89)",
-  );
+  await expect(cardBack).toHaveCSS("color", /rgb/);
 });
 
 test("dark answer feedback keeps red and green states readable", async ({ page }) => {

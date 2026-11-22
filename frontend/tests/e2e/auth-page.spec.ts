@@ -96,3 +96,18 @@ test("sign-up slides the Atlas panel to the right and sign-in slides it back", a
     })
     .toBe(true);
 });
+
+test("mobile sign-up and sign-in remain accessible without desktop panel animation", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  await page.goto("/#login");
+  const form = page.locator(".auth-form-panel");
+  await expect(form.getByRole("button", { name: "Hesap oluştur", exact: true })).toBeVisible();
+  await form.getByRole("button", { name: "Hesap oluştur", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "İlk adımı birlikte atalım." })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await form.getByRole("button", { name: "Girişe dön", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Tekrar hoş geldin." })).toBeVisible();
+});

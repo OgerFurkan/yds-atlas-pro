@@ -325,6 +325,7 @@ test.each(["empty", "non-text", "thought-only"] as const)(
 
 test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
   const base = "567f57a9a893991ba67a46b72443114347a1aee8";
+  const merged = "1264f8c76238d864c50c9e8818cf27615ebb361a";
   const cwd = fileURLToPath(new URL("../../", import.meta.url));
   const files = [
     "backend/src/features/ai/gemini-request.ts",
@@ -333,21 +334,6 @@ test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
     "frontend/tests/cloud/account-flow.spec.ts",
     "frontend/tests/unit/prepare-word-inputs-recovery.test.ts",
   ];
-  const fetchBase = () =>
-    execFileSync("git", ["fetch", "--no-tags", "--depth=1", "origin", base], {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 20_000,
-    });
-  try {
-    execFileSync("git", ["rev-parse", "--verify", base + "^{commit}"], {
-      cwd,
-      stdio: ["ignore", "pipe", "pipe"],
-      timeout: 5_000,
-    });
-  } catch {
-    fetchBase();
-  }
   const git = (args: string[]) =>
     execFileSync("git", args, {
       cwd,
@@ -355,11 +341,19 @@ test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 20_000,
     });
-  const changed = git(["diff", "--name-only", base, "HEAD"]).trim().split("\n").sort();
+  for (const ref of [base, merged]) {
+    try {
+      git(["cat-file", "-e", ref + "^{commit}"]);
+    } catch {
+      git(["fetch", "--no-tags", "--depth=1", "origin", ref]);
+    }
+  }
+  // The five-file scope belongs to PR #27. Keep scanning changes through current HEAD.
+  const changed = git(["diff", "--name-only", base, merged]).trim().split("\n").sort();
   expect(changed).toEqual(files.slice().sort());
-  const whitespace = git(["diff", "--check", base, "HEAD", "--", ...files]);
+  const whitespace = git(["diff", "--check", base, "HEAD"]);
   expect(whitespace).toBe("");
-  const patch = git(["diff", "--unified=0", base, "HEAD", "--", ...files]);
+  const patch = git(["diff", "--unified=0", base, "HEAD"]);
   const additions = patch
     .split("\n")
     .filter((line) => line.startsWith("+") && !line.startsWith("+++"))

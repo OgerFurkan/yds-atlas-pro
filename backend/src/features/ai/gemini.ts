@@ -165,6 +165,7 @@ export async function generateWordList(
   // structured request. The one remaining pass requests at most two words,
   // without the provider schema; individual word validation is unchanged.
   let retryCompactPlainJson = false;
+  let schemaRejectedThisBatch = false;
   for (let pass = 0; pass < 2 && accepted.size < count; pass++) {
     const remaining = count - accepted.size;
     const compactRetry = pass === 1 && retryCompactPlainJson;
@@ -175,6 +176,7 @@ export async function generateWordList(
     const schema = z.object({ suggestions: z.array(aiWordSchema).length(requestCount) }).strict();
 
     let response: Response;
+    let confirmFallback: (() => void) | undefined;
     try {
       response = await requestGeminiJson({
         service: "gemini-word-list",
@@ -190,7 +192,11 @@ export async function generateWordList(
             : dictionarySources,
         },
         schema: z.toJSONSchema(schema),
-        preferPlainJson: compactRetry,
+        preferPlainJson: compactRetry || schemaRejectedThisBatch,
+        onWordListFallback(confirm) {
+          schemaRejectedThisBatch = true;
+          confirmFallback = confirm;
+        },
         maxOutputTokens: 12000,
         timeoutMs: 35_000,
         config,
@@ -205,7 +211,7 @@ export async function generateWordList(
       break;
     }
 
-    let responseStage: "finish" | "envelope" | "entries" = "finish";
+    let responseStage: "finish" | "content" | "json" | "envelope" | "entries" = "finish";
     let safetyStop = false;
     try {
       const payload = (await response.json()) as {
@@ -217,7 +223,7 @@ export async function generateWordList(
       const candidate = payload.candidates?.[0];
       safetyStop = candidate?.finishReason === "SAFETY" || candidate?.finishReason === "RECITATION";
       if (candidate?.finishReason !== "STOP") throw new Error("incomplete generation");
-      responseStage = "envelope";
+      responseStage = "content";
       modelsUsed.add(resolvedGeminiModel(response, config.GEMINI_MODEL_WORD));
       const text =
         candidate.content?.parts
@@ -229,8 +235,12 @@ export async function generateWordList(
       // Parse the envelope separately: one malformed word must not invalidate
       // its valid neighbors. Each individual word still passes the FULL schema.
       const envelope = z.object({ suggestions: z.array(z.unknown()) }).strict();
-      const { suggestions: proposed } = envelope.parse(parseGeminiJson(text));
+      responseStage = "json";
+      const parsedEnvelope = parseGeminiJson(text);
+      responseStage = "envelope";
+      const { suggestions: proposed } = envelope.parse(parsedEnvelope);
       responseStage = "entries";
+      const previouslyAccepted = accepted.size;
       for (const value of proposed) {
         if (accepted.size >= count) break;
         const parsed = aiWordSchema.safeParse(value);
@@ -249,13 +259,14 @@ export async function generateWordList(
         }
         accepted.set(key, suggestion);
       }
+      if (accepted.size > previouslyAccepted) confirmFallback?.();
     } catch {
       // Preserve valid neighbors. Safety/recitation is terminal; other invalid
       // envelopes can use the single bounded, schema-free compact retry.
       if (responseStage === "finish") rejected.incomplete_response++;
-      else if (responseStage === "envelope") rejected.malformed_envelope++;
+      else if (responseStage !== "entries") rejected.malformed_envelope++;
       if (!safetyStop && responseStage !== "entries") retryCompactPlainJson = true;
-      console.error({ service: "gemini-word-list", stage: "partial_parse_failed", pass: pass + 1 });
+      console.error({ service: "gemini-word-list", stage: "partial_parse_failed", responseStage, pass: pass + 1 });
     }
     if (safetyStop) break;
   }

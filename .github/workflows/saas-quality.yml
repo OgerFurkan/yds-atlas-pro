@@ -11,7 +11,7 @@ permissions:
 jobs:
   format-once:
     # One-time strictly scoped repair for PR #26; removed by Builder after audit.
-    if: github.event_name == 'pull_request' && github.event.pull_request.number == 26 && github.event.pull_request.head.repo.full_name == 'OgerFurkan/yds-atlas-pro' && github.event.pull_request.head.sha == '0da0511520add9c2173e430fcf561a62dde35d1f'
+    if: github.event_name == 'pull_request' && github.event.pull_request.number == 26 && github.event.pull_request.head.repo.full_name == 'OgerFurkan/yds-atlas-pro' && github.event.pull_request.head.ref == 'feature/platform-foundation-f1-f3-20261122-builder'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -24,7 +24,7 @@ jobs:
           persist-credentials: true
           fetch-depth: 2
       - name: Deny stale or unexpected checkout
-        run: test "$(git rev-parse HEAD)" = 0da0511520add9c2173e430fcf561a62dde35d1f
+        run: test "$(git rev-parse HEAD^)" = 8a0c071eccdc8b28fc72335fe666168bfdd14002
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: '1.3.5'
@@ -88,7 +88,7 @@ jobs:
           bun test backend/tests frontend/tests/unit
       - name: Commit one format-only change on same feature branch
         run: |
-          test "$(git rev-parse HEAD)" = 0da0511520add9c2173e430fcf561a62dde35d1f
+          test "$(git rev-parse HEAD^)" = 8a0c071eccdc8b28fc72335fe666168bfdd14002
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- \

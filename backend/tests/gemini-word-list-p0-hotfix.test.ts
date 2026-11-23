@@ -437,7 +437,7 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
   const conf = git(["show", base + ":biome.json"]);
   const currentConf = readFileSync(join(cwd, "biome.json"), "utf8");
   console.info("P0_BIOME CONFIG_BASE=" + sha12(conf.stdout) + " CONFIG_HEAD=" + sha12(currentConf));
-  expect(conf.stdout).toBe(currentConf);
+  expect(conf.stdout.replace(/\r\n/g, "\n")).toBe(currentConf.replace(/\r\n/g, "\n"));
 
   const tmp = mkdtempSync(join(tmpdir(), "p0-biome-"));
   function formatDetails(path: string, label: string, contents: string) {

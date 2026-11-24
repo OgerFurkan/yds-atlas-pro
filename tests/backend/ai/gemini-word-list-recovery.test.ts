@@ -323,25 +323,33 @@ test.each(["empty", "non-text", "thought-only"] as const)(
   },
 );
 
-test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
-  const base = "567f57a9a893991ba67a46b72443114347a1aee8";
-  const merged = "1264f8c76238d864c50c9e8818cf27615ebb361a";
-  const cwd = fileURLToPath(new URL("../../../", import.meta.url));
-  const files = Object.values(historicalPaths);
-  const git = (args: string[]) =>
-    execFileSync("git", args, {
+// The release candidate's historical diff exceeds execFileSync's 1 MiB default.
+// Keep a bounded buffer and fail closed if Git cannot return complete output.
+const qualityOutputLimit = 16 * 1024 * 1024;
+
+function readQualityOutput(executable: string, args: string[], cwd: string) {
+  try {
+    return execFileSync(executable, args, {
       cwd,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "pipe"],
       timeout: 20_000,
+      maxBuffer: qualityOutputLimit,
     });
-  for (const ref of [base, merged]) git(["cat-file", "-e", ref + "^{commit}"]);
-  // The five-file scope belongs to PR #27. Keep scanning changes through current HEAD.
-  const changed = git(["diff", "--name-only", base, merged]).trim().split("\n").sort();
-  expect(changed).toEqual(Object.keys(historicalPaths).sort());
-  const whitespace = git(["diff", "--check", base, "HEAD"]);
-  expect(whitespace).toBe("");
-  const patch = git(["diff", "--unified=0", base, "HEAD"]);
+  } catch (error) {
+    // Child process errors can carry unscanned stdout and stderr.
+    const { code, status } = error as { code?: string; status?: number };
+    const reason =
+      code && /^[A-Z][A-Z0-9_]*$/.test(code)
+        ? code
+        : Number.isInteger(status)
+          ? `exit ${status}`
+          : "unknown error";
+    throw new Error(`P0 quality subprocess failed (${reason})`);
+  }
+}
+
+function hasSensitiveAdditions(patch: string) {
   const additions = patch
     .split("\n")
     .filter((line) => line.startsWith("+") && !line.startsWith("+++"))
@@ -353,7 +361,58 @@ test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
     /-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----/,
     /Bearer\s+eyJ[A-Za-z0-9_-]{20,}/,
   ];
-  const suspicious = sensitive.some((pattern) => pattern.test(additions));
+  return sensitive.some((pattern) => pattern.test(additions));
+}
+
+function readSyntheticPatch(paddingSize: number, tail: string) {
+  const cwd = fileURLToPath(new URL("../../../", import.meta.url));
+  const script = `process.stdout.write("+" + ".".repeat(${paddingSize}) + ${JSON.stringify(tail)})`;
+  return readQualityOutput(process.execPath, ["-e", script], cwd);
+}
+
+test("quality scan reads a full patch beyond the default subprocess buffer", () => {
+  const paddingSize = 1024 * 1024;
+  const tail = "\n+last synthetic addition\n";
+  const patch = readSyntheticPatch(paddingSize, tail);
+  expect(Buffer.byteLength(patch)).toBe(1 + paddingSize + Buffer.byteLength(tail));
+  expect(patch.endsWith(tail)).toBe(true);
+  expect(hasSensitiveAdditions(patch)).toBe(false);
+});
+
+test.each([
+  ["Google API key", "AIza" + "x".repeat(30)],
+  ["Supabase secret", "sb_secret_" + "x".repeat(20)],
+  ["GitHub token", "ghp_" + "x".repeat(30)],
+  ["private key header", "-----BEGIN " + "PRIVATE KEY-----"],
+  ["bearer JWT", "Bearer " + "eyJ" + "x".repeat(25)],
+])("quality scan detects a synthetic %s beyond 1 MiB of patch output", (_family, synthetic) => {
+  const tail = `\n+${synthetic}\n`;
+  const patch = readSyntheticPatch(1024 * 1024, tail);
+  expect(patch.endsWith(tail)).toBe(true);
+  expect(hasSensitiveAdditions(patch)).toBe(true);
+  expect(hasSensitiveAdditions(`--- a/old\n+++ b/${synthetic}\n-${synthetic}`)).toBe(false);
+});
+
+test("quality scan rejects oversized output without exposing the patch", () => {
+  expect(() => readSyntheticPatch(qualityOutputLimit, "\n+private synthetic output\n")).toThrow(
+    /^P0 quality subprocess failed \(ENOBUFS\)$/,
+  );
+});
+
+test("P0 scoped baseline diff/secret scan and format/lint diagnostics", () => {
+  const base = "567f57a9a893991ba67a46b72443114347a1aee8";
+  const merged = "1264f8c76238d864c50c9e8818cf27615ebb361a";
+  const cwd = fileURLToPath(new URL("../../../", import.meta.url));
+  const files = Object.values(historicalPaths);
+  const git = (args: string[]) => readQualityOutput("git", args, cwd);
+  for (const ref of [base, merged]) git(["cat-file", "-e", ref + "^{commit}"]);
+  // The five-file scope belongs to PR #27. Keep scanning changes through current HEAD.
+  const changed = git(["diff", "--name-only", base, merged]).trim().split("\n").sort();
+  expect(changed).toEqual(Object.keys(historicalPaths).sort());
+  const whitespace = git(["diff", "--check", base, "HEAD"]);
+  expect(whitespace === "").toBe(true);
+  const patch = git(["diff", "--unified=0", base, "HEAD"]);
+  const suspicious = hasSensitiveAdditions(patch);
   expect(suspicious).toBe(false);
   console.info("P0_QUALITY git diff --check BASE HEAD: PASS");
   console.info("P0_QUALITY changed-line secret patterns: PASS");

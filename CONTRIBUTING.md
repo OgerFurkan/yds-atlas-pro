@@ -6,9 +6,13 @@ Run from the workspace root:
 
 ```powershell
 bun install
-bun run build
-bun test backend/tests frontend/tests/unit
-bun run --cwd=frontend test:e2e
+bun run check
+bun run lint
+bun run build:test
+bun run test
+bun run test:node
+bun run test:e2e
+bun run test:cloud
 node scripts/quality/repository-audit.mjs
 ```
 
@@ -22,7 +26,7 @@ node scripts/quality/repository-audit.mjs
 - `frontend/src/shared/`: code with no dependency on a particular feature.
 - `frontend/src/shared/i18n/locales/{tr,en}/`: both languages, grouped by domain.
 - `backend/src/`: validated server-side features, quotas and ownership.
-- `frontend/tests/` and `backend/tests/`: regression tests.
+- [`tests/`](tests/README.md): regression tests by feature and runner.
 
 ## Review checklist
 

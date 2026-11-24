@@ -11,6 +11,6 @@
 .codex
 .vscode
 frontend/public
-backend/tests
+tests
 docs
 

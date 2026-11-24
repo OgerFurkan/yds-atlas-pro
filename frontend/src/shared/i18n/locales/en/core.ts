@@ -22,9 +22,11 @@ export const enCore = {
     helpGame: "Daily Task preparation guide",
     libraryGuide: "Word Library guide",
     libraryGuideIntro: "Your word library",
-    libraryGuideIntroDescription: "Manage your saved words here. This guide does not change any records.",
+    libraryGuideIntroDescription:
+      "Manage your saved words here. This guide does not change any records.",
     libraryGuideTabs: "Words and Daily Plan",
-    libraryGuideTabsDescription: "Switch between your saved vocabulary and your day-by-day learning plan.",
+    libraryGuideTabsDescription:
+      "Switch between your saved vocabulary and your day-by-day learning plan.",
     libraryGuideWords: "Manage vocabulary",
     libraryGuideWordsDescription: "Search, edit, bulk add, and filter words by learning status.",
     learningGames: "LEARNING GAMES",
@@ -71,8 +73,7 @@ export const enCore = {
       issueDatabase: "The database connection is not configured.",
       issueUnreachable:
         "The API server cannot be reached. Render may be waking up; try again in a few seconds.",
-      issuePoolCooling:
-        "All keys are cooling down. Earliest availability in {{seconds}} seconds.",
+      issuePoolCooling: "All keys are cooling down. Earliest availability in {{seconds}} seconds.",
       loginHint: "Sign in to use Gemini features.",
     },
   },

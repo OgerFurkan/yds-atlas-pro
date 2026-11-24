@@ -1,10 +1,10 @@
 import { type AiWordListResponse, type WordInput, wordInputSchema } from "@yds-atlas/shared";
 import { escapeRegExp } from "@/shared/lib/regexp";
-import { withAiRecovery, type AiRetryNotice } from "./ai-retry";
 import { aiSuggestionToWordInput } from "../api/ai-word-api";
 import { enrichWordInput } from "../data/starter-vocabulary";
-import { wordKey } from "./word-normalization";
+import { type AiRetryNotice, withAiRecovery } from "./ai-retry";
 import { hasAtlasTiers } from "./tiered-examples";
+import { wordKey } from "./word-normalization";
 
 export type WordFillProgress = {
   /** Words already returned by Gemini. */
@@ -66,15 +66,19 @@ export async function prepareWordInputs(
       // independently validated later groups from being saved. These failed
       // words stay absent from the returned safe subset and can be retried.
       // Quota, network, auth and timeout failures still stop immediately.
-      if (error && typeof error === "object" && "code" in error &&
-          error.code === "AI_INVALID_RESPONSE") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "AI_INVALID_RESPONSE"
+      ) {
         onProgress?.({
           completed: results.size,
           total: names.length,
           batchSize,
-          failedWords: names.slice(0, index + group.length).filter(
-            (name) => !results.has(wordKey(name)),
-          ),
+          failedWords: names
+            .slice(0, index + group.length)
+            .filter((name) => !results.has(wordKey(name))),
         });
         continue;
       }
@@ -100,7 +104,11 @@ export async function prepareWordInputs(
       total: names.length,
       batchSize,
       ...(names.slice(0, index + group.length).some((name) => !results.has(wordKey(name)))
-        ? { failedWords: names.slice(0, index + group.length).filter((name) => !results.has(wordKey(name))) }
+        ? {
+            failedWords: names
+              .slice(0, index + group.length)
+              .filter((name) => !results.has(wordKey(name))),
+          }
         : {}),
     });
   }
@@ -136,8 +144,14 @@ export async function prepareWordInputs(
         ...generated.examples,
         // Preserve the user's original examples; the first five form the canonical
         // ordered 2/1/2 set and hand-authored material remains available afterward.
-        ...input.examples.filter((example) => !generated.examples.some((next) =>
-          next.sentence.trim().toLocaleLowerCase("en") === example.sentence.trim().toLocaleLowerCase("en"))),
+        ...input.examples.filter(
+          (example) =>
+            !generated.examples.some(
+              (next) =>
+                next.sentence.trim().toLocaleLowerCase("en") ===
+                example.sentence.trim().toLocaleLowerCase("en"),
+            ),
+        ),
       ],
     };
   });

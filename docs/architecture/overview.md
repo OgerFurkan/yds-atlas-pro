@@ -10,7 +10,8 @@ app/                  Application assembly and navigation
 features/<name>/      Feature-owned components, hooks, model, api
 shared/               Reusable UI, APIs, i18n and utilities
 backend/src/          Authenticated routes, AI provider and server logic
-backend/tests/        Security and business rule regression tests
+tests/backend/        Security and server behavior regressions
+tests/frontend/       Models, browser flows and mock account contracts
 ```
 
 Dependency direction: `app -> features -> shared`. Shared modules must never import from

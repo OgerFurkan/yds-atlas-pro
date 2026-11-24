@@ -125,6 +125,8 @@ export const enLearning = {
       "You studied {{count}} words and answered {{correct}} of {{total}} assessment steps correctly on the first try.",
     saving: "Saving your results…",
     saved: "Your word groups and daily progress are updated.",
+    practiceSaved:
+      "This task started in an earlier version and counted as practice. Scores and progress stayed the same.",
     pending: "Your results are waiting to be saved.",
     tutorialDescription:
       "You tried the cards, questions, and feedback. This demo did not change your library or streak.",

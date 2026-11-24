@@ -1,50 +1,103 @@
-﻿import { assessmentScore, gameSessionSchema, type GameSession } from "@yds-atlas/shared";
-import type { RequestContext } from "../../shared/supabase";
+import { type AssessmentAction, type GameSession, gameSessionSchema } from "@yds-atlas/shared";
+import { createAssessmentSnapshot, isGameReady } from "@yds-atlas/shared/game-engine";
 import { databaseError, HttpError } from "../../shared/errors";
-export function completionScores(snapshot: GameSession) {
-  if (snapshot.phase !== "complete" || snapshot.tutorial || snapshot.queue.length)
-    throw new HttpError(400, "Görev henüz tamamlanmadı.", "UNFINISHED_SESSION");
-  return snapshot.words.map((word) => {
-    if (snapshot.version === 2)
-      return {
-        id: word.id,
-        score: Math.max(0, Math.min(100, word.score + (snapshot.scoreChanges[word.id] ?? 0))),
-      };
-    const assessment = snapshot.assessment[word.id];
-    if (
-      !assessment?.matchingDone ||
-      !assessment.meaning ||
-      !assessment.context ||
-      [assessment.meaning, assessment.context].some(
-        (answer) => answer.correct && answer.confidence === null,
-      )
-    )
-      throw new HttpError(400, "Görevin değerlendirmesi eksik.", "INCOMPLETE_ASSESSMENT");
-    return { id: word.id, score: assessmentScore(assessment) };
-  });
+import type { RequestContext } from "../../shared/supabase";
+import { mapWord } from "../words/word-service";
+import { invalidAssessment, replayAssessment } from "./assessment-scoring";
+import type { AssessmentWriter } from "./assessment-writer";
+
+function sessionConflict() {
+  return new HttpError(
+    409,
+    "Görev başka bir sekmede değişti. Sayfayı yenileyip devam et.",
+    "SESSION_CONFLICT",
+  );
 }
-export async function saveSession(ctx: RequestContext, snapshot: GameSession, revision: number) {
-  const { data, error } = await ctx.db.rpc("save_learning_session", {
-    p_id: snapshot.id,
-    p_snapshot: snapshot,
-    p_expected_revision: revision,
-  });
+
+function storedSnapshot(row: { snapshot: GameSession; assessment_protocol: number | null }) {
+  return gameSessionSchema.parse(
+    row.assessment_protocol === 1
+      ? row.snapshot
+      : { ...row.snapshot, assessmentActions: undefined },
+  );
+}
+
+async function initialAssessment(
+  ctx: RequestContext,
+  requested: GameSession,
+): Promise<GameSession> {
+  const ids = requested.words.map((word) => word.id);
+  const { data, error } = await ctx.db.from("words").select("*").in("id", ids);
   databaseError(error);
-  return { revision: data as number };
+  if (data?.length !== ids.length) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+  const stored = new Map(data.map((row) => [row.id, mapWord(row)] as const));
+  const words = requested.words.map((requestedWord) => {
+    const word = stored.get(requestedWord.id);
+    if (!word) throw invalidAssessment();
+    if (word.updatedAt !== requestedWord.updatedAt)
+      throw new HttpError(
+        409,
+        "Kelime listen değişti. Görevi güncel kelimelerle yeniden başlat.",
+        "ASSESSMENT_WORD_CHANGED",
+      );
+    if (!isGameReady(word)) throw invalidAssessment();
+    return word;
+  });
+  return {
+    ...createAssessmentSnapshot(words, requested.batchSize, requested.id),
+    day: requested.day,
+    assessmentActions: [],
+  };
 }
-export async function completeSession(ctx: RequestContext, id: string) {
+
+function matchesPrefix(previous: AssessmentAction[], incoming: AssessmentAction[]) {
+  return (
+    previous.length <= incoming.length &&
+    previous.every((entry, index) => JSON.stringify(entry) === JSON.stringify(incoming[index]))
+  );
+}
+
+export async function saveSession(
+  ctx: RequestContext,
+  writer: AssessmentWriter,
+  requested: GameSession,
+  revision: number,
+) {
   const { data, error } = await ctx.db
     .from("learning_sessions")
-    .select("snapshot")
-    .eq("id", id)
+    .select("snapshot,assessment_protocol,revision,completed_at")
+    .eq("id", requested.id)
     .maybeSingle();
   databaseError(error);
-  if (!data) throw new HttpError(404, "Görev bulunamadı.", "NOT_FOUND");
-  const snapshot = gameSessionSchema.parse(data.snapshot);
-  const scores = completionScores(snapshot);
-  const result = await ctx.db.rpc("complete_learning_session", { p_id: id, p_scores: scores });
-  databaseError(result.error);
-  return { scores: result.data as { id: string; score: number }[] };
+
+  const incoming = requested.assessmentActions;
+  const ranked = incoming !== undefined;
+  if (!data && revision !== 0) throw sessionConflict();
+  if (!data && requested.discarded) return { revision: 0 };
+  if (data && (data.assessment_protocol === 1) !== ranked) throw sessionConflict();
+  if (!ranked) {
+    if (data && (data.revision !== revision || data.completed_at)) throw sessionConflict();
+    return {
+      revision: await writer.save(ctx.userId, { ...requested, saved: false }, revision, false),
+    };
+  }
+
+  if (requested.version !== 3) throw invalidAssessment();
+  if (!data && incoming.length) throw invalidAssessment();
+  const snapshot = data ? storedSnapshot(data) : await initialAssessment(ctx, requested);
+  const previous = snapshot.assessmentActions ?? [];
+  if (!matchesPrefix(previous, incoming)) throw sessionConflict();
+  const same = incoming.length === previous.length && snapshot.discarded === requested.discarded;
+  if (data) {
+    if (same && (revision === data.revision || revision === data.revision - 1))
+      return { revision: data.revision as number };
+    if (data.completed_at || data.revision !== revision || snapshot.discarded)
+      throw sessionConflict();
+  }
+  const replayed = replayAssessment(snapshot, incoming.slice(previous.length));
+  if (requested.discarded && replayed.phase === "complete") throw invalidAssessment();
+  const canonical = { ...replayed, assessmentActions: incoming, discarded: requested.discarded };
+  return { revision: await writer.save(ctx.userId, canonical, revision, true) };
 }
 export async function accountState(ctx: RequestContext) {
   const profile = await ctx.db
@@ -55,7 +108,7 @@ export async function accountState(ctx: RequestContext) {
     ctx.db.from("profiles").select("daily_goal").single(),
     ctx.db
       .from("learning_sessions")
-      .select("snapshot,revision")
+      .select("snapshot,revision,assessment_protocol")
       .order("updated_at", { ascending: false })
       .limit(1)
       .maybeSingle(),
@@ -63,11 +116,14 @@ export async function accountState(ctx: RequestContext) {
     historyRows(ctx, "completed_goal_days", "day,goal"),
   ]);
   for (const result of [settings, session]) databaseError(result.error);
+  const dailyGoal = settings.data?.daily_goal;
+  if (typeof dailyGoal !== "number")
+    throw new HttpError(503, "Günlük hedef yüklenemedi. Yeniden dene.", "PROFILE_NOT_AVAILABLE");
   return {
-    dailyGoal: settings.data!.daily_goal as number,
+    dailyGoal,
     session: session.data
       ? {
-          snapshot: gameSessionSchema.parse(session.data.snapshot),
+          snapshot: storedSnapshot(session.data),
           revision: session.data.revision as number,
         }
       : null,

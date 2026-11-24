@@ -1,4 +1,5 @@
 ---
+
 name: Atlas Pro - Backend Standards
 alwaysApply: false
 globs: ["backend/**", "**/supabase/functions/**"]

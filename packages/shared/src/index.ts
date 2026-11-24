@@ -1,6 +1,7 @@
-﻿export * from "./word-schema";
-export * from "./learning-game";
+﻿export * from "./ai-schema";
 export * from "./assessment";
-
-export * from "./ai-schema";
 export * from "./cloud-schema";
+export * from "./learning-game";
+export * from "./regexp";
+export * from "./word-key";
+export * from "./word-schema";

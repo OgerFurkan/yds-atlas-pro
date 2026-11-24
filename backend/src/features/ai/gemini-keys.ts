@@ -80,5 +80,6 @@ export function geminiPoolError(keys: string[], model: string): HttpError {
     429,
     `Gemini dakikalık istek sınırına ulaşıldı. ${seconds} saniye sonra tekrar dene.`,
     "AI_QUOTA_EXCEEDED",
+    seconds,
   );
 }

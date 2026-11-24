@@ -3,6 +3,7 @@
     public status: number,
     message: string,
     public code = "REQUEST_FAILED",
+    public readonly retryAfterSeconds?: number,
   ) {
     super(message);
   }

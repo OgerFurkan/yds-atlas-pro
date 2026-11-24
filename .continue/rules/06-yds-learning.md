@@ -1,4 +1,5 @@
 ---
+
 name: Atlas Pro - YDS Learning Logic
 alwaysApply: false
 description: Apply when tasks affect vocabulary learning, spaced repetition, YDS question flows, dictionary sources or AI coach.

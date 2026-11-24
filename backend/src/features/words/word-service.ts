@@ -1,11 +1,14 @@
 ﻿import {
-  wordInputSchema,
-  wordEntrySchema,
+  mergeWordEdit,
+  type WordEdit,
   type WordEntry,
   type WordInput,
+  wordEntrySchema,
+  wordInputSchema,
 } from "@yds-atlas/shared";
-import type { RequestContext } from "../../shared/supabase";
 import { databaseError, HttpError } from "../../shared/errors";
+import type { RequestContext } from "../../shared/supabase";
+
 type WordRow = {
   id: string;
   word: string;
@@ -15,9 +18,21 @@ type WordRow = {
   updated_at: string;
 };
 export function normalizeInput(input: WordInput) {
-  const parsed = wordInputSchema.parse(input);
-  const word = parsed.word.replace(/\s+/g, " ").trim().toLocaleLowerCase("en");
-  return { ...parsed, word: word.charAt(0).toLocaleUpperCase("en") + word.slice(1) };
+  const { score: _score, ...content } = wordInputSchema.parse(input);
+  return { ...content, word: normalizeHeadword(content.word) };
+}
+
+function normalizeHeadword(value: string) {
+  const word = value.replace(/\s+/g, " ").trim().toLocaleLowerCase("en");
+  return word.charAt(0).toLocaleUpperCase("en") + word.slice(1);
+}
+
+function wordVersionConflict() {
+  return new HttpError(
+    409,
+    "Kelime başka bir sekmede veya oturumda değişti.",
+    "WORD_VERSION_CONFLICT",
+  );
 }
 export function mapWord(row: WordRow): WordEntry {
   return wordEntrySchema.parse({
@@ -51,46 +66,85 @@ export async function listWords({ db }: RequestContext) {
  * avoids rounding away PostgreSQL microseconds in public WordEntry timestamps.
  */
 export async function saveWord(
-  ctx: RequestContext, input: WordInput, id?: string, expectedUpdatedAt?: string,
+  ctx: RequestContext,
+  input: WordInput,
+  id?: string,
+  expectedUpdatedAt?: string,
 ) {
   if (expectedUpdatedAt && !id)
     throw new HttpError(400, "Sürüm kontrolü için kelime kimliği gerekli.", "INVALID_WORD_VERSION");
   const content = normalizeInput(input);
-  let observed: { updated_at: string; score: number; word: string } | null = null;
+  let observed: WordRow | null = null;
   if (id) {
-    const existing = await ctx.db
-      .from("words").select("updated_at,score,word").eq("id", id).maybeSingle();
+    const existing = await ctx.db.from("words").select("*").eq("id", id).maybeSingle();
     databaseError(existing.error);
-    if (!existing.data) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
-    observed = existing.data;
+    const row: WordRow | null = existing.data;
+    if (!row) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+    observed = row;
     // WordEntry exposes millisecond ISO timestamps; the database retains full
     // microsecond precision, which is used unchanged in the atomic UPDATE.
     if (expectedUpdatedAt && new Date(observed.updated_at).toISOString() !== expectedUpdatedAt)
-      throw new HttpError(409, "Kelime başka bir oturumda değişti. Önce yenile.", "WORD_VERSION_CONFLICT");
+      throw wordVersionConflict();
   }
-  const updatedAt = observed
-    ? new Date(Math.max(Date.now(), Date.parse(observed.updated_at) + 1)).toISOString()
-    : new Date().toISOString();
+  const nextContent = observed ? mergeWordEdit(observed.content, content) : content;
+  if (content.lexicon) nextContent.lexicon = content.lexicon;
   const fields = {
     word: content.word,
-    score: content.score,
-    content,
-    updated_at: updatedAt,
+    content: nextContent,
   };
   const response = id
     ? await (expectedUpdatedAt && observed
-      ? ctx.db.from("words").update(fields).eq("id", id)
-          .eq("updated_at", observed.updated_at).eq("score", observed.score)
-          .eq("word", observed.word)
-      : ctx.db.from("words").update(fields).eq("id", id)
-      ).select("*").maybeSingle()
-    : await ctx.db.from("words").insert({ ...fields, user_id: ctx.userId })
-        .select("*").maybeSingle();
+        ? ctx.db
+            .from("words")
+            .update(fields)
+            .eq("id", id)
+            .eq("updated_at", observed.updated_at)
+            .eq("score", observed.score)
+            .eq("word", observed.word)
+        : ctx.db.from("words").update(fields).eq("id", id)
+      )
+        .select("*")
+        .maybeSingle()
+    : await ctx.db
+        .from("words")
+        .insert({ ...fields, user_id: ctx.userId })
+        .select("*")
+        .maybeSingle();
   const { data, error } = response;
   databaseError(error);
-  if (!data) throw expectedUpdatedAt
-    ? new HttpError(409, "Kelime eşzamanlı olarak değişti. Önce yenile.", "WORD_VERSION_CONFLICT")
-    : new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+  if (!data)
+    throw expectedUpdatedAt
+      ? new HttpError(409, "Kelime eşzamanlı olarak değişti. Önce yenile.", "WORD_VERSION_CONFLICT")
+      : new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+  return mapWord(data);
+}
+export async function editWord(
+  { db }: RequestContext,
+  id: string,
+  patch: WordEdit,
+  expectedUpdatedAt: string,
+) {
+  const existing = await db.from("words").select("*").eq("id", id).maybeSingle();
+  databaseError(existing.error);
+  const current: WordRow | null = existing.data;
+  if (!current) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+  if (new Date(current.updated_at).toISOString() !== expectedUpdatedAt) throw wordVersionConflict();
+  const normalized =
+    patch.word === undefined ? patch : { ...patch, word: normalizeHeadword(patch.word) };
+  const { data, error } = await db
+    .from("words")
+    .update({
+      ...(normalized.word === undefined ? {} : { word: normalized.word }),
+      content: mergeWordEdit(current.content, normalized),
+    })
+    .eq("id", id)
+    .eq("updated_at", current.updated_at)
+    .eq("score", current.score)
+    .eq("word", current.word)
+    .select("*")
+    .maybeSingle();
+  databaseError(error);
+  if (!data) throw wordVersionConflict();
   return mapWord(data);
 }
 export async function importWords(ctx: RequestContext, inputs: WordInput[]) {

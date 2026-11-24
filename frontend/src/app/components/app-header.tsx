@@ -1,10 +1,10 @@
 import {
+  BookMarked,
   CircleHelp,
   Compass,
   Headphones,
   Home,
   LibraryBig,
-  BookMarked,
   LogIn,
   Menu,
   Settings2,
@@ -60,7 +60,10 @@ export function AppHeader({
     }
   }
   function goToGuide(next: "library" | "game") {
-    sessionStorage.setItem(next === "library" ? "atlas:daily-plan-help" : "atlas:game-setup-help", "1");
+    sessionStorage.setItem(
+      next === "library" ? "atlas:daily-plan-help" : "atlas:game-setup-help",
+      "1",
+    );
     setHelpOpen(false);
     go(next);
   }
@@ -84,7 +87,9 @@ export function AppHeader({
               <strong className="whitespace-nowrap font-sans text-[17px] font-bold tracking-[-0.045em] text-atlas-navy sm:text-[19px]">
                 YDS Atlas <span className="text-atlas-orange">Pro</span>
               </strong>
-              <span className="hidden rounded border border-atlas-line px-1.5 py-0.5 text-[9px] font-bold tracking-[0.12em] text-atlas-muted sm:inline-flex">BETA</span>
+              <span className="hidden rounded border border-atlas-line px-1.5 py-0.5 text-[9px] font-bold tracking-[0.12em] text-atlas-muted sm:inline-flex">
+                BETA
+              </span>
             </span>
             <small className="hidden whitespace-nowrap text-[11px] font-medium leading-tight tracking-[0.005em] text-atlas-muted min-[380px]:block">
               {t("brand.tagline")}
@@ -152,11 +157,7 @@ export function AppHeader({
               <BookMarked size={18} /> Word Inspector
             </Button>
           )}
-          <Button
-            variant="ghost"
-            className="justify-start sm:hidden"
-            onClick={openHelp}
-          >
+          <Button variant="ghost" className="justify-start sm:hidden" onClick={openHelp}>
             <CircleHelp size={18} />
             {t("nav.help")}
           </Button>
@@ -208,13 +209,36 @@ export function AppHeader({
           </Button>
         </div>
         {helpOpen && (
-          <div role="dialog" aria-label={t("nav.help")} className="absolute right-4 top-[calc(100%+8px)] z-50 w-[min(290px,calc(100vw-32px))] space-y-2 rounded-xl border border-atlas-line bg-card p-4 text-foreground shadow-xl">
+          <div
+            role="dialog"
+            aria-label={t("nav.help")}
+            className="absolute right-4 top-[calc(100%+8px)] z-50 w-[min(290px,calc(100vw-32px))] space-y-2 rounded-xl border border-atlas-line bg-card p-4 text-foreground shadow-xl"
+          >
             <div className="flex items-center justify-between gap-2">
               <strong className="text-sm">{t("nav.helpCenter")}</strong>
-              <button type="button" className="rounded-md p-1 hover:bg-muted" aria-label={t("common.close")} onClick={() => setHelpOpen(false)}><X size={17}/></button>
+              <button
+                type="button"
+                className="rounded-md p-1 hover:bg-muted"
+                aria-label={t("common.close")}
+                onClick={() => setHelpOpen(false)}
+              >
+                <X size={17} />
+              </button>
             </div>
-            <button type="button" className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => goToGuide("library")}>{t("nav.helpDailyPlan")}</button>
-            <button type="button" className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => goToGuide("game")}>{t("nav.helpGame")}</button>
+            <button
+              type="button"
+              className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() => goToGuide("library")}
+            >
+              {t("nav.helpDailyPlan")}
+            </button>
+            <button
+              type="button"
+              className="w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted"
+              onClick={() => goToGuide("game")}
+            >
+              {t("nav.helpGame")}
+            </button>
           </div>
         )}
       </div>

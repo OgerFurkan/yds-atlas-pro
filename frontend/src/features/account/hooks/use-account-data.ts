@@ -1,11 +1,11 @@
-﻿import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { wordEntrySchema, type AccountState, type GameSession } from "@yds-atlas/shared";
-import { useWordLibrary } from "@/features/word-library/hooks/use-word-library";
-import { remoteWordRepository } from "@/features/word-library/api/word-api";
+﻿import { type AccountState, type GameSession, wordEntrySchema } from "@yds-atlas/shared";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { setDailyGoal } from "@/features/dashboard/model/daily-progress";
-import { getStorageScope } from "@/shared/lib/storage-scope";
-import { storageKeys } from "@/shared/lib/storage-keys";
+import { remoteWordRepository } from "@/features/word-library/api/word-api";
+import { useWordLibrary } from "@/features/word-library/hooks/use-word-library";
 import type { Notify } from "@/shared/lib/notify";
+import { storageKeys } from "@/shared/lib/storage-keys";
+import { getStorageScope } from "@/shared/lib/storage-scope";
 import type { createAccountApi } from "../api/account-api";
 import { cacheAccount } from "../model/account-cache";
 import { SessionSync } from "../model/session-sync";
@@ -43,12 +43,18 @@ export function useAccountData(
   );
   const complete = useCallback(
     async (snapshot: GameSession) => {
-      if (!api || !sync) return;
-      await sync.flush();
-      await api.completeSession(snapshot.id);
+      if (!api || !sync) throw new Error("Oturum bağlantısı kullanılamıyor.");
+      try {
+        await sync.flush();
+      } catch {
+        sync.retry();
+        await sync.save(snapshot);
+      }
+      const result = await api.completeSession(snapshot.id, sync.revision(snapshot.id));
       await reloadLibrary();
       const state = await api.load();
       if (current()) cacheAccount(state, false, userId);
+      return result;
     },
     [api, sync, reloadLibrary, current, userId],
   );

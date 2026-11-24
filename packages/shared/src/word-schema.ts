@@ -38,6 +38,36 @@ export const wordCheckSchema = z.object({
   word: z.string().trim().min(1).max(120),
 });
 
+export const wordEditSchema = z
+  .strictObject({
+    word: wordInputSchema.shape.word,
+    alternatives: wordInputSchema.shape.alternatives.removeDefault(),
+    meanings: wordInputSchema.shape.meanings.removeDefault(),
+    usageNote: wordInputSchema.shape.usageNote.removeDefault(),
+    partOfSpeech: wordInputSchema.shape.partOfSpeech.removeDefault(),
+    cefr: wordInputSchema.shape.cefr.removeDefault(),
+    examples: wordInputSchema.shape.examples.removeDefault(),
+    pronunciationUk: wordInputSchema.shape.pronunciationUk.removeDefault(),
+    pronunciationUs: wordInputSchema.shape.pronunciationUs.removeDefault(),
+    sourceUrl: wordInputSchema.shape.sourceUrl.removeDefault(),
+  })
+  .partial()
+  .refine((patch) => Object.keys(patch).length > 0);
+
+export type WordEdit = z.input<typeof wordEditSchema>;
+
+export function mergeWordEdit<T extends Record<string, unknown>>(current: T, patch: WordEdit) {
+  const next = { ...current, ...patch };
+  if (
+    patch.word !== undefined ||
+    patch.partOfSpeech !== undefined ||
+    patch.meanings !== undefined ||
+    patch.examples !== undefined
+  )
+    delete next.lexicon;
+  return next;
+}
+
 export type CefrLevel = z.infer<typeof cefrLevelSchema>;
 export type WordGroup = z.infer<typeof wordGroupSchema>;
 export type WordExample = z.infer<typeof wordExampleSchema>;

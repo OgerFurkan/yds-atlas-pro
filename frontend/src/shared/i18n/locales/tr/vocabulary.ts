@@ -2,6 +2,18 @@
 export const trVocabulary = {
   wordStatus: { hard: "Zorlanılan", review: "Tekrar gerekli", learned: "Öğrenildi" },
   taskIntro: {
+    chooseSavedTask:
+      "Günün çalışmasına başlamak için yarım kalan görevi iptal et veya mevcut göreve devam et.",
+    discard: "Görevi iptal et",
+    discarding: "İptal ediliyor…",
+    confirmDiscard:
+      "Bu çalışmadaki yanıtların ve tamamlanmamış ilerlemen kaybolur. Kaydedilmiş puanların ve öğrenme geçmişin korunur.",
+    discardTitle: "Çalışmayı sonlandır?",
+    discardCancel: "Çalışmaya devam et",
+    discardConfirm: "Çalışmayı sonlandır",
+    discardChanged: "Görev başka bir oturumda değişti. Sayfayı yenileyip tekrar dene.",
+    discarded: "Yarım görev iptal edildi.",
+    discardFailed: "Görev iptal edilemedi. Yeniden dene.",
     badge: "GÜNLÜK HEDEFİN İÇİN",
     title: "Günlük Görev",
     description:
@@ -105,7 +117,8 @@ export const trVocabulary = {
       count: "{{completed}} / {{total}} kelime",
       hint: "{{count}} istek kaldı · Bu pencereyi kapatma.",
       finishing: "Son istek tamamlanıyor, kütüphaneye ekleniyor…",
-      retryRateLimit: "AI istek sınırı: {{seconds}} saniye sonra eksik kelimeler otomatik yeniden denenecek. Pencereyi kapatma.",
+      retryRateLimit:
+        "AI istek sınırı: {{seconds}} saniye sonra eksik kelimeler otomatik yeniden denenecek. Pencereyi kapatma.",
       retryBusy: "Gemini geçici olarak meşgul: {{seconds}} saniye sonra yeniden denenecek.",
       partial: "{{completed}}/{{total}} kelime hazır. Eksikler tekrar denenebilir.",
       failedTitle: "{{count}} kelime tamamlanamadı",
@@ -125,24 +138,30 @@ export const trVocabulary = {
         tourBulkAction: "Toplu ekle",
         tourName: "Günlük Plan rehberi",
         tourOverviewTitle: "Günlük Plan'a hoş geldin",
-        tourOverviewDescription: "Bu alanda kelimelerini 60 güne bölersin, ilerlemeni izlersin. Rehber boyunca kayıtların değişmez.",
+        tourOverviewDescription:
+          "Bu alanda kelimelerini 60 güne bölersin, ilerlemeni izlersin. Rehber boyunca kayıtların değişmez.",
         tourTargetTitle: "Günlük kelime hedefi",
-        tourTargetDescription: "10, 20, 30 veya 40 seçerek yeni kelimelerinin günlere nasıl dağıtılacağını belirlersin. Mevcut günler değişmez.",
+        tourTargetDescription:
+          "10, 20, 30 veya 40 seçerek yeni kelimelerinin günlere nasıl dağıtılacağını belirlersin. Mevcut günler değişmez.",
         tourDaysTitle: "Gün kartları",
-        tourDaysDescription: "Gün kartına basarak kelimeleri görebilir, taşıyabilir ve çıkarabilirsin.",
+        tourDaysDescription:
+          "Gün kartına basarak kelimeleri görebilir, taşıyabilir ve çıkarabilirsin.",
         tourBulkTitle: "Toplu kelime ekle",
         tourBulkDescription: "İngilizce kelimelerini toplu ekle, istersen belirli bir güne ata.",
         tourStudyTitle: "Günün kelimelerini çalış",
-        tourStudyDescription: "Hazır kelimelerin varsa gün kartındaki Çalış butonuyla oyuna başlarsın.",
+        tourStudyDescription:
+          "Hazır kelimelerin varsa gün kartındaki Çalış butonuyla oyuna başlarsın.",
         heroTitle: "Kendi öğrenme rotanı yönet",
-        heroDescription: "Günlere kelime ekle, düzenle, taşı veya çıkar. Gün kartına tıklayarak tüm kelimeleri gör.",
+        heroDescription:
+          "Günlere kelime ekle, düzenle, taşı veya çıkar. Gün kartına tıklayarak tüm kelimeleri gör.",
         learnedProgress: "{{learned}} / {{total}} kelime öğrenildi",
         plannedShort: "planlı",
         activeShort: "aktif gün",
         completedShort: "tamamlanan gün",
         dailyTarget: "Günlük kelime hedefi",
         targetHint: "Yeni kelimelerin otomatik yerleşimini belirler. Mevcut günler değişmez.",
-        overflow: "{{count}} kelime şu anda bir güne atanmadı. Gün detayından bunları ekleyebilirsin.",
+        overflow:
+          "{{count}} kelime şu anda bir güne atanmadı. Gün detayından bunları ekleyebilirsin.",
         groupsHeading: "Günlük grupların",
         groupsHint: "Dolu günler ve sonraki boş gün gösteriliyor.",
         hideEmpty: "Boş günleri gizle",
@@ -150,10 +169,11 @@ export const trVocabulary = {
         dayTitle: "{{day}}. günün kelimeleri",
         dayDescription: "Kelimelerini yönet. Günden çıkarmak kütüphaneden silmez.",
         wordCountLearned: "kelime · {{count}} öğrenilen",
-        newWord: "Yeni kelime",
-        bulkSelect: "Kütüphaneden toplu seç",
-        bulkWrite: "Yeni kelimeleri toplu yaz",
-        studyDay: "Bu günü çalış",
+        addWordMenu: "Kelime ekle",
+        newWord: "Yeni kelime yaz",
+        bulkSelect: "Kütüphaneden seç",
+        bulkWrite: "Toplu kelime ekle",
+        studyDay: "Çalış",
         pickerAria: "Kütüphaneden toplu kelime seç",
         pickerSummary: "{{slots}} boş yer · {{selected}} seçili · en fazla 40 kelime/gün",
         clearSelection: "Seçimi temizle",
@@ -186,7 +206,8 @@ export const trVocabulary = {
         emptyDayTitle: "Bu gün henüz boş",
         emptyDayHint: "Yukarıdan yeni veya mevcut bir kelime ekleyebilirsin.",
         noSearchResults: "Aramanla eşleşen kelime yok.",
-        localOnly: "Not: Gün atamaları şu anda bu tarayıcı ve hesap için yerel saklanır; cihazlar arası eşitleme henüz eklenmedi.",
+        localOnly:
+          "Not: Gün atamaları şu anda bu tarayıcı ve hesap için yerel saklanır; cihazlar arası eşitleme henüz eklenmedi.",
         confirmMoveOne: "Bu kelime {{from}}. günden {{to}}. güne taşınacak. Devam edilsin mi?",
         confirmMoveMany: "{{count}} kelime diğer günlerden bu güne taşınacak. Devam edilsin mi?",
         dayCardLabel: "GÜN {{day}}",
@@ -203,8 +224,71 @@ export const trVocabulary = {
         hardCount: "{{count}} zor",
         reviewCount: "{{count}} tekrar",
         learnedCount: "{{count}} öğrenilen",
-        noReadyTitle: "Önce eksik kelime bilgilerini tamamla",
-        noReadyStudyHelp: "{{day}}. günde henüz çalışmaya hazır kelime yok. Kelime detaylarından eksik Türkçe anlamları ve her kelime için beş uygun örnek cümleyi tamamlayabilirsin. Eski puanların, ilerlemen ve yarım kalan oyunun korunuyor.",
+        study_state_learned:
+          "{{day}}. gündeki tüm kelimeler öğrenildi. İstersen Tekrar Et ile puansız çalışabilirsin.",
+        clearDay: "Günü temizle",
+        dayMenu: "{{day}}. günün işlemleri",
+        dayGameTitle: "Gün {{day}} · Günlük Plan",
+        dayGameEmpty: "Bu günde çalışmaya hazır kelime kalmadı.",
+        dayGameBack: "Kütüphaneye dön",
+        clearDayTitle: "{{day}}. günü düzenle veya sil",
+        dayRemovalDescription: "Bu gün için yapmak istediğin işlemi seç.",
+        dayRemovalChoice: "Gün işlemi",
+        clearOnly: "Yalnızca günü temizle",
+        clearDayDescription:
+          "Günün kelime atamaları kaldırılır. Kitaplığındaki kelimeler, puanlar, notlar ve öğrenme geçmişin korunur.",
+        deleteDayWords: "Günü ve kelimeleri sil",
+        deleteDayCount: "{{count}} kelime kişisel kütüphaneden kalıcı olarak kaldırılır.",
+        deleteDayConfirmTitle: "{{count}} kelime kalıcı olarak silinsin mi?",
+        deleteDayConfirmDescription:
+          "Kelime kartları, notları ve kartlardaki puanlar silinir. Önceki görevlerin geçmiş kayıtları kalır. İşlem geri alınamaz.",
+        deleteDayAcknowledge: "{{count}} kelimenin kalıcı olarak silinmesini onaylıyorum.",
+        deleteDayConflict:
+          "{{count}} kelime başka bir güne de atanmış. Diğer günü korumak için yalnızca bu günü temizleyebilirsin.",
+        deleteDayBlocked_account:
+          "Hesaba ait kelimelerin kalıcı gün silme işlemi şu anda kullanılamıyor. Bu günün atamalarını temizleyebilirsin.",
+        deleteDayBlocked_task:
+          "Bu kelimeler yarım kalan görevde olabilir. Önce görevi tamamla veya iptal et.",
+        deleteDayChanged:
+          "Günün kelimeleri veya görev durumu değişti. Pencereyi kapatıp tekrar kontrol et.",
+        dayWordsDeleted: "{{count}} kelime kütüphaneden silindi.",
+        clearDayActiveTask:
+          "Yarım kalan görevin korunacak. Göreve kayıtlı kelimelerle devam edebilirsin.",
+        confirmCancel: "Vazgeç",
+        completeDetails: "Kelime bilgilerini tamamla",
+        study_state_guest:
+          "Hazır kelime yok. Otomatik hazırlık için oturum aç veya Türkçe anlamları ve beş uygun örnek cümleyi ekle.",
+        study_state_partial_one:
+          "{{ready}} hazır kelimeyle başlayabilirsin. {{count}} eksik kelime bu çalışmaya alınmayacak.",
+        study_state_partial_other:
+          "{{ready}} hazır kelimeyle başlayabilirsin. {{count}} eksik kelime bu çalışmaya alınmayacak.",
+        study_state_prepare:
+          "Eksik bilgiler önce ortak havuzdan, gerekirse Gemini ile tamamlanacak.",
+        study_state_checking: "Gemini bağlantısı kontrol ediliyor…",
+        study_state_offline: "Hazır kelime yok. Gemini bağlantısına ulaşılamıyor.",
+        study_state_cooldown: "Hazır kelime yok. Gemini kelime kotası yenileniyor.",
+        "study_state_not-configured":
+          "Hazır kelime yok. Gemini ile hazırlık bu ortamda yapılandırılmamış.",
+        "study_state_task-active":
+          "Hazırlıktan önce yarım kalan göreve devam et veya görevi iptal et.",
+        prepareStudy: "Hazırla ve çalış",
+        prepareCardAria: "{{day}}. günü hazırla ve çalış",
+        prepare_connecting: "Gemini bağlantısı yeniden kontrol ediliyor",
+        studyChanged: "Günün kelime atamaları değişti. Yeniden dene.",
+        prepare_checking: "Kelimelerin kontrol ediliyor",
+        prepare_generating: "Eksik bilgiler AI ile tamamlanıyor",
+        prepare_saving: "Bilgiler kaydediliyor",
+        prepare_cancelled: "Hazırlık iptal edildi. Kaydedilen kelimeler korunuyor.",
+        prepare_partial:
+          "Hazırlık tamamlanamadı. Eksik kelimeleri gün detayından düzenleyebilirsin.",
+        preparationProgress: "Kelime hazırlama ilerlemesi",
+        preparedCount: "Hazır: {{ready}} / {{total}}",
+        cancelPreparation: "Hazırlığı iptal et",
+        prepareTimeout: "Hazırlık zaman aşımına uğradı. Kaydedilen kelimeler korunuyor.",
+        retryPreparation: "Yeniden dene",
+        playReady: "Hazır kelimelerle çalış",
+        dayCleared: "{{day}}. gün temizlendi.",
+        clearDayFailed: "Gün temizlenemedi. Yeniden dene.",
         studyCardAria: "{{day}}. günün kelimeleriyle çalış",
         study: "Çalış",
         review: "Tekrar Et",
@@ -217,7 +301,9 @@ export const trVocabulary = {
         reviewFinished: "Tüm kelimeleri tekrar ettin!",
         reviewRestart: "Tekrar Başlat",
         reviewExit: "Çık",
-        reviewMissing: "{{count}} kelimenin Türkçe anlamı eksik. Tekrar Et başlamadı; önce kelimeleri düzenle.",
+        reviewMissing:
+          "{{count}} kelimenin Türkçe anlamı eksik. Tekrar Et başlamadı; önce kelimeleri düzenle.",
+        reviewMissingAction: "Eksik kelimeyi düzenle",
         reviewEmpty: "Bu güne ait kelime yok.",
       },
       tabBadge_one: "{{count}} gün dolu",

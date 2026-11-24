@@ -30,15 +30,17 @@ Başlangıç seti dışındaki kelimeler elle girilebilir veya yapılandırılm�
 ```sh
 bun run format
 bun run format:check
+bun run check
 bun run lint
 bun run test
-bun run build
+bun run test:node
+bun run build:test
 bun run test:e2e
 bun run test:cloud
 bun run test:dev
 ```
 
-Playwright ilk kurulumunda `cd frontend` altında `bunx playwright install chromium` çalıştır. E2E testleri önce derlenmiş `frontend/dist` klasörünü `4173` portunda açar; bu nedenle `bun run build` adımından sonra çalıştırılır. Masaüstü ve mobil projeleri kelime ekleme, yazım önerileri, tam oyun, yenileme ve rehberi kontrol eder. Birim testleri oyun sırası, tekrar, puan, grup sınırları ve normalizasyonu doğrular.
+Playwright ilk kurulumunda `cd frontend` altında `bunx playwright install chromium` çalıştır. `bun run build:test` izole test derlemesini hazırlar. E2E testleri bu derlemeyi `127.0.0.1:4173` adresinde açar. Masaüstü ve mobil projeleri kelime ekleme, yazım önerileri, tam oyun, yenileme ve rehberi kontrol eder. Birim testleri oyun sırası, tekrar, puan, grup sınırları ve normalizasyonu doğrular.
 
 Biome için VS Code ayarları `.vscode/` altındadır. Önerilen eklenti kurulu olduğunda kaydederken biçimlendirme etkinleşir.
 
@@ -59,10 +61,4 @@ Uygulama girişi `frontend/src/main.tsx`, kabuk `frontend/src/app/App.tsx` dosya
 
 API iskeletini ayrıca incelemek için `bun run dev:api` kullanılabilir; `http://localhost:3000/api/health` sağlık kontrolüdür. Korunan uçlar Supabase Bearer oturumu ister; `x-user-id` kullanılmaz.
 
-
 Geliştirme regresyonu: "bun run test:dev", Vite önbelleğini zorla yeniden hazırlayan ayrı bir sunucuda ilk yazım kontrolünün rehberi yenilemediğini doğrular. Üretim E2E testleri panel hizası, sekme sınırları, sesin tamamlanmasını bekleme, ses/sözlük hatalarından kurtulma ve Atlas tanıtımını da kontrol eder.
-
-
-
-
-

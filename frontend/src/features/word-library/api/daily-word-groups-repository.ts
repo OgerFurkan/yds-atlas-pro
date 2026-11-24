@@ -52,6 +52,22 @@ export class DailyWordGroupsRepository {
     return this.sortGroupsByDay(this.getStoredGroups());
   }
 
+  getDayRemoval(day: number) {
+    const groups = this.getGroups().filter((group) => isValidDay(group.day));
+    const ids = [
+      ...new Set(groups.filter((group) => group.day === day).flatMap((group) => group.words)),
+    ].sort();
+    const target = new Set(ids);
+    const conflicts = [
+      ...new Set(
+        groups
+          .filter((group) => group.day !== day)
+          .flatMap((group) => group.words.filter((id) => target.has(id))),
+      ),
+    ];
+    return { ids, conflicts };
+  }
+
   getExcludedWordIds(): string[] {
     const ids = readStorage<unknown>(EXCLUDED_KEY, []);
     return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
@@ -63,7 +79,9 @@ export class DailyWordGroupsRepository {
    * deliberately removed words stay unassigned until added again by the user.
    */
   syncWords(orderedWordIds: string[], targetSize: number): void {
-    const uniqueIds = [...new Set(orderedWordIds.filter((id) => typeof id === "string" && id.trim()))];
+    const uniqueIds = [
+      ...new Set(orderedWordIds.filter((id) => typeof id === "string" && id.trim())),
+    ];
     const validIds = new Set(uniqueIds);
     const excluded = this.getExcludedWordIds().filter((id) => validIds.has(id));
     const exclusions = new Set(excluded);
@@ -112,7 +130,10 @@ export class DailyWordGroupsRepository {
 
   /** Remove from the plan only; never delete the source library word. */
   excludeWordFromDay(wordId: string, day: number): void {
-    if (!isValidDay(day) || !this.getGroups().some((g) => g.day === day && g.words.includes(wordId)))
+    if (
+      !isValidDay(day) ||
+      !this.getGroups().some((g) => g.day === day && g.words.includes(wordId))
+    )
       return;
     const excluded = new Set(this.getExcludedWordIds());
     excluded.add(wordId);
@@ -144,11 +165,40 @@ export class DailyWordGroupsRepository {
 
     this.saveGroups(this.sortGroupsByDay(groups));
     const excluded = this.getExcludedWordIds();
-    if (excluded.includes(wordId)) writeStorage(EXCLUDED_KEY, excluded.filter((id) => id !== wordId));
+    if (excluded.includes(wordId))
+      writeStorage(
+        EXCLUDED_KEY,
+        excluded.filter((id) => id !== wordId),
+      );
+  }
+
+  clearDay(day: number): number {
+    if (!isValidDay(day)) return 0;
+    const groups = this.getGroups();
+    const removed = new Set(
+      groups.filter((group) => group.day === day).flatMap((group) => group.words),
+    );
+    if (!removed.size) return 0;
+
+    const remaining = groups.filter((group) => group.day !== day);
+    const assignedElsewhere = new Set(remaining.flatMap((group) => group.words));
+    const excludedFromPlan = [...removed].filter((id) => !assignedElsewhere.has(id));
+    const previousExclusions = this.getExcludedWordIds();
+    writeStorage(EXCLUDED_KEY, [...new Set([...previousExclusions, ...excludedFromPlan])]);
+    try {
+      this.saveGroups(remaining);
+    } catch (error) {
+      writeStorage(EXCLUDED_KEY, previousExclusions);
+      throw error;
+    }
+    return removed.size;
   }
 
   /** Move/add several existing library words in one atomic group write. */
-  assignManyToDay(wordIds: string[], day: number): { added: number; moved: number; already: number } {
+  assignManyToDay(
+    wordIds: string[],
+    day: number,
+  ): { added: number; moved: number; already: number } {
     if (!isValidDay(day)) throw new Error("Gün 1–60 arasında olmalıdır.");
     const unique = [...new Set(wordIds)];
     if (unique.some((id) => typeof id !== "string" || !id.trim()))
@@ -158,7 +208,9 @@ export class DailyWordGroupsRepository {
     const already = unique.filter((id) => target.words.includes(id)).length;
     const pending = unique.filter((id) => !target.words.includes(id));
     if (target.words.length + pending.length > MAX_WORDS_PER_DAY)
-      throw new Error(`Bu günde yalnızca ${Math.max(0, MAX_WORDS_PER_DAY - target.words.length)} boş yer var.`);
+      throw new Error(
+        `Bu günde yalnızca ${Math.max(0, MAX_WORDS_PER_DAY - target.words.length)} boş yer var.`,
+      );
     if (!pending.length) return { added: 0, moved: 0, already };
 
     let moved = 0;

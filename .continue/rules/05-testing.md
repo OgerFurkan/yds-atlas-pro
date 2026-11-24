@@ -1,7 +1,8 @@
 ---
+
 name: Atlas Pro - Testing Standards
 alwaysApply: false
-globs: ["**/*.test.ts", "**/*.test.tsx", "**/*.spec.ts", "**/*.spec.tsx", "**/__tests__/**"]
+globs: ["**/*.test.ts", "**/_.test.tsx", "**/_.spec.ts", "**/*.spec.tsx", "**/**tests**/**"]
 description: Apply when writing or reviewing automated tests.
 ---
 

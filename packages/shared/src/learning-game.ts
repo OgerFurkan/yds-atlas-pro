@@ -1,5 +1,5 @@
-﻿import { wordInputSchema } from "./word-schema";
-import { z } from "zod";
+﻿import { z } from "zod";
+import { wordInputSchema } from "./word-schema";
 
 export const phases = [
   "flashcards",
@@ -45,8 +45,22 @@ export const matchingSchema = z.object({
   selectedRight: z.string().nullable(),
   feedback: z.object({ leftId: z.string(), rightId: z.string(), correct: z.boolean() }).nullable(),
 });
+export const assessmentActionSchema = z.discriminatedUnion("type", [
+  z.strictObject({ type: z.literal("advance") }),
+  z.strictObject({ type: z.literal("match-next") }),
+  z.strictObject({ type: z.literal("match-retry") }),
+  z.strictObject({ type: z.literal("match"), side: z.enum(["left", "right"]), id: z.uuid() }),
+  z.strictObject({ type: z.literal("answer"), choice: z.string().min(1).max(2_000) }),
+  z.strictObject({
+    type: z.literal("confidence"),
+    value: z.union([z.literal(-10), z.literal(0), z.literal(20)]),
+  }),
+]);
+export type AssessmentAction = z.infer<typeof assessmentActionSchema>;
+
 export const gameSessionSchema = z.object({
   version: z.union([z.literal(2), z.literal(3)]),
+  day: z.number().int().min(1).max(60).optional(),
   groupMatching: z.boolean().default(false),
   id: z.string(),
   words: z.array(sessionWordSchema).min(1),
@@ -70,6 +84,8 @@ export const gameSessionSchema = z.object({
   finalTotal: z.number().int().min(0),
   tutorial: z.boolean(),
   saved: z.boolean(),
+  discarded: z.literal(true).optional(),
+  assessmentActions: z.array(assessmentActionSchema).max(10_000).optional(),
 });
 export type GameSession = z.infer<typeof gameSessionSchema>;
 export type Confidence = -10 | 0 | 20;

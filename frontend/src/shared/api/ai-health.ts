@@ -33,6 +33,7 @@ export async function fetchAiHealth(signal?: AbortSignal): Promise<AiHealth> {
   let response: Response;
   try {
     response = await fetch(`${base}/api/health`, {
+      cache: "no-store",
       headers: { Accept: "application/json" },
       signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     });

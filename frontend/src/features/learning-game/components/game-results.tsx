@@ -17,12 +17,14 @@ import type { GameSession } from "../model/game-session";
 
 export function GameResults({
   session,
+  practiceOnly,
   saving,
   error,
   onSave,
   onBack,
 }: {
   session: GameSession;
+  practiceOnly: boolean;
   saving: boolean;
   error: string;
   onSave: () => void;
@@ -84,7 +86,7 @@ export function GameResults({
               </>
             ) : session.saved ? (
               <>
-                <CheckCircle2 size={18} /> {t("game.saved")}
+                <CheckCircle2 size={18} /> {t(practiceOnly ? "game.practiceSaved" : "game.saved")}
               </>
             ) : (
               t("game.pending")
@@ -112,7 +114,9 @@ export function GameResults({
                   {words.length ? (
                     words.map((word) => (
                       <li key={word.id} className="py-3">
-                        <strong className="text-sm text-atlas-navy"><SentenceWordTooltips text={word.word} focusWord={word} allowDuringGame /></strong>
+                        <strong className="text-sm text-atlas-navy">
+                          <SentenceWordTooltips text={word.word} focusWord={word} allowDuringGame />
+                        </strong>
                         <p className="mt-1 text-xs leading-5 text-slate-500">
                           {word.meanings.join(", ")}
                         </p>

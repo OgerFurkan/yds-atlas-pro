@@ -91,7 +91,16 @@ export function SetupSourcePicker({
               <div className="flex flex-wrap gap-2">
                 {candidates.slice(0, 8).map((word) => (
                   <Badge className="px-2.5 py-1 text-xs" variant="outline" key={word.word}>
-                    <SentenceWordTooltips text={word.word} focusWord={{word: word.word, meanings: word.meanings ?? [], partOfSpeech: word.partOfSpeech ?? "", alternatives: word.alternatives ?? [], cefr: word.cefr}} />
+                    <SentenceWordTooltips
+                      text={word.word}
+                      focusWord={{
+                        word: word.word,
+                        meanings: word.meanings ?? [],
+                        partOfSpeech: word.partOfSpeech ?? "",
+                        alternatives: word.alternatives ?? [],
+                        cefr: word.cefr,
+                      }}
+                    />
                   </Badge>
                 ))}
                 {candidates.length > 8 && (
@@ -117,7 +126,16 @@ export function SetupSourcePicker({
               <div className="flex flex-wrap gap-2">
                 {ready.slice(0, 12).map((word) => (
                   <Badge key={word.id} variant="outline">
-                    <SentenceWordTooltips text={word.word} focusWord={{word: word.word, meanings: word.meanings ?? [], partOfSpeech: word.partOfSpeech ?? "", alternatives: word.alternatives ?? [], cefr: word.cefr}} />
+                    <SentenceWordTooltips
+                      text={word.word}
+                      focusWord={{
+                        word: word.word,
+                        meanings: word.meanings ?? [],
+                        partOfSpeech: word.partOfSpeech ?? "",
+                        alternatives: word.alternatives ?? [],
+                        cefr: word.cefr,
+                      }}
+                    />
                   </Badge>
                 ))}
               </div>
@@ -161,7 +179,18 @@ export function SetupSourcePicker({
                     <ol className="mt-2 space-y-2 text-xs text-slate-600">
                       {word.examples?.map((example) => (
                         <li key={example.sentence}>
-                          <p><SentenceWordTooltips text={example.sentence} focusWord={{word: word.word, meanings: word.meanings ?? [], partOfSpeech: word.partOfSpeech ?? "", alternatives: word.alternatives ?? [], cefr: word.cefr}} /></p>
+                          <p>
+                            <SentenceWordTooltips
+                              text={example.sentence}
+                              focusWord={{
+                                word: word.word,
+                                meanings: word.meanings ?? [],
+                                partOfSpeech: word.partOfSpeech ?? "",
+                                alternatives: word.alternatives ?? [],
+                                cefr: word.cefr,
+                              }}
+                            />
+                          </p>
                           <p>{example.translation}</p>
                         </li>
                       ))}

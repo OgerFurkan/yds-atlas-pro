@@ -38,7 +38,8 @@ function validExamples(suggestion: z.infer<typeof aiWordSchema>) {
   const tiers = ["easy", "easy", "medium", "yds", "yds"];
   const hasLabels = suggestion.examples.some((example) => example.difficulty !== undefined);
   return (
-    (!hasLabels || suggestion.examples.every((example, index) => example.difficulty === tiers[index])) &&
+    (!hasLabels ||
+      suggestion.examples.every((example, index) => example.difficulty === tiers[index])) &&
     suggestion.examples.every(
       (example) =>
         containsHeadword(example.sentence, forms) &&
@@ -140,23 +141,43 @@ export async function generateWordList(
   const modelsUsed = new Set<string>();
   // Integer counters only. Never log headwords, translations, prompts or Gemini bodies.
   const rejected = {
-    schema: 0, headword_format: 0, excluded: 0, duplicate: 0,
-    unexpected: 0, invalid_tiers: 0, missing_headword_in_example: 0,
-    invalid_translation_focus: 0, repeated_example: 0,
-    invalid_example: 0, incomplete_response: 0, malformed_envelope: 0,
+    schema: 0,
+    headword_format: 0,
+    excluded: 0,
+    duplicate: 0,
+    unexpected: 0,
+    invalid_tiers: 0,
+    missing_headword_in_example: 0,
+    invalid_translation_focus: 0,
+    repeated_example: 0,
+    invalid_example: 0,
+    incomplete_response: 0,
+    malformed_envelope: 0,
   };
   const classifyExamples = (item: z.infer<typeof aiWordSchema>) => {
     const tiers = ["easy", "easy", "medium", "yds", "yds"];
-    if (item.examples.some((example, index) => example.difficulty !== undefined &&
-        example.difficulty !== tiers[index])) return "invalid_tiers" as const;
-    if (item.examples.some((example) =>
-        !containsHeadword(example.sentence, [item.word, ...item.alternatives])))
+    if (
+      item.examples.some(
+        (example, index) => example.difficulty !== undefined && example.difficulty !== tiers[index],
+      )
+    )
+      return "invalid_tiers" as const;
+    if (
+      item.examples.some(
+        (example) => !containsHeadword(example.sentence, [item.word, ...item.alternatives]),
+      )
+    )
       return "missing_headword_in_example" as const;
-    if (item.examples.some((example) =>
-        example.translationFocus.some((part) => !example.translation.includes(part))))
+    if (
+      item.examples.some((example) =>
+        example.translationFocus.some((part) => !example.translation.includes(part)),
+      )
+    )
       return "invalid_translation_focus" as const;
-    if (new Set(item.examples.map((example) =>
-        example.sentence.trim().toLocaleLowerCase("en"))).size !== item.examples.length)
+    if (
+      new Set(item.examples.map((example) => example.sentence.trim().toLocaleLowerCase("en")))
+        .size !== item.examples.length
+    )
       return "repeated_example" as const;
     return "invalid_example" as const;
   };
@@ -188,7 +209,9 @@ export async function generateWordList(
           exclude: [...exclude, ...[...accepted.values()].map((item) => item.word)],
           requested: remainingRequested,
           dictionarySources: remainingRequested
-            ? dictionarySources.filter((source) => remainingRequested.some((word) => keyOf(word) === keyOf(source.word)))
+            ? dictionarySources.filter((source) =>
+                remainingRequested.some((word) => keyOf(word) === keyOf(source.word)),
+              )
             : dictionarySources,
         },
         schema: z.toJSONSchema(schema),
@@ -207,7 +230,11 @@ export async function generateWordList(
       // Cancellation must never be treated as successful partial generation.
       if (signal?.aborted || !accepted.size) throw error;
       providerFailure = error;
-      console.error({ service: "gemini-word-list", stage: "partial_retry_failed", accepted: accepted.size });
+      console.error({
+        service: "gemini-word-list",
+        stage: "partial_retry_failed",
+        accepted: accepted.size,
+      });
       break;
     }
 
@@ -244,15 +271,28 @@ export async function generateWordList(
       for (const value of proposed) {
         if (accepted.size >= count) break;
         const parsed = aiWordSchema.safeParse(value);
-        if (!parsed.success) { rejected.schema++; continue; }
+        if (!parsed.success) {
+          rejected.schema++;
+          continue;
+        }
         const suggestion = parsed.data;
         const key = keyOf(suggestion.word);
         if (!/^[a-z]+(?:[ '-][a-z]+)*$/i.test(suggestion.word)) {
-          rejected.headword_format++; continue;
+          rejected.headword_format++;
+          continue;
         }
-        if (excluded.has(key)) { rejected.excluded++; continue; }
-        if (accepted.has(key)) { rejected.duplicate++; continue; }
-        if (expected && !expected.has(key)) { rejected.unexpected++; continue; }
+        if (excluded.has(key)) {
+          rejected.excluded++;
+          continue;
+        }
+        if (accepted.has(key)) {
+          rejected.duplicate++;
+          continue;
+        }
+        if (expected && !expected.has(key)) {
+          rejected.unexpected++;
+          continue;
+        }
         if (!validExamples(suggestion)) {
           rejected[classifyExamples(suggestion)]++;
           continue;
@@ -266,14 +306,22 @@ export async function generateWordList(
       if (responseStage === "finish") rejected.incomplete_response++;
       else if (responseStage !== "entries") rejected.malformed_envelope++;
       if (!safetyStop && responseStage !== "entries") retryCompactPlainJson = true;
-      console.error({ service: "gemini-word-list", stage: "partial_parse_failed", responseStage, pass: pass + 1 });
+      console.error({
+        service: "gemini-word-list",
+        stage: "partial_parse_failed",
+        responseStage,
+        pass: pass + 1,
+      });
     }
     if (safetyStop) break;
   }
   if (Object.values(rejected).some((count) => count > 0)) {
     console.error({
-      service: "gemini-word-list", stage: "validation_rejections",
-      rejected, accepted: accepted.size, requested: count,
+      service: "gemini-word-list",
+      stage: "validation_rejections",
+      rejected,
+      accepted: accepted.size,
+      requested: count,
     });
   }
 
@@ -287,7 +335,12 @@ export async function generateWordList(
   }
   if (providerFailure) {
     // The usable subset is returned even when a later top-up attempt fails.
-    console.error({ service: "gemini-word-list", stage: "partial_result", accepted: accepted.size, requested: count });
+    console.error({
+      service: "gemini-word-list",
+      stage: "partial_result",
+      accepted: accepted.size,
+      requested: count,
+    });
   }
   const suggestions = requested
     ? requested.flatMap((word) => {
@@ -298,11 +351,15 @@ export async function generateWordList(
   return {
     suggestions,
     provider: "Gemini",
-    model: modelsUsed.size === 1 ? [...modelsUsed][0] : modelsUsed.size > 1 ? [...modelsUsed].join(" + ") : config.GEMINI_MODEL_WORD,
+    model:
+      modelsUsed.size === 1
+        ? [...modelsUsed][0]
+        : modelsUsed.size > 1
+          ? [...modelsUsed].join(" + ")
+          : config.GEMINI_MODEL_WORD,
     dictionarySources: dictionarySources.filter((source) => accepted.has(keyOf(source.word))),
   };
 }
-
 
 export function generateNamedWords(
   words: string[],

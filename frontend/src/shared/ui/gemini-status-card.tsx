@@ -8,13 +8,12 @@ import {
   TriangleAlert,
   WifiOff,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { type AiHealth, fetchAiHealth } from "@/shared/api/ai-health";
-import { clearAiIssues, type AiIssue, useAiIssues } from "@/shared/lib/ai-issues";
+import { checkAiHealth, useAiHealth, wordAiAvailability } from "@/shared/hooks/use-ai-health";
+import { type AiIssue, clearAiIssues, useAiIssues } from "@/shared/lib/ai-issues";
 import { Button } from "@/shared/ui/button";
 
-type Phase = "checking" | "ready" | "offline";
 type Status = "checking" | "connected" | "degraded" | "offline" | "not-configured";
 
 const STATUS_STYLES: Record<Status, string> = {
@@ -41,12 +40,13 @@ const STATUS_KEYS: Record<Status, string> = {
   "not-configured": "notConfigured",
 };
 
-function statusFor(phase: Phase, health: AiHealth | null): Status {
-  if (phase === "checking") return "checking";
-  if (phase === "offline" || !health) return "offline";
+function statusFor(state: ReturnType<typeof useAiHealth>): Status {
+  const { health } = state;
+  const word = wordAiAvailability(state);
+  if (word === "checking") return "checking";
+  if (word === "offline" || !health) return "offline";
   if (!health.aiConfigured || health.ai?.configured === false) return "not-configured";
-  if (!health.databaseConfigured) return "degraded";
-  if (health.ai?.word.readyKeys === 0 || health.ai?.chat.readyKeys === 0) return "degraded";
+  if (word !== "available" || health.ai?.chat.readyKeys === 0) return "degraded";
   return "connected";
 }
 
@@ -128,40 +128,9 @@ function IssueRow({ issue, time }: { issue: AiIssue; time: string }) {
 export function GeminiStatusCard() {
   const { t } = useTranslation();
   const issues = useAiIssues();
-  const [phase, setPhase] = useState<Phase>("checking");
-  const [health, setHealth] = useState<AiHealth | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [checkedAt, setCheckedAt] = useState<number | null>(null);
+  const state = useAiHealth();
+  const { phase, health, errorMessage, checkedAt, wordIssue } = state;
   const [now, setNow] = useState(() => Date.now());
-  const controller = useRef<AbortController | null>(null);
-
-  const check = useCallback(async () => {
-    controller.current?.abort();
-    const pending = new AbortController();
-    controller.current = pending;
-    setPhase("checking");
-    try {
-      const next = await fetchAiHealth(pending.signal);
-      if (pending.signal.aborted) return;
-      setHealth(next);
-      setErrorMessage("");
-      setCheckedAt(Date.now());
-      setPhase("ready");
-    } catch (error) {
-      if (pending.signal.aborted) return;
-      setErrorMessage(error instanceof Error ? error.message : "");
-      setCheckedAt(Date.now());
-      setPhase("offline");
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void check(), 0);
-    return () => {
-      window.clearTimeout(timer);
-      controller.current?.abort();
-    };
-  }, [check]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setNow(Date.now()), 60_000);
@@ -177,12 +146,12 @@ export function GeminiStatusCard() {
     return t("settings.ai.daysAgo", { count: Math.round(hours / 24) });
   }
 
-  const status = statusFor(phase, health);
+  const status = statusFor(state);
   const StatusIcon = STATUS_ICONS[status];
   const pool = health?.ai;
 
   const problems: string[] = [];
-  if (phase === "offline") problems.push(t("settings.ai.issueUnreachable"));
+  if (status === "offline") problems.push(t("settings.ai.issueUnreachable"));
   if (phase === "ready" && health) {
     if (!health.databaseConfigured) problems.push(t("settings.ai.issueDatabase"));
     if (!health.aiConfigured || pool?.configured === false) {
@@ -253,10 +222,13 @@ export function GeminiStatusCard() {
               <p className="text-[11px] leading-4 text-atlas-muted">{problem}</p>
             </li>
           ))}
-          {phase === "offline" && errorMessage && (
+          {status === "offline" && errorMessage && (
             <li className="pl-5 text-[10px] text-atlas-quiet">{errorMessage}</li>
           )}
         </ul>
+      )}
+      {phase !== "checking" && wordIssue && (
+        <p className="mt-2 text-[11px] text-atlas-muted">{wordIssue.message}</p>
       )}
 
       {issues.length > 0 ? (
@@ -295,7 +267,7 @@ export function GeminiStatusCard() {
           variant="outline"
           size="sm"
           disabled={phase === "checking"}
-          onClick={() => void check()}
+          onClick={() => void checkAiHealth()}
         >
           <RefreshCw size={12} className={phase === "checking" ? "animate-spin" : undefined} />
           {t("settings.ai.recheck")}

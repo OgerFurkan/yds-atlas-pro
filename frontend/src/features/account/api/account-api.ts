@@ -15,10 +15,10 @@ export function createAccountApi(userId: string) {
         body: JSON.stringify({ snapshot, revision }),
       });
     },
-    completeSession(id: string) {
-      return call<{ scores: { id: string; score: number }[] }>(
+    completeSession(id: string, revision: number) {
+      return call<{ scores: { id: string; score: number }[]; practiceOnly: boolean }>(
         "/api/learning/sessions/" + id + "/complete",
-        { method: "POST", body: "{}" },
+        { method: "POST", body: JSON.stringify({ revision }) },
       );
     },
   };

@@ -1,13 +1,15 @@
-import type { WordEntry, WordInput } from "@yds-atlas/shared";
+import type { AssessmentAction, WordEntry, WordInput } from "@yds-atlas/shared";
 import { ArrowLeft, GraduationCap, Pause, RotateCcw } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { recordDailyProgress } from "@/features/dashboard/model/daily-progress";
 import { starterVocabulary } from "@/features/word-library/data/starter-vocabulary";
-import { isDayStudyReady, type DailyGroupPreset } from "@/features/word-library/model/daily-groups";
+import { type DailyGroupPreset, isDayStudyReady } from "@/features/word-library/model/daily-groups";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import type { Notify } from "@/shared/lib/notify";
 import { getStorageScope } from "@/shared/lib/storage-scope";
 import { Button } from "@/shared/ui/button";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/shared/ui/dialog";
 import { GuidedTour } from "@/shared/ui/guided-tour";
 import {
   advance,
@@ -40,7 +42,12 @@ interface LearningGamePageProps {
   preset?: DailyGroupPreset | null;
   onPresetHandled?: () => void;
   onPersistSession?: (session: GameSession) => Promise<void>;
-  onCompleteSession?: (session: GameSession) => Promise<void>;
+  onCompleteSession?: (session: GameSession) => Promise<{ practiceOnly: boolean }>;
+}
+
+function createTask(words: WordEntry[], batch: 5 | 10, account: boolean): GameSession {
+  const session = createSession(words, batch);
+  return account ? { ...session, assessmentActions: [] } : session;
 }
 export function LearningGamePage({
   words,
@@ -55,16 +62,22 @@ export function LearningGamePage({
   onPersistSession,
   onCompleteSession,
 }: LearningGamePageProps) {
+  const { t } = useTranslation();
   const presetWords = useMemo(() => {
     if (!preset) return [];
     const ids = new Set(preset.wordIds);
     return words.filter((word) => ids.has(word.id) && isDayStudyReady(word));
   }, [preset, words]);
-  const [startedDay] = useState(preset?.day ?? null);
-  const [session, setSession] = useState<GameSession | null>(() =>
-    presetWords.length ? createSession(presetWords, 5) : null,
-  );
   const [saved, setSaved] = useState(readSession);
+  const hasUnfinished = !!saved && !saved.saved;
+  const [session, setSession] = useState<GameSession | null>(() =>
+    !hasUnfinished && preset && presetWords.length
+      ? { ...createTask(presetWords, 5, !!onPersistSession), day: preset.day }
+      : null,
+  );
+  const [discarding, setDiscarding] = useState(false);
+  const [discardTarget, setDiscardTarget] = useState<string | null>(null);
+  const [discardError, setDiscardError] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [syncError, setSyncError] = useState(false);
@@ -74,9 +87,12 @@ export function LearningGamePage({
   const alive = useRef(true);
   const storageOwner = useRef(getStorageScope());
   const presetHandled = useRef(false);
+  const initialSavedId = useRef(saved?.id);
+  const discardLock = useRef(false);
+  const discardTrigger = useRef<HTMLElement | null>(null);
   // A day-based session must be saved as soon as it starts, not only after the
   // first answer. Otherwise reload/close loses the selected day's progress.
-  const initialDaySession = useRef(presetWords.length ? session : null);
+  const initialDaySession = useRef(session);
   useEffect(() => {
     const first = initialDaySession.current;
     if (!first) return;
@@ -103,11 +119,17 @@ export function LearningGamePage({
     };
   }, []);
   useEffect(() => {
-    if (!preset || presetHandled.current) return;
+    if (
+      !preset ||
+      presetHandled.current ||
+      !session ||
+      session.day !== preset.day ||
+      session.id === initialSavedId.current
+    )
+      return;
     presetHandled.current = true;
-    if (!presetWords.length) onNotify.error("Bu grupta çalışılabilecek hazır kelime kalmadı.");
     onPresetHandled?.();
-  }, [preset, presetWords.length, onNotify, onPresetHandled]);
+  }, [preset, onPresetHandled, session]);
   const phase = session?.phase;
   const activeWordId = phase?.endsWith("matching") ? undefined : session?.queue[0];
   const isTutorial = !!session?.tutorial;
@@ -119,8 +141,10 @@ export function LearningGamePage({
     if (!isTutorial) window.scrollTo({ top: 0 });
   }, [scrollKey, isTutorial]);
 
-  async function commit(next: GameSession) {
+  async function commit(next: GameSession, action?: AssessmentAction) {
     if (next === session) return;
+    if (action && next.assessmentActions)
+      next = { ...next, assessmentActions: [...next.assessmentActions, action] };
     try {
       if (!next.tutorial) {
         persistSession(next);
@@ -152,6 +176,48 @@ export function LearningGamePage({
       if (alive.current) setRetryingSync(false);
     }
   }
+  function requestDiscard() {
+    if (!saved || saved.saved || saved.phase === "complete") return;
+    discardTrigger.current =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setDiscardError("");
+    setDiscardTarget(saved.id);
+  }
+
+  async function discardSavedTask() {
+    if (!discardTarget || discardLock.current || saveLock.current) return;
+    const current = readSession();
+    if (!current || current.id !== discardTarget || current.saved || current.phase === "complete") {
+      setDiscardError(t("taskIntro.discardChanged"));
+      return;
+    }
+    discardLock.current = true;
+    setDiscarding(true);
+    setDiscardError("");
+    try {
+      if (onPersistSession) await onPersistSession({ ...current, discarded: true });
+      if (!alive.current || getStorageScope() !== storageOwner.current) return;
+      if (readSession()?.id !== current.id) {
+        setDiscardError(t("taskIntro.discardChanged"));
+        return;
+      }
+      persistSession(null);
+      setSaved(null);
+      setSession(null);
+      setSyncError(false);
+      setDiscardTarget(null);
+      onNotify.success(t("taskIntro.discarded"));
+      if (preset && presetWords.length) {
+        await commit({ ...createTask(presetWords, 5, !!onPersistSession), day: preset.day });
+      }
+    } catch {
+      if (alive.current && getStorageScope() === storageOwner.current)
+        setDiscardError(t("taskIntro.discardFailed"));
+    } finally {
+      discardLock.current = false;
+      if (alive.current) setDiscarding(false);
+    }
+  }
   function tutorial() {
     const base = starterVocabulary.find((word) => word.word === "Expand");
     if (!base) return;
@@ -165,13 +231,13 @@ export function LearningGamePage({
     setGuide(0);
     commit(createSession([word], 5, true));
   }
+  const beginTutorialFromHelp = useEffectEvent(() => {
+    sessionStorage.removeItem("atlas:game-setup-help");
+    tutorial();
+  });
   useEffect(() => {
     if (!session) return;
-    const begin = () => {
-      // The active game tutorial, rather than GameSetup, owns this help request.
-      sessionStorage.removeItem("atlas:game-setup-help");
-      tutorial();
-    };
+    const begin = () => beginTutorialFromHelp();
     window.addEventListener("atlas:help-request", begin);
     if (sessionStorage.getItem("atlas:game-setup-help") === "1") begin();
     return () => window.removeEventListener("atlas:help-request", begin);
@@ -189,7 +255,8 @@ export function LearningGamePage({
       const results = session.words
         .filter((word) => existing.has(word.id))
         .map((word) => ({ id: word.id, score: resultScore(session, word) }));
-      if (onCompleteSession) await onCompleteSession(session);
+      let practiceOnly = false;
+      if (onCompleteSession) ({ practiceOnly } = await onCompleteSession(session));
       else {
         await onApplyScores(results);
         recordDailyProgress(results.map((result) => result.id));
@@ -199,7 +266,11 @@ export function LearningGamePage({
       persistSession(next);
       setSaved(next);
       setSession(next);
-      onNotify.success("Günlük görevin tamamlandı. Kelime grupların ve ilerlemen güncellendi.");
+      onNotify.success(
+        practiceOnly
+          ? t("game.practiceSaved")
+          : "Günlük görevin tamamlandı. Kelime grupların ve ilerlemen güncellendi.",
+      );
     } catch (error) {
       setError(
         error instanceof Error ? error.message : "Sonuçlar kaydedilemedi. Tekrar deneyebilirsin.",
@@ -208,7 +279,7 @@ export function LearningGamePage({
       saveLock.current = false;
       setSaving(false);
     }
-  }, [session, words, onApplyScores, onNotify, onCompleteSession]);
+  }, [session, words, onApplyScores, onNotify, onCompleteSession, t]);
   useEffect(() => {
     if (phase !== "complete") return;
     const timer = window.setTimeout(() => {
@@ -216,25 +287,113 @@ export function LearningGamePage({
     }, 0);
     return () => clearTimeout(timer);
   }, [phase, saveResults]);
+  const discardDialog = (
+    <Dialog
+      open={discardTarget !== null}
+      onOpenChange={(open) => !open && !discarding && setDiscardTarget(null)}
+    >
+      <DialogContent
+        role="alertdialog"
+        className="max-w-md bg-card p-5 text-foreground sm:p-6"
+        onCloseAutoFocus={(event) => {
+          event.preventDefault();
+          if (discardTrigger.current?.isConnected) discardTrigger.current.focus();
+          else document.querySelector<HTMLElement>("#task-intro button, #game-exit")?.focus();
+        }}
+      >
+        <div className="pr-9">
+          <DialogTitle className="mt-0 text-foreground">{t("taskIntro.discardTitle")}</DialogTitle>
+          <DialogDescription className="mt-2 text-sm text-muted-foreground">
+            {t("taskIntro.confirmDiscard")}
+          </DialogDescription>
+        </div>
+        {discardError && (
+          <p role="alert" className="mt-3 text-sm text-destructive">
+            {discardError}
+          </p>
+        )}
+        <div className="mt-5 grid gap-2 sm:flex sm:justify-end">
+          <Button variant="outline" disabled={discarding} onClick={() => setDiscardTarget(null)}>
+            {t("taskIntro.discardCancel")}
+          </Button>
+          <Button
+            variant="destructive"
+            className="border border-destructive/40 bg-destructive/10"
+            disabled={discarding}
+            onClick={() => void discardSavedTask()}
+          >
+            {t(discarding ? "taskIntro.discarding" : "taskIntro.discardConfirm")}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+  if (!session && preset)
+    return (
+      <section className="mx-auto max-w-4xl space-y-3 rounded-xl border border-border bg-card p-5">
+        <h1 className="text-xl font-semibold text-foreground">
+          {t("library.daily.manage.dayGameTitle", { day: preset.day })}
+        </h1>
+        {saved && !saved.saved && (
+          <>
+            <p className="text-sm text-muted-foreground">{t("taskIntro.chooseSavedTask")}</p>
+            <div className="flex flex-wrap gap-2">
+              <Button disabled={discarding} onClick={() => setSession(saved)}>
+                {t("taskIntro.continue")}
+              </Button>
+              {saved.phase !== "complete" && (
+                <Button variant="outline" disabled={discarding} onClick={requestDiscard}>
+                  {t(discarding ? "taskIntro.discarding" : "taskIntro.discard")}
+                </Button>
+              )}
+            </div>
+          </>
+        )}
+        {(!saved || saved.saved) && presetWords.length > 0 && (
+          <Button
+            onClick={() =>
+              void commit({ ...createTask(presetWords, 5, !!onPersistSession), day: preset.day })
+            }
+          >
+            {t("library.daily.manage.study")}
+          </Button>
+        )}
+        {!presetWords.length && (
+          <p role="status" className="text-sm text-muted-foreground">
+            {t("library.daily.manage.dayGameEmpty")}
+          </p>
+        )}
+        <Button variant="ghost" onClick={onOpenLibrary}>
+          <ArrowLeft size={17} /> {t("library.daily.manage.dayGameBack")}
+        </Button>
+        {discardDialog}
+      </section>
+    );
   if (!session)
     return (
-      <GameSetup
-        words={words}
-        saved={saved}
-        listWords={listWords}
-        onStart={(chosen, batch) => commit(createSession(chosen, batch))}
-        onResume={() => {
-          if (saved) setSession(saved);
-        }}
-        onTutorial={tutorial}
-        onAddMany={onAddMany}
-        onOpenLibrary={onOpenLibrary}
-      />
+      <>
+        <GameSetup
+          words={words}
+          saved={saved}
+          listWords={listWords}
+          onStart={(chosen, batch) => commit(createTask(chosen, batch, !!onPersistSession))}
+          onResume={() => {
+            if (saved) setSession(saved);
+          }}
+          discarding={discarding}
+          onDiscard={requestDiscard}
+          onTutorial={tutorial}
+          onAddMany={onAddMany}
+          onOpenLibrary={onOpenLibrary}
+        />
+        {discardDialog}
+      </>
     );
   if (session.phase === "complete")
     return (
       <GameResults
         session={session}
+        practiceOnly={Boolean(onCompleteSession && !session.assessmentActions)}
         saving={saving}
         error={error}
         onSave={() => void saveResults()}
@@ -265,11 +424,13 @@ export function LearningGamePage({
         </div>
       ) : (
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <Button variant="ghost" onClick={onBack}>
+          <Button id="game-exit" variant="ghost" onClick={onBack}>
             <ArrowLeft size={17} /> Ana sayfa
           </Button>
-          <span className="hidden text-sm font-semibold text-atlas-navy sm:inline">
-            {startedDay ? `Gün ${startedDay} · Günlük Plan` : "Günlük Görev"}
+          <span className="text-sm font-semibold text-atlas-navy">
+            {session.day
+              ? t("library.daily.manage.dayGameTitle", { day: session.day })
+              : t("taskIntro.title")}
           </span>
           <Button
             variant="outline"
@@ -279,6 +440,13 @@ export function LearningGamePage({
             }}
           >
             <Pause size={17} /> Ara ver
+          </Button>
+          <Button
+            variant="ghost"
+            onClick={requestDiscard}
+            disabled={!saved || saved.phase === "complete"}
+          >
+            {t("taskIntro.discard")}
           </Button>
         </div>
       )}
@@ -315,7 +483,7 @@ export function LearningGamePage({
         }}
         onMatch={(side, id) => {
           const next = selectMatching(session, side, id);
-          commit(next);
+          commit(next, { type: "match", side, id });
           const step = playGuide[guide].id;
           if (
             session.tutorial &&
@@ -325,25 +493,25 @@ export function LearningGamePage({
           )
             nextGuide();
         }}
-        onMatchRetry={() => commit(retryMatching(session))}
+        onMatchRetry={() => commit(retryMatching(session), { type: "match-retry" })}
         onMatchNext={() => {
-          commit(continueMatching(session));
+          commit(continueMatching(session), { type: "match-next" });
           if (session.tutorial) nextGuide();
         }}
         onRemember={(remembered) => {
-          commit(advance(session, remembered));
+          commit(advance(session, remembered), { type: "advance" });
           if (session.tutorial) nextGuide();
         }}
         onAnswer={(choice) => {
-          commit(recordAnswer(session, choice));
+          commit(recordAnswer(session, choice), { type: "answer", choice });
           if (session.tutorial) nextGuide();
         }}
         onConfidence={(value) => {
-          commit(setConfidence(session, value));
+          commit(setConfidence(session, value), { type: "confidence", value });
           if (session.tutorial) nextGuide();
         }}
         onNext={() => {
-          commit(advance(session));
+          commit(advance(session), { type: "advance" });
           if (session.tutorial) nextGuide();
         }}
       />
@@ -357,6 +525,7 @@ export function LearningGamePage({
           onExit={() => setSession(null)}
         />
       )}
+      {discardDialog}
     </div>
   );
 }

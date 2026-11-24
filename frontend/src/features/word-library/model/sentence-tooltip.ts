@@ -15,10 +15,59 @@ export type VocabularyIndex = Map<string, TooltipVocabulary[]>;
 
 const TOKEN = /[A-Za-z][A-Za-z0-9]*(?:[’'][A-Za-z0-9]+)*(?:-[A-Za-z0-9]+)*/g;
 const ENGLISH_COMMON = new Set([
-  "a", "an", "the", "in", "on", "at", "of", "to", "for", "from", "with", "and", "or", "but",
-  "is", "are", "was", "were", "be", "been", "have", "has", "had", "will", "would", "could", "should",
-  "that", "this", "these", "those", "they", "their", "there", "we", "our", "you", "your", "it", "its",
-  "not", "by", "as", "if", "when", "because", "which", "who", "what", "can", "may", "must", "than",
+  "a",
+  "an",
+  "the",
+  "in",
+  "on",
+  "at",
+  "of",
+  "to",
+  "for",
+  "from",
+  "with",
+  "and",
+  "or",
+  "but",
+  "is",
+  "are",
+  "was",
+  "were",
+  "be",
+  "been",
+  "have",
+  "has",
+  "had",
+  "will",
+  "would",
+  "could",
+  "should",
+  "that",
+  "this",
+  "these",
+  "those",
+  "they",
+  "their",
+  "there",
+  "we",
+  "our",
+  "you",
+  "your",
+  "it",
+  "its",
+  "not",
+  "by",
+  "as",
+  "if",
+  "when",
+  "because",
+  "which",
+  "who",
+  "what",
+  "can",
+  "may",
+  "must",
+  "than",
 ]);
 
 export function splitSentenceWords(text: string): SentencePiece[] {
@@ -84,6 +133,12 @@ export function splitChatSentenceSegments(text: string): Array<{ text: string; e
 }
 
 export function tooltipMeanings(word: TooltipVocabulary): string[] {
-  return [...new Set([...(word.meanings ?? []), ...(word.senses ?? []).flatMap((sense) => sense.meanings)])]
-    .filter(Boolean).slice(0, 4);
+  return [
+    ...new Set([
+      ...(word.meanings ?? []),
+      ...(word.senses ?? []).flatMap((sense) => sense.meanings),
+    ]),
+  ]
+    .filter(Boolean)
+    .slice(0, 4);
 }

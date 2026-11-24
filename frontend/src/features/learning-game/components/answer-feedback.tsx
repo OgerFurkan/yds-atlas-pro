@@ -1,11 +1,11 @@
-﻿import { CheckCircle2, XCircle } from "lucide-react";
+import { CheckCircle2, XCircle } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
-import { WordExample } from "@/features/word-library/components/word-example";
 import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
-
-import { hasAtlasTiers, ATLAS_TIER_ORDER } from "@/features/word-library/model/tiered-examples";
+import { WordExample } from "@/features/word-library/components/word-example";
+import { ATLAS_TIER_ORDER, hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
 import { formatWordType } from "@/features/word-library/model/word-normalization";
+import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
 import { cn } from "@/shared/lib/utils";
 import { makeQuestion } from "../model/game-engine";
 import type { GameSession } from "../model/game-session";
@@ -76,21 +76,29 @@ export function AnswerFeedback({ session }: { session: GameSession }) {
         {example && <WordExample word={word} example={example} compact allowDuringGame />}
         {hasAtlasTiers(word.examples) ? (
           <details className="rounded-xl border border-slate-200 bg-white p-3 text-slate-800">
-            <summary className="cursor-pointer font-semibold">5 seviyeli örneği gör · 2 kolay / 1 orta / 2 YDS</summary>
+            <summary className="cursor-pointer font-semibold">
+              5 seviyeli örneği gör · 2 kolay / 1 orta / 2 YDS
+            </summary>
             <ol className="mt-3 space-y-4">
-              {word.examples.slice(0, 5).map((item, index) => (
-                <li key={index} className="border-t border-slate-100 pt-3">
-                  <span className="mb-2 block text-xs font-bold uppercase text-atlas-blue">{index + 1}. {ATLAS_TIER_ORDER[index]}</span>
-                  <WordExample word={word} example={item} compact allowDuringGame />
-                </li>
-              ))}
+              {withOccurrenceKeys(word.examples.slice(0, 5), (example) => example.sentence).map(
+                ({ item, key }, index) => (
+                  <li key={key} className="border-t border-slate-100 pt-3">
+                    <span className="mb-2 block text-xs font-bold uppercase text-atlas-blue">
+                      {index + 1}. {ATLAS_TIER_ORDER[index]}
+                    </span>
+                    <WordExample word={word} example={item} compact allowDuringGame />
+                  </li>
+                ),
+              )}
             </ol>
           </details>
-        ) : <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
-          Bu kelime eski cümle düzeninde. Oyun sırasında AI ile cümle oluşturulmaz.
-          2 kolay · 1 orta · 2 YDS örneklerini görev sonrası Kütüphane bölümünden
-          “Eksik cümleleri 2/1/2 tamamla” seçeneğiyle, eski örneklerini silmeden ekleyebilirsin.
-        </div>}
+        ) : (
+          <div className="rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700">
+            Bu kelime eski cümle düzeninde. Oyun sırasında AI ile cümle oluşturulmaz. 2 kolay · 1
+            orta · 2 YDS örneklerini görev sonrası Kütüphane bölümünden “Eksik cümleleri 2/1/2
+            tamamla” seçeneğiyle, eski örneklerini silmeden ekleyebilirsin.
+          </div>
+        )}
         <PronunciationButtons
           word={word.word}
           uk={word.pronunciationUk}

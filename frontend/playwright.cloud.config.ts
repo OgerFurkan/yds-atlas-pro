@@ -1,26 +1,20 @@
-﻿import { defineConfig, devices } from "@playwright/test";
+import { defineConfig, devices } from "@playwright/test";
+import { loopbackBrowser, mockOrigin } from "./playwright-local";
 export default defineConfig({
-  testDir: "./tests/cloud",
+  testDir: "../tests/frontend/contracts",
   timeout: 60000,
   workers: 2,
   fullyParallel: true,
   expect: { timeout: 10000 },
   reporter: "list",
   outputDir: "test-results-cloud",
-  use: { baseURL: "http://127.0.0.1:5178", trace: "retain-on-failure" },
+  use: { ...loopbackBrowser, baseURL: mockOrigin, trace: "retain-on-failure" },
   webServer: {
-    command: "bun run dev -- --host 127.0.0.1 --port 5178 --strictPort",
-    url: "http://127.0.0.1:5178",
+    command:
+      "bun run vite build --mode local-contract --outDir node_modules/.atlas-cloud-preview && " +
+      "bun run preview -- --mode local-contract --outDir node_modules/.atlas-cloud-preview --host 127.0.0.1 --port 5178 --strictPort",
+    url: mockOrigin,
     reuseExistingServer: false,
-    env: {
-      VITE_SUPABASE_URL: "http://127.0.0.1:54321",
-      VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_contract_test",
-      VITE_API_URL: "",
-      VITE_FEEDBACK_INSPECTOR_UI_ENABLED: "true",
-      VITE_FEEDBACK_ADMIN_UI_ENABLED: "false",
-      API_PROXY_TARGET: "http://127.0.0.1:1",
-      VITE_TEST_CACHE_DIR: "node_modules/.vite-cloud-tests",
-    },
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

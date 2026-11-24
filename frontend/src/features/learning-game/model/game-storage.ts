@@ -1,10 +1,11 @@
-import { readStorage, writeStorage, removeStorage } from "@/shared/lib/storage";
+import { readStorage, removeStorage, writeStorage } from "@/shared/lib/storage";
 import { type GameSession, gameSessionSchema, gameStorageKey } from "./game-session";
 
 export function readSession(): GameSession | null {
   const parsed = gameSessionSchema.safeParse(readStorage(gameStorageKey, null));
   if (!parsed.success) return null;
   const session = parsed.data;
+  if (session.discarded) return null;
   const ids = new Set(session.words.map((word) => word.id));
   if (
     session.queue.some((id) => !ids.has(id)) ||

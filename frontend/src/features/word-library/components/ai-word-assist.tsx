@@ -1,4 +1,4 @@
-﻿import { type AiWordResponse, type WordInput } from "@yds-atlas/shared";
+﻿import type { AiWordResponse, WordInput } from "@yds-atlas/shared";
 import { LoaderCircle, Sparkles } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/shared/ui/button";
@@ -38,7 +38,7 @@ export function AiWordAssist({
     }
   }
   return (
-    <section className="space-y-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
+    <section className="space-y-3 rounded-xl border border-atlas-blue/20 bg-atlas-blue-pale/50 p-3 text-foreground">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="flex items-center gap-1.5 text-sm font-semibold text-atlas-navy">
@@ -64,7 +64,7 @@ export function AiWordAssist({
         </p>
       )}
       {draft && (
-        <div className="space-y-3 border-t border-blue-100 pt-3">
+        <div className="space-y-3 border-t border-atlas-blue/20 pt-3">
           <p className="text-xs font-semibold text-atlas-blue">
             GEMINI ÖNERİSİ · Kaydetmeden önce doğruluğunu kontrol et.
           </p>

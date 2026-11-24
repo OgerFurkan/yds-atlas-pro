@@ -91,8 +91,8 @@ export function validEntry(row: EntryRow): boolean {
     row.word_key !== norm(content.word).toLocaleLowerCase("en") ||
     row.part_of_speech !== content.partOfSpeech ||
     row.sense_key !== meaningKey(content.meanings[0]) ||
-    !content.meanings.every((value) =>
-      typeof value === "string" && !!value.trim() && value.length <= 200
+    !content.meanings.every(
+      (value) => typeof value === "string" && !!value.trim() && value.length <= 200,
     )
   ) {
     return false;
@@ -112,7 +112,8 @@ export function validEntry(row: EntryRow): boolean {
       example.translationFocus.length < 1 ||
       example.translationFocus.length > 4 ||
       !example.translationFocus.every(
-        (value) => typeof value === "string" && !!value.trim() && example.translation.includes(value)
+        (value) =>
+          typeof value === "string" && !!value.trim() && example.translation.includes(value),
       )
     ) {
       return false;
@@ -134,8 +135,10 @@ export function validEntry(row: EntryRow): boolean {
       return false;
     }
     return forms.some((form) =>
-      new RegExp("(^|[^a-z])" + form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z]|$)", "i")
-        .test(normalized)
+      new RegExp(
+        "(^|[^a-z])" + form.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "([^a-z]|$)",
+        "i",
+      ).test(normalized),
     );
   });
 }
@@ -172,7 +175,7 @@ export function selectEntries(rows: EntryRow[], query: InspectorQuery) {
       (row) =>
         row.word_key === normalized.word &&
         (!normalized.partOfSpeech || row.part_of_speech === normalized.partOfSpeech) &&
-        (!normalized.meaning || row.sense_key === meaningKey(normalized.meaning))
+        (!normalized.meaning || row.sense_key === meaningKey(normalized.meaning)),
     );
   if (eligible.length === 0) return { status: "missing" as const, word: normalized.word };
   if (eligible.length > 1) {

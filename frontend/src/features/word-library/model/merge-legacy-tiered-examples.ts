@@ -11,7 +11,7 @@ export function mergeLegacyTieredExamples(existing: WordEntry, generated: WordIn
   if (!hasAtlasTiers(generated.examples))
     throw new Error("Yapay zekâ geçerli 2/1/2 cümlesi oluşturamadı.");
   const canonical = generated.examples!.slice(0, 5);
-  const seen = new Set(canonical.map(item => item.sentence.trim().toLocaleLowerCase("en")));
+  const seen = new Set(canonical.map((item) => item.sentence.trim().toLocaleLowerCase("en")));
   if (seen.size !== 5) throw new Error("Tekrarlanan örnekler reddedildi.");
   // Preserve EVERY user-authored example, including a sentence that happens
   // to match a new generated one. Deduplicating by English text would silently

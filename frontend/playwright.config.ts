@@ -1,16 +1,18 @@
 import { defineConfig, devices } from "@playwright/test";
+import { loopbackBrowser } from "./playwright-local";
 
 export default defineConfig({
-  testDir: "./tests/e2e",
+  testDir: "../tests/frontend/e2e",
   timeout: 90_000,
   fullyParallel: true,
   workers: 2,
   reporter: "list",
-  use: { baseURL: "http://127.0.0.1:4173", trace: "retain-on-failure" },
+  use: { ...loopbackBrowser, baseURL: "http://127.0.0.1:4173", trace: "retain-on-failure" },
   webServer: {
-    command: "bun run preview -- --host 127.0.0.1",
+    command:
+      "bun run preview -- --mode local-e2e --outDir node_modules/.atlas-e2e-preview --host 127.0.0.1 --strictPort",
     url: "http://127.0.0.1:4173",
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
   },
   projects: [
     { name: "desktop", use: { ...devices["Desktop Chrome"] } },

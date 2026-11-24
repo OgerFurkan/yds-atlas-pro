@@ -1,8 +1,8 @@
 import type { ServerConfig } from "../../config/env";
 import { HttpError } from "../../shared/errors";
 import { assertGeminiResponse, retryDelaySeconds } from "./gemini-errors";
-import { coolGeminiKey, geminiPoolError, nextGeminiKey } from "./gemini-keys";
 import { thinkingConfigFor } from "./gemini-generation";
+import { coolGeminiKey, geminiPoolError, nextGeminiKey } from "./gemini-keys";
 
 const RATE_LIMIT_FALLBACK_SECONDS = 60;
 const AUTH_COOLDOWN_SECONDS = 600;
@@ -21,7 +21,9 @@ const servedModels = new WeakMap<Response, string>();
 export function resolvedGeminiModel(response: Response, requested: string) {
   return servedModels.get(response) ?? requested;
 }
-export function resetGeminiModelCapacity() { modelCapacityByTransport = new WeakMap(); }
+export function resetGeminiModelCapacity() {
+  modelCapacityByTransport = new WeakMap();
+}
 export function geminiCapacityStatus() {
   return { primaryModelCooling: (modelCapacityByTransport.get(fetch) ?? 0) > Date.now() };
 }
@@ -39,7 +41,10 @@ function schemaCooling(fetcher: typeof fetch, model: string): boolean {
 }
 function coolUnsupportedSchema(fetcher: typeof fetch, model: string) {
   let models = jsonSchemaCooldowns.get(fetcher);
-  if (!models) { models = new Map(); jsonSchemaCooldowns.set(fetcher, models); }
+  if (!models) {
+    models = new Map();
+    jsonSchemaCooldowns.set(fetcher, models);
+  }
   models.set(model, Date.now() + JSON_SCHEMA_COOLDOWN_MS);
 }
 
@@ -83,14 +88,16 @@ export type GeminiContentRequest = {
 export async function requestGeminiContent(request: GeminiContentRequest): Promise<Response> {
   const { config, model, service } = request;
   const keys = [...new Set(config.GEMINI_KEYS.filter(Boolean))];
-  if (!keys.length)
-    throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
+  if (!keys.length) throw new HttpError(503, "Gemini henüz yapılandırılmadı.", "AI_NOT_CONFIGURED");
 
   // Do not repeatedly hammer an overloaded model on every incoming request.
   // All tasks (word, 2/1/2 sentence, batch and chat) share the fallback.
-  if (model === PRIMARY_LITE_MODEL &&
-      (modelCapacityByTransport.get(request.fetcher) ?? 0) > Date.now() &&
-      request.timeoutMs >= MIN_FALLBACK_BUDGET_MS && !request.signal?.aborted) {
+  if (
+    model === PRIMARY_LITE_MODEL &&
+    (modelCapacityByTransport.get(request.fetcher) ?? 0) > Date.now() &&
+    request.timeoutMs >= MIN_FALLBACK_BUDGET_MS &&
+    !request.signal?.aborted
+  ) {
     const recovered = await requestGeminiContent({ ...request, model: FALLBACK_LITE_MODEL });
     servedModels.set(recovered, resolvedGeminiModel(recovered, FALLBACK_LITE_MODEL));
     return recovered;
@@ -106,7 +113,7 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
   let lastNetworkFailure = false;
   let sawKeyFailure = false;
   const groups = config.GEMINI_KEY_GROUP_IDS ?? [];
-  const groupOf = (key: string) => groups[keys.indexOf(key)] ?? ("unknown-" + keys.indexOf(key));
+  const groupOf = (key: string) => groups[keys.indexOf(key)] ?? "unknown-" + keys.indexOf(key);
   const coolProject = (key: string, reason: "rate_limit" | "auth", seconds: number) => {
     const group = groupOf(key);
     for (const candidate of keys)
@@ -121,7 +128,10 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
   let repeatedSingleKey = 0;
   let singleRetryAllowed = false;
 
-  while (attempted.size < keys.length || (singleRetryAllowed && repeatedSingleKey < perKeyRetries)) {
+  while (
+    attempted.size < keys.length ||
+    (singleRetryAllowed && repeatedSingleKey < perKeyRetries)
+  ) {
     if (signal.aborted) break;
     const remainingKeys = keys.filter((key) => !attempted.has(key));
     const apiKey = remainingKeys.length
@@ -136,7 +146,11 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
     let response: Response;
     const remainingMs = Math.max(0, request.timeoutMs - (Date.now() - startedAt));
     if (remainingMs < 1_000)
-      throw new HttpError(504, "Gemini zamanında yanıt vermedi. Tekrar deneyebilirsin.", "AI_TIMEOUT");
+      throw new HttpError(
+        504,
+        "Gemini zamanında yanıt vermedi. Tekrar deneyebilirsin.",
+        "AI_TIMEOUT",
+      );
     try {
       // Keep enough of the shared budget for another key when possible.
       const attemptMs = Math.min(remainingMs, keys.length > 1 ? 12_000 : remainingMs);
@@ -148,8 +162,7 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
         body: JSON.stringify(request.body),
       });
     } catch {
-      if (request.signal?.aborted)
-        throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
+      if (request.signal?.aborted) throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
       if (signal.aborted) break;
       lastNetworkFailure = true;
       singleRetryAllowed = true;
@@ -189,19 +202,37 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
         console.error({ service, stage: "key_rotation", status: response.status });
         continue;
       }
-      if (response.status === 404 && model === PRIMARY_LITE_MODEL &&
-          !sawKeyFailure && request.timeoutMs - (Date.now() - startedAt) >= MIN_FALLBACK_BUDGET_MS) {
-        console.warn({service,stage:"model_unavailable_fallback",fromModel:model,toModel:FALLBACK_LITE_MODEL,status:404});
-        const recovered = await requestGeminiContent({...request,model:FALLBACK_LITE_MODEL,
-          timeoutMs:request.timeoutMs - (Date.now() - startedAt)});
-        servedModels.set(recovered,resolvedGeminiModel(recovered,FALLBACK_LITE_MODEL));
+      if (
+        response.status === 404 &&
+        model === PRIMARY_LITE_MODEL &&
+        !sawKeyFailure &&
+        request.timeoutMs - (Date.now() - startedAt) >= MIN_FALLBACK_BUDGET_MS
+      ) {
+        console.warn({
+          service,
+          stage: "model_unavailable_fallback",
+          fromModel: model,
+          toModel: FALLBACK_LITE_MODEL,
+          status: 404,
+        });
+        const recovered = await requestGeminiContent({
+          ...request,
+          model: FALLBACK_LITE_MODEL,
+          timeoutMs: request.timeoutMs - (Date.now() - startedAt),
+        });
+        servedModels.set(recovered, resolvedGeminiModel(recovered, FALLBACK_LITE_MODEL));
         return recovered;
       }
       if (TRANSIENT_UPSTREAM_STATUSES.has(response.status)) {
         lastTransient = response;
         singleRetryAllowed = true;
         transientFailures++;
-        console.error({ service, stage: "upstream_failover", status: response.status, attempt: transientFailures });
+        console.error({
+          service,
+          stage: "upstream_failover",
+          status: response.status,
+          attempt: transientFailures,
+        });
         if (transientFailures >= maxTransientAttempts) break;
         await waitForRetry(Math.min(1200, 300 * transientFailures), signal).catch(() => undefined);
         continue;
@@ -210,10 +241,13 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
     return response;
   }
 
-  if (request.signal?.aborted)
-    throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
+  if (request.signal?.aborted) throw new HttpError(499, "İstek iptal edildi.", "AI_CANCELLED");
   if (timeout.aborted)
-    throw new HttpError(504, "Gemini zamanında yanıt vermedi. Tekrar deneyebilirsin.", "AI_TIMEOUT");
+    throw new HttpError(
+      504,
+      "Gemini zamanında yanıt vermedi. Tekrar deneyebilirsin.",
+      "AI_TIMEOUT",
+    );
   if (lastTransient) {
     const remainingMs = request.timeoutMs - (Date.now() - startedAt);
     if (
@@ -225,8 +259,13 @@ export async function requestGeminiContent(request: GeminiContentRequest): Promi
       // Retry on a different low-cost model; never mask auth/quota errors.
       // This capacity gate is process-local and resets on restart.
       modelCapacityByTransport.set(request.fetcher, Date.now() + MODEL_CAPACITY_COOLDOWN_MS);
-      console.warn({ service, stage: "model_fallback",
-        fromModel: model, toModel: FALLBACK_LITE_MODEL, status: lastTransient.status });
+      console.warn({
+        service,
+        stage: "model_fallback",
+        fromModel: model,
+        toModel: FALLBACK_LITE_MODEL,
+        status: lastTransient.status,
+      });
       const recovered = await requestGeminiContent({
         ...request,
         model: FALLBACK_LITE_MODEL,

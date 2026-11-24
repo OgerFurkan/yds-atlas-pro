@@ -15,10 +15,18 @@ export class SessionSync {
   save(snapshot: GameSession) {
     const work = this.tail.then(async () => {
       if (this.failure) throw this.failure;
-      const { revision } = await this.api.saveSession(
-        snapshot,
-        this.revisions.get(snapshot.id) ?? 0,
-      );
+      if (
+        !snapshot.discarded &&
+        !this.revision(snapshot.id) &&
+        snapshot.assessmentActions?.length
+      ) {
+        const { revision } = await this.api.saveSession(
+          { ...snapshot, assessmentActions: [], discarded: undefined },
+          0,
+        );
+        this.revisions.set(snapshot.id, revision);
+      }
+      const { revision } = await this.api.saveSession(snapshot, this.revision(snapshot.id));
       this.revisions.set(snapshot.id, revision);
     });
     this.tail = work.catch((error) => {
@@ -32,5 +40,8 @@ export class SessionSync {
   }
   retry() {
     this.failure = null;
+  }
+  revision(id: string) {
+    return this.revisions.get(id) ?? 0;
   }
 }

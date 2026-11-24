@@ -14,11 +14,12 @@ import {
 import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ApiError } from "@/shared/api/api-client";
+import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
 import { Button } from "@/shared/ui/button";
 import { Textarea } from "@/shared/ui/textarea";
 import { sendChat } from "../api/ai-chat-api";
-import { lastFailedUserQuestion } from "../model/chat-retry";
 import { deleteHistoryConversation } from "../model/chat-history";
+import { lastFailedUserQuestion } from "../model/chat-retry";
 import { ChatMessageMarkdown } from "./chat-message-markdown";
 
 export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
@@ -49,7 +50,8 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
   );
 
   useEffect(() => {
-    if (open) messageEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (open && (messages.length || busy || error))
+      messageEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [open, messages, busy, error]);
 
   useEffect(() => {
@@ -66,16 +68,12 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     if ((!trimmed && !previouslyFailed) || busy) return;
     // Retrying an overloaded provider with the entire chat history may timeout again.
     // Keep the displayed history, but send only the last question after the first failure.
-    const conversation = previouslyFailed ?? [
-      ...messages,
-      { role: "user" as const, content: trimmed },
-    ].slice(-12);
+    const conversation =
+      previouslyFailed ?? [...messages, { role: "user" as const, content: trimmed }].slice(-12);
     const retryAttempt = previouslyFailed ? retryCount + 1 : 0;
     // Never re-send an assistant reply accidentally on a manual retry. Keep the
     // history visible while replaying exactly the question that failed.
-    const requestMessages = previouslyFailed
-      ? lastFailedUserQuestion(conversation)
-      : conversation;
+    const requestMessages = previouslyFailed ? lastFailedUserQuestion(conversation) : conversation;
     if (!requestMessages.length) return;
     if (!previouslyFailed) setRetryCount(0);
     else setRetryCount(retryAttempt);
@@ -113,9 +111,11 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
       else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
         setError(t(retryAttempt > 0 ? "chat.timeoutAgain" : "chat.timeout"));
       else if (reason instanceof ApiError && reason.status === 429)
-        setError(reason.retryAfterSeconds !== undefined
-          ? t("chat.rateLimitedFor", { seconds: Math.ceil(reason.retryAfterSeconds) })
-          : t("chat.rateLimited"));
+        setError(
+          reason.retryAfterSeconds !== undefined
+            ? t("chat.rateLimitedFor", { seconds: Math.ceil(reason.retryAfterSeconds) })
+            : t("chat.rateLimited"),
+        );
       else if (reason instanceof ApiError && reason.code === "AI_NETWORK_ERROR")
         setError(t("chat.networkError"));
       else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
@@ -124,7 +124,10 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
         setError(t("chat.modelUnavailable"));
       else if (reason instanceof ApiError && reason.code === "AI_REQUEST_REJECTED")
         setError(t("chat.requestRejected"));
-      else if (reason instanceof ApiError && (reason.code === "AI_UPSTREAM_ERROR" || reason.status === 503))
+      else if (
+        reason instanceof ApiError &&
+        (reason.code === "AI_UPSTREAM_ERROR" || reason.status === 503)
+      )
         setError(t("chat.providerBusy"));
       else setError(reason instanceof Error ? reason.message : t("chat.error"));
     } finally {
@@ -254,69 +257,117 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                     )}
                   </div>
                   {confirmClearHistory && history.length > 0 && (
-                    <div className="space-y-2 rounded-xl border border-[#efc5c0] bg-[#fff5f3] p-3 text-sm text-[#7c2620]" role="group" aria-label={t("chat.clearHistory")}>
+                    <fieldset
+                      className="min-w-0 space-y-2 rounded-xl border border-[#efc5c0] bg-[#fff5f3] p-3 text-sm text-[#7c2620]"
+                      aria-label={t("chat.clearHistory")}
+                    >
                       <p>{t("chat.clearHistoryConfirm")}</p>
                       <div className="flex justify-end gap-2">
-                        <button type="button" className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 text-xs font-medium" onClick={() => setConfirmClearHistory(false)}>{t("chat.cancelDelete")}</button>
-                        <button type="button" className="rounded-lg bg-[#a3332c] px-3 py-1.5 text-xs font-semibold text-white" onClick={() => { setHistory([]); setConfirmClearHistory(false); setPendingDeleteIndex(null); }}>{t("chat.confirmDelete")}</button>
+                        <button
+                          type="button"
+                          className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 text-xs font-medium"
+                          onClick={() => setConfirmClearHistory(false)}
+                        >
+                          {t("chat.cancelDelete")}
+                        </button>
+                        <button
+                          type="button"
+                          className="rounded-lg bg-[#a3332c] px-3 py-1.5 text-xs font-semibold text-white"
+                          onClick={() => {
+                            setHistory([]);
+                            setConfirmClearHistory(false);
+                            setPendingDeleteIndex(null);
+                          }}
+                        >
+                          {t("chat.confirmDelete")}
+                        </button>
                       </div>
-                    </div>
+                    </fieldset>
                   )}
                   {history.length ? (
-                    history.map((conversation, index) => (
-                      <div key={index} className="overflow-hidden rounded-xl border border-[#e3ecf2] bg-white shadow-sm">
-                        <div className="flex min-w-0 items-center gap-1 p-1.5">
-                          <button
-                            type="button"
-                            className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-sm text-[#123b59] hover:bg-[#eff5f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17649c]"
-                            onClick={() => {
-                              if (messages.length)
-                                setHistory((previous) => [
-                                  messages,
-                                  ...previous.filter((_, itemIndex) => itemIndex !== index),
-                                ]);
-                              else
-                                setHistory((previous) =>
-                                  previous.filter((_, itemIndex) => itemIndex !== index),
-                                );
-                              setMessages(conversation);
-                              setShowHistory(false);
-                              setPendingDeleteIndex(null);
-                              setConfirmClearHistory(false);
-                              setNeedsSignIn(false);
-                              setError("");
-                              setRetryMessages(null);
-                            }}
-                          >
-                            {conversation.find((message) => message.role === "user")?.content ?? conversation[0]?.content}
-                          </button>
-                          <button
-                            type="button"
-                            aria-label={t("chat.deleteConversationNamed", { title: conversation.find((message) => message.role === "user")?.content ?? t("chat.history") })}
-                            title={t("chat.deleteConversation")}
-                            className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#8b4a47] hover:bg-[#fff0ee] hover:text-[#a3332c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
-                            onClick={() => {
-                              setPendingDeleteIndex((current) => current === index ? null : index);
-                              setConfirmClearHistory(false);
-                            }}
-                          >
-                            <Trash2 size={17} aria-hidden="true" />
-                          </button>
-                        </div>
-                        {pendingDeleteIndex === index && (
-                          <div className="space-y-2 border-t border-[#efdedb] bg-[#fff8f7] px-3 py-3 text-xs text-[#7c2620]" role="group" aria-label={t("chat.deleteConversation")}>
-                            <p>{t("chat.deleteConversationConfirm")}</p>
-                            <div className="flex justify-end gap-2">
-                              <button type="button" className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 font-medium" onClick={() => setPendingDeleteIndex(null)}>{t("chat.cancelDelete")}</button>
-                              <button type="button" className="rounded-lg bg-[#a3332c] px-3 py-1.5 font-semibold text-white" onClick={() => {
-                                setHistory((previous) => deleteHistoryConversation(previous, index));
+                    withOccurrenceKeys(history, (conversation) => JSON.stringify(conversation)).map(
+                      ({ item: conversation, key }, index) => (
+                        <div
+                          key={key}
+                          className="overflow-hidden rounded-xl border border-[#e3ecf2] bg-white shadow-sm"
+                        >
+                          <div className="flex min-w-0 items-center gap-1 p-1.5">
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-sm text-[#123b59] hover:bg-[#eff5f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17649c]"
+                              onClick={() => {
+                                if (messages.length)
+                                  setHistory((previous) => [
+                                    messages,
+                                    ...previous.filter((_, itemIndex) => itemIndex !== index),
+                                  ]);
+                                else
+                                  setHistory((previous) =>
+                                    previous.filter((_, itemIndex) => itemIndex !== index),
+                                  );
+                                setMessages(conversation);
+                                setShowHistory(false);
                                 setPendingDeleteIndex(null);
-                              }}>{t("chat.confirmDelete")}</button>
-                            </div>
+                                setConfirmClearHistory(false);
+                                setNeedsSignIn(false);
+                                setError("");
+                                setRetryMessages(null);
+                              }}
+                            >
+                              {conversation.find((message) => message.role === "user")?.content ??
+                                conversation[0]?.content}
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={t("chat.deleteConversationNamed", {
+                                title:
+                                  conversation.find((message) => message.role === "user")
+                                    ?.content ?? t("chat.history"),
+                              })}
+                              title={t("chat.deleteConversation")}
+                              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#8b4a47] hover:bg-[#fff0ee] hover:text-[#a3332c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
+                              onClick={() => {
+                                setPendingDeleteIndex((current) =>
+                                  current === index ? null : index,
+                                );
+                                setConfirmClearHistory(false);
+                              }}
+                            >
+                              <Trash2 size={17} aria-hidden="true" />
+                            </button>
                           </div>
-                        )}
-                      </div>
-                    ))
+                          {pendingDeleteIndex === index && (
+                            <fieldset
+                              className="min-w-0 space-y-2 border-t border-[#efdedb] bg-[#fff8f7] px-3 py-3 text-xs text-[#7c2620]"
+                              aria-label={t("chat.deleteConversation")}
+                            >
+                              <p>{t("chat.deleteConversationConfirm")}</p>
+                              <div className="flex justify-end gap-2">
+                                <button
+                                  type="button"
+                                  className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 font-medium"
+                                  onClick={() => setPendingDeleteIndex(null)}
+                                >
+                                  {t("chat.cancelDelete")}
+                                </button>
+                                <button
+                                  type="button"
+                                  className="rounded-lg bg-[#a3332c] px-3 py-1.5 font-semibold text-white"
+                                  onClick={() => {
+                                    setHistory((previous) =>
+                                      deleteHistoryConversation(previous, index),
+                                    );
+                                    setPendingDeleteIndex(null);
+                                  }}
+                                >
+                                  {t("chat.confirmDelete")}
+                                </button>
+                              </div>
+                            </fieldset>
+                          )}
+                        </div>
+                      ),
+                    )
                   ) : (
                     <p className="text-sm text-[#536b7d]">{t("chat.historyEmpty")}</p>
                   )}
@@ -350,9 +401,11 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </div>
               )}
               {!showHistory &&
-                messages.map((message, index) => (
+                withOccurrenceKeys(messages, (message) =>
+                  JSON.stringify([message.role, message.content]),
+                ).map(({ item: message, key }) => (
                   <div
-                    key={`${index}-${message.role}`}
+                    key={key}
                     className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
                   >
                     {message.role === "user" ? (
@@ -373,7 +426,10 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
                 </div>
               )}
               {error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800" role="alert">
+                <div
+                  className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800"
+                  role="alert"
+                >
                   <p className="text-xs leading-5">{error}</p>
                   {retryMessages && !needsSignIn && (
                     <Button

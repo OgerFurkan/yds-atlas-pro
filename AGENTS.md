@@ -11,6 +11,3 @@
 - Ekranları telefon ve masaüstü için kontrol et. Depolanan cevaplar ve sonuçlar yenilemede korunmalı; sonuç kaydını yeniden denemek aynı puanı iki kere eklememeli.
 
 Mimari harita: `docs/architecture.md`.
-
-
-

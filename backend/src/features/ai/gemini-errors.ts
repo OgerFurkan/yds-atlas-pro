@@ -5,12 +5,19 @@ type ProviderError = {
 };
 
 function retrySeconds(payload: ProviderError | null, response: Response) {
-  const fromDetails = payload?.error?.details
-    ?.map((detail) => Number.parseFloat(detail.retryDelay ?? ""))
+  const details = payload?.error?.details;
+  const fromDetails = (Array.isArray(details) ? details : [])
+    .map((detail) => Number.parseFloat(detail?.retryDelay ?? ""))
     .find((seconds) => Number.isFinite(seconds) && seconds > 0);
   if (fromDetails) return Math.max(1, Math.ceil(fromDetails));
-  const header = Number.parseInt(response.headers.get("retry-after") ?? "", 10);
-  return Number.isFinite(header) && header > 0 ? header : undefined;
+  const header = response.headers.get("retry-after")?.trim();
+  if (!header) return undefined;
+  if (/^\d+$/.test(header)) {
+    const seconds = Number(header);
+    return Number.isSafeInteger(seconds) ? Math.max(1, seconds) : undefined;
+  }
+  const date = Date.parse(header);
+  return Number.isFinite(date) ? Math.max(1, Math.ceil((date - Date.now()) / 1000)) : undefined;
 }
 
 // Google usually sends retryDelay in a 429 body, sometimes only a Retry-After header.
@@ -26,8 +33,9 @@ export async function retryDelaySeconds(response: Response) {
 export async function assertGeminiResponse(response: Response, service = "gemini"): Promise<void> {
   if (response.ok) return;
   const payload = (await response.json().catch(() => null)) as ProviderError | null;
-  const reasons = payload?.error?.details
-    ?.map((detail) => detail.reason)
+  const details = payload?.error?.details;
+  const reasons = (Array.isArray(details) ? details : [])
+    .map((detail) => detail?.reason)
     .filter((reason): reason is string => Boolean(reason));
   console.error({
     service,
@@ -53,6 +61,7 @@ export async function assertGeminiResponse(response: Response, service = "gemini
         ? `Gemini dakikalık istek sınırına ulaşıldı. ${wait} saniye sonra tekrar dene.`
         : "Gemini istek sınırına ulaşıldı. Bir dakika sonra tekrar dene.",
       "AI_QUOTA_EXCEEDED",
+      wait,
     );
   }
   if (response.status === 400)

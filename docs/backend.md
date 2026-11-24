@@ -18,20 +18,20 @@ Copy-Item frontend/.env.example frontend/.env.local
 Copy-Item backend/.env.example backend/.env
 ```
 
-| Dosya               | Değişken                      | Kullanım                                                                |
-| ------------------- | ----------------------------- | ----------------------------------------------------------------------- |
-| frontend/.env.local | VITE_SUPABASE_URL             | Proje URL'si                                                            |
-| frontend/.env.local | VITE_SUPABASE_PUBLISHABLE_KEY | Yalnızca tarayıcıya açık publishable key                                |
-| frontend/.env.local | VITE_API_URL                  | Üretimde ayrı API origin'i; aynı origin ve geliştirme proxy'si için boş |
-| backend/.env        | SUPABASE_URL                  | Aynı Supabase projesi                                                   |
-| backend/.env        | SUPABASE_PUBLISHABLE_KEY      | Kullanıcının Bearer token'ıyla çalışan normal veri istemcisi            |
-| backend/.env        | SUPABASE_SECRET_KEY           | Yalnızca sunucuda; kalıcı AI kotasını tüketen ayrı istemci              |
-| backend/.env        | GEMINI_API_KEY                | Yalnızca sunucuda; AI Studio'dan alınır                                 |
+| Dosya               | Değişken                      | Kullanım                                                                     |
+| ------------------- | ----------------------------- | ---------------------------------------------------------------------------- |
+| frontend/.env.local | VITE_SUPABASE_URL             | Proje URL'si                                                                 |
+| frontend/.env.local | VITE_SUPABASE_PUBLISHABLE_KEY | Yalnızca tarayıcıya açık publishable key                                     |
+| frontend/.env.local | VITE_API_URL                  | Üretimde ayrı API origin'i; aynı origin ve geliştirme proxy'si için boş      |
+| backend/.env        | SUPABASE_URL                  | Aynı Supabase projesi                                                        |
+| backend/.env        | SUPABASE_PUBLISHABLE_KEY      | Kullanıcının Bearer token'ıyla çalışan normal veri istemcisi                 |
+| backend/.env        | SUPABASE_SECRET_KEY           | Yalnızca sunucuda; kalıcı AI kotasını tüketen ayrı istemci                   |
+| backend/.env        | GEMINI_API_KEY                | Yalnızca sunucuda; AI Studio'dan alınır                                      |
 | backend/.env        | GEMINI_API_KEYS               | İsteğe bağlı havuz: farklı Google projelerinden virgülle ayrılmış anahtarlar |
-| backend/.env        | GEMINI_MODEL_WORD             | Varsayılan gemini-3.5-flash-lite; kelime tamamlama ve liste üretimi     |
-| backend/.env        | GEMINI_MODEL_CHAT             | Varsayılan gemini-3.8-flash; Atlas sohbeti                              |
-| backend/.env        | APP_ORIGINS                   | Virgülle ayrılan izinli uygulama origin'leri                            |
-| backend/.env        | HOST / PORT                   | Yerelde 127.0.0.1:3000; konteynerde HOST=0.0.0.0                        |
+| backend/.env        | GEMINI_MODEL_WORD             | Varsayılan gemini-3.5-flash-lite; kelime tamamlama ve liste üretimi          |
+| backend/.env        | GEMINI_MODEL_CHAT             | Varsayılan gemini-3.8-flash; Atlas sohbeti                                   |
+| backend/.env        | APP_ORIGINS                   | Virgülle ayrılan izinli uygulama origin'leri                                 |
+| backend/.env        | HOST / PORT                   | Yerelde 127.0.0.1:3000; konteynerde HOST=0.0.0.0                             |
 
 ## Render'da Gemini'yi etkinleştirme
 
@@ -118,7 +118,7 @@ words içinde lower/boşluk normalize edilmiş kullanıcı başına benzersiz in
 
 | Yöntem       | Yol                                 | İşlem                                                              |
 | ------------ | ----------------------------------- | ------------------------------------------------------------------ |
-| GET          | /api/health                         | Yapılandırma ve Gemini havuz durumunu anahtar göstermeden döndürür  |
+| GET          | /api/health                         | Yapılandırma ve Gemini havuz durumunu anahtar göstermeden döndürür |
 | GET          | /api/account                        | Hedef, son görev ve günlük tarihçe                                 |
 | PUT          | /api/account/goal                   | Günlük hedef; tamamlanmış günü korur                               |
 | GET / POST   | /api/words                          | Liste / tekli ekleme                                               |

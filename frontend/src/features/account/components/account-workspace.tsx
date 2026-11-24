@@ -21,10 +21,10 @@ export function AccountWorkspace({
   const [initial, setInitial] = useState<AccountState | null>(null);
   const [ready, setReady] = useState(!userId);
   const [error, setError] = useState("");
-  const [retry, setRetry] = useState(0);
+  const [loadingRequested, setLoadingRequested] = useState(true);
   setStorageScope(userId);
   useEffect(() => {
-    if (!api) return;
+    if (!api || !loadingRequested) return;
     let active = true;
     void api
       .load()
@@ -37,11 +37,14 @@ export function AccountWorkspace({
       })
       .catch((error) => {
         if (active) setError(error instanceof Error ? error.message : "Hesap yüklenemedi.");
+      })
+      .finally(() => {
+        if (active) setLoadingRequested(false);
       });
     return () => {
       active = false;
     };
-  }, [api, retry, userId]);
+  }, [api, loadingRequested, userId]);
   if (!ready)
     return (
       <main className="mx-auto flex min-h-dvh max-w-xl flex-col items-center justify-center gap-4 px-5 py-12 text-center">
@@ -67,7 +70,7 @@ export function AccountWorkspace({
             <Button
               onClick={() => {
                 setError("");
-                setRetry((value) => value + 1);
+                setLoadingRequested(true);
               }}
             >
               Yeniden dene

@@ -32,6 +32,8 @@ export function GameSetup({
   listWords,
   onStart,
   onResume,
+  discarding,
+  onDiscard,
   onTutorial,
   onAddMany,
   onOpenLibrary,
@@ -41,6 +43,8 @@ export function GameSetup({
   listWords: () => WordEntry[];
   onStart: (words: WordEntry[], batch: 5 | 10) => void | Promise<void>;
   onResume: () => void;
+  discarding: boolean;
+  onDiscard: () => void;
   onTutorial: () => void;
   onOpenLibrary: () => void;
   onAddMany: (
@@ -142,6 +146,7 @@ export function GameSetup({
   }
 
   async function start(short = false) {
+    if (discarding) return;
     if (guide !== null) return;
     setBusy(true);
     setProgress(null);
@@ -169,6 +174,9 @@ export function GameSetup({
         onStartGuide={startGuide}
         onTutorial={onTutorial}
         onResume={onResume}
+        discarding={discarding}
+        starting={busy}
+        onDiscard={onDiscard}
       />
       <div
         id="task-setup-panels"
@@ -182,7 +190,7 @@ export function GameSetup({
               ready={ready}
               candidates={candidates}
               ownKeys={ownKeys}
-              busy={busy}
+              busy={busy || discarding}
               guideActive={guide !== null}
               onOpenLibrary={onOpenLibrary}
               onReviewed={() => {
@@ -212,7 +220,7 @@ export function GameSetup({
           target={target}
           candidateCount={candidates.length}
           batch={batch}
-          busy={busy}
+          busy={busy || discarding}
           progress={progress}
           saved={saved}
           onStart={(short) => void start(short)}

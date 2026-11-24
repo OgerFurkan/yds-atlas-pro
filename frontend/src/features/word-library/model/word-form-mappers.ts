@@ -1,4 +1,4 @@
-﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
+﻿import { type WordEdit, type WordEntry, type WordInput, wordEditSchema } from "@yds-atlas/shared";
 import { emptyWordForm, type WordFormValues } from "./word-form.schema";
 
 function parseList(value: string) {
@@ -62,12 +62,35 @@ export function preserveExampleMetadata(input: WordInput, source: WordInput): Wo
   return {
     ...input,
     examples: input.examples.map((example) => {
-      const original = source.examples?.find((entry) =>
-        entry.sentence === example.sentence && entry.translation === example.translation);
+      const original = source.examples?.find(
+        (entry) => entry.sentence === example.sentence && entry.translation === example.translation,
+      );
       return original
-        ? { ...example, difficulty: original.difficulty,
-            translationFocus: original.translationFocus, source: original.source }
+        ? {
+            ...example,
+            difficulty: original.difficulty,
+            translationFocus: original.translationFocus,
+            source: original.source,
+          }
         : example;
     }),
   };
+}
+
+export function editedWordFields(input: WordInput, original: WordEntry, aiSource?: WordInput) {
+  const baseline = toWordInput(toFormValues(original), original.word);
+  const edited = Object.fromEntries(
+    Object.entries(input).filter(
+      ([key, value]) =>
+        Object.hasOwn(wordEditSchema.shape, key) &&
+        JSON.stringify(value) !== JSON.stringify(baseline[key as keyof WordInput]),
+    ),
+  ) as WordEdit;
+  if (edited.examples) {
+    const preserved = preserveExampleMetadata(input, original);
+    edited.examples = aiSource
+      ? preserveExampleMetadata(preserved, aiSource).examples
+      : preserved.examples;
+  }
+  return edited;
 }

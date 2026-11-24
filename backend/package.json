@@ -5,9 +5,9 @@
   "type": "module",
   "scripts": {
     "dev": "bun --watch src/index.ts",
-    "test": "bun test tests",
+    "test": "bun --no-env-file test ../tests/backend",
     "typecheck": "tsc --project tsconfig.json",
-    "lint": "oxlint src tests"
+    "lint": "cd .. && oxlint backend/src tests/backend"
   },
   "dependencies": {
     "@supabase/supabase-js": "2.119.0",

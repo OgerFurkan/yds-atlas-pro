@@ -1,13 +1,13 @@
 import type { WordEntry } from "@yds-atlas/shared";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { readStorage, writeStorage } from "@/shared/lib/storage";
+import { storageKeys } from "@/shared/lib/storage-keys";
 import { DailyWordGroupsRepository } from "../api/daily-word-groups-repository";
 import {
   buildDailyPlan,
   clampDailyGroupSize,
   DEFAULT_DAILY_GROUP_SIZE,
 } from "../model/daily-groups";
-import { readStorage, writeStorage } from "@/shared/lib/storage";
-import { storageKeys } from "@/shared/lib/storage-keys";
 
 export function useDailyPlan(
   words: WordEntry[],
@@ -18,30 +18,34 @@ export function useDailyPlan(
   const [groupSize, setSize] = useState(() =>
     clampDailyGroupSize(readStorage<number>(storageKeys.dailyPlanGroupSize, initialSize)),
   );
-  const [revision, setRevision] = useState(0);
+  const [groups, setGroups] = useState(() => repository.getGroups());
   const [error, setError] = useState("");
-  const refresh = () => setRevision((previous) => previous + 1);
+  const refresh = useCallback(() => setGroups(repository.getGroups()), [repository]);
 
   useEffect(() => {
     if (!enabled) return;
-    try {
-      repository.syncWords(
-        [...words]
-          .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
-          .map((word) => word.id),
-        groupSize,
-      );
-      setError("");
-      refresh();
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Günlük plan kaydedilemedi.");
-    }
-  }, [enabled, words, groupSize, repository]);
+    let current = true;
+    queueMicrotask(() => {
+      if (!current) return;
+      try {
+        repository.syncWords(
+          [...words]
+            .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+            .map((word) => word.id),
+          groupSize,
+        );
+        setError("");
+        refresh();
+      } catch (reason) {
+        setError(reason instanceof Error ? reason.message : "Günlük plan kaydedilemedi.");
+      }
+    });
+    return () => {
+      current = false;
+    };
+  }, [enabled, words, groupSize, repository, refresh]);
 
-  const plan = useMemo(
-    () => buildDailyPlan(words, groupSize, repository.getGroups()),
-    [words, groupSize, revision, repository],
-  );
+  const plan = useMemo(() => buildDailyPlan(words, groupSize, groups), [words, groupSize, groups]);
 
   function setGroupSize(size: number) {
     const next = clampDailyGroupSize(size);
@@ -53,9 +57,9 @@ export function useDailyPlan(
     const existing = repository.getGroups().find((group) => group.words.includes(wordId));
     if (existing && existing.day !== day) repository.moveWordToDay(wordId, existing.day, day);
     else repository.assignWordToDay(wordId, day);
-    const success = repository.getGroups().some(
-      (group) => group.day === day && group.words.includes(wordId),
-    );
+    const success = repository
+      .getGroups()
+      .some((group) => group.day === day && group.words.includes(wordId));
     refresh();
     return success;
   }
@@ -71,5 +75,22 @@ export function useDailyPlan(
     refresh();
   }
 
-  return { plan, groupSize, error, setGroupSize, assign, assignMany, removeFromDay, refresh };
+  function clearDay(day: number) {
+    const removed = repository.clearDay(day);
+    if (removed) refresh();
+    return removed;
+  }
+
+  return {
+    plan,
+    groupSize,
+    error,
+    setGroupSize,
+    assign,
+    assignMany,
+    removeFromDay,
+    clearDay,
+    getDayRemoval: (day: number) => repository.getDayRemoval(day),
+    refresh,
+  };
 }

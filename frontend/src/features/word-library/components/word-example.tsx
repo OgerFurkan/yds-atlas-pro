@@ -63,7 +63,11 @@ export function WordExample({
       }
     >
       <p className="text-sm leading-7 text-slate-700 sm:text-base">
-        <SentenceWordTooltips text={example.sentence} focusWord={word} allowDuringGame={allowDuringGame} />
+        <SentenceWordTooltips
+          text={example.sentence}
+          focusWord={word}
+          allowDuringGame={allowDuringGame}
+        />
       </p>
       <p className="text-sm leading-7 text-slate-600">
         {translation ? (

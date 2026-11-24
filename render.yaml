@@ -21,4 +21,3 @@ services:
         value: gemini-3.5-flash-lite
       - key: GEMINI_MODEL_CHAT
         value: gemini-3.8-flash
-

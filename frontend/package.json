@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "test": "bun test tests/unit",
+    "lint": "cd .. && oxlint frontend tests/frontend",
+    "test": "bun --no-env-file test ../tests/frontend/unit",
     "test:e2e": "playwright test",
     "test:dev": "playwright test --config playwright.dev.config.ts",
     "preview": "vite preview",

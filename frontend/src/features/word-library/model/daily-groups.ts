@@ -1,9 +1,13 @@
 import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { usableExamples } from "@/features/learning-game/model/game-engine";
 
-/** Finished days remain available for regular scored study without resetting progress. */
+/** Scored study uses only unlearned words with enough material to play. */
 export function isDayStudyReady(word: WordEntry) {
-  return word.meanings.some((meaning) => meaning.trim().length > 0) && usableExamples(word).length >= 5;
+  return (
+    getWordGroup(word.score) !== "learned" &&
+    word.meanings.some((meaning) => meaning.trim().length > 0) &&
+    usableExamples(word).length >= 5
+  );
 }
 
 export const DAILY_PLAN_DAYS = 60;
@@ -22,6 +26,14 @@ export interface DailyGroup {
   learned: number;
   playable: number;
   progress: number;
+}
+
+/**
+ * Review is unscored practice over the whole day: learned words stay in, and
+ * missing details are reported by the review panel instead of being dropped.
+ */
+export function reviewableWords(group: DailyGroup) {
+  return group.words;
 }
 
 export interface DailyPlan {
@@ -79,7 +91,11 @@ export function buildDailyPlan(
 
   if (assignments) {
     for (const assignment of assignments) {
-      if (!Number.isInteger(assignment.day) || assignment.day < 1 || assignment.day > DAILY_PLAN_DAYS)
+      if (
+        !Number.isInteger(assignment.day) ||
+        assignment.day < 1 ||
+        assignment.day > DAILY_PLAN_DAYS
+      )
         continue;
       const dayWords = byDay.get(assignment.day) ?? [];
       for (const id of assignment.words) {

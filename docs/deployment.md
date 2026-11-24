@@ -44,4 +44,3 @@ AI'nın ücretsiz kotası hesaba, modele ve bölgeye bağlı olarak doğrulanmal
 Docker bu bilgisayarda kurulu olmadığı için image build burada doğrulanmadı. Dockerfile'ın kullandığı production-only workspace kurulumu ve API health yanıtı ayrı geçici klasörde test edilir. Platformdaki Linux image build, GitHub/Render bağlandıktan sonra ayrıca doğrulanır.
 
 Kaynaklar: [Vercel Vite](https://vercel.com/docs/frameworks/frontend/vite), [Vercel Hobby koşulları](https://vercel.com/docs/plans/hobby), [Render Free](https://render.com/docs/free), [Render Blueprint](https://render.com/docs/blueprint-spec), [Gemini fiyat/kota seçenekleri](https://ai.google.dev/gemini-api/docs/pricing).
-

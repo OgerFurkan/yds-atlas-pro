@@ -2,7 +2,6 @@ import { expect, test } from "bun:test";
 import {
   needsAiMeaning,
   parseBulkWordEntries,
-  splitWordInputsByMeaning,
 } from "../../../frontend/src/features/word-library/model/manual-word-import";
 
 test("mixed user-provided meanings and bare words preserve authored translations", () => {
@@ -36,11 +35,8 @@ test("empty meanings remain clearly incomplete and invalid headwords are refused
   expect(() => parseBulkWordEntries("w".repeat(121))).toThrow("120");
 });
 
-test("only new words without meanings ask for AI; complete user meanings bypass it", () => {
-  const entries = parseBulkWordEntries("hello = merhaba\nbenefit\nknown");
-  const groups = splitWordInputsByMeaning(entries, [{ word: "Known" }]);
-  expect(groups.direct.map((entry) => entry.word)).toEqual(["Hello", "Known"]);
-  expect(groups.needsAi.map((entry) => entry.word)).toEqual(["Benefit"]);
+test("a duplicate headword with a different sense requires a decision", () => {
+  expect(() => parseBulkWordEntries("run = koşmak\nrun = işletmek")).toThrow("farklı anlamlar");
   expect(needsAiMeaning({ word: "hello", meanings: ["merhaba"] })).toBe(false);
   expect(needsAiMeaning({ word: "hello", meanings: [] })).toBe(true);
 });

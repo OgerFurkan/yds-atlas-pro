@@ -7,6 +7,12 @@ services:
     dockerContext: .
     healthCheckPath: /api/health
     envVars:
+      - key: ATLAS_HOSTED_IDENTITIES
+        sync: false
+      - key: ATLAS_ENV
+        sync: false
+      - key: SUPABASE_ASSESSMENT_DATABASE_URL
+        sync: false
       - key: HOST
         value: 0.0.0.0
       - key: APP_ORIGINS
@@ -14,6 +20,8 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_PUBLISHABLE_KEY
+        sync: false
+      - key: SUPABASE_SECRET_KEY
         sync: false
       - key: GEMINI_API_KEYS
         sync: false

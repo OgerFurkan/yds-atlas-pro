@@ -35,19 +35,6 @@ test("503 on one project uses a different project without exposing keys", async 
   expect(new Set(requested).size).toBe(2);
 });
 
-test("429 cools one key and selects a different key", async () => {
-  const requested: string[] = [];
-  const fetcher: MockFetcher = async (_url, init) => {
-    requested.push(new Headers(init?.headers).get("x-goog-api-key") ?? "");
-    return new Response("{}", { status: requested.length === 1 ? 429 : 200 });
-  };
-  const response = await requestGeminiContent(
-    options(["test-429-a", "test-429-b"], fetcher, "gemini-res-429"),
-  );
-  expect(response.status).toBe(200);
-  expect(new Set(requested).size).toBe(2);
-});
-
 test("503 failover has a strict bound even when five projects are configured", async () => {
   let count = 0;
   const fetcher: MockFetcher = async () => {
@@ -95,23 +82,24 @@ test("five API keys in one Google project share a 429 cooldown when explicitly m
   ).rejects.toMatchObject({ code: "AI_QUOTA_EXCEEDED" });
   expect(requested).toHaveLength(1);
 });
-test("independent project aliases rotate to a ready second project on 429", async () => {
+test("separately mapped projects also respect the first provider quota response", async () => {
   const used: string[] = [];
   const config = {
     GEMINI_KEYS: ["unique-x", "unique-y", "unique-z"],
     GEMINI_KEY_GROUP_IDS: ["one", "two", "three"],
   } as ServerConfig;
-  const result = await requestGeminiContent({
-    ...options(
-      config.GEMINI_KEYS,
-      async (_url, init) => {
-        used.push(new Headers(init?.headers).get("x-goog-api-key") ?? "");
-        return new Response("{}", { status: used.length === 1 ? 429 : 200 });
-      },
-      "gemini-res-independent-keys",
-    ),
-    config,
-  });
-  expect(result.status).toBe(200);
-  expect(new Set(used).size).toBe(2);
+  await expect(
+    requestGeminiContent({
+      ...options(
+        config.GEMINI_KEYS,
+        async (_url, init) => {
+          used.push(new Headers(init?.headers).get("x-goog-api-key") ?? "");
+          return new Response("{}", { status: used.length === 1 ? 429 : 200 });
+        },
+        "gemini-res-independent-keys",
+      ),
+      config,
+    }),
+  ).rejects.toMatchObject({ code: "AI_QUOTA_EXCEEDED" });
+  expect(used).toEqual(["unique-x"]);
 });

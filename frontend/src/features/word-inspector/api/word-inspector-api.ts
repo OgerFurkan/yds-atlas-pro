@@ -1,4 +1,4 @@
-import type { WordInput } from "@yds-atlas/shared";
+import { type WordInput, wordAttributionSchema } from "@yds-atlas/shared";
 import { z } from "zod";
 import { apiRequest } from "@/shared/api/api-client";
 
@@ -14,6 +14,12 @@ const partOfSpeechSchema = z.enum([
   "Conjunction",
   "Pronoun",
   "Phrase",
+  "Article",
+  "Determiner",
+  "Modal Verb",
+  "Auxiliary Verb",
+  "Numeral",
+  "Interjection",
 ]);
 const statusSchema = z.enum(["machine_validated", "human_reviewed"]);
 const difficultySchema = z.enum(["easy", "medium", "yds"]);
@@ -39,11 +45,14 @@ const exampleSchema = z
 const detailSchema = baseSchema
   .extend({
     senseKey: z.string().min(1).max(128),
+    attribution: wordAttributionSchema.optional(),
     meanings: z.array(z.string().min(1).max(200)).min(1).max(4),
     alternatives: z.array(z.string().max(120)).max(20),
     usageNote: z.string().max(2000),
     cefr: z.enum(["A1", "A2", "B1", "B2", "C1", "C2", "Belirtilmedi"]),
     examples: z.array(exampleSchema).length(5),
+    ipaUk: z.string().max(120).optional(),
+    ipaUs: z.string().max(120).optional(),
     pronunciationUk: z.string().max(200).nullable(),
     pronunciationUs: z.string().max(200).nullable(),
   })
@@ -105,7 +114,11 @@ export function inspectorPath(query: InspectorQuery) {
 export async function inspectFromPool(query: InspectorQuery, userId: string, signal?: AbortSignal) {
   if (!userId) throw new Error("Kelime incelemek için oturum aç.");
   return inspectorResponseSchema.parse(
-    await apiRequest<unknown>(inspectorPath(query), { method: "GET", signal }, userId),
+    await apiRequest<unknown>(
+      inspectorPath(query) + "&attribution=1",
+      { method: "GET", signal },
+      userId,
+    ),
   );
 }
 
@@ -127,6 +140,7 @@ export function inspectorToWordInput(entry: InspectorEntry): WordInput {
     pronunciationUs: entry.pronunciationUs ?? "",
     sourceUrl: "",
     lexicon: { entryId: entry.id, revision: entry.revision, contractVersion: 1 },
+    ...(entry.attribution && { attribution: entry.attribution }),
   };
 }
 

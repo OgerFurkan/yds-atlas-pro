@@ -23,7 +23,8 @@ export function PreferencesDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { t } = useTranslation();
-  const { language, theme, setLanguage, setTheme } = useAppPreferences();
+  const { language, theme, setLanguage, setTheme, mobileChatVisible, setMobileChatVisible } =
+    useAppPreferences();
   const themes: { value: ColorTheme; label: string; icon: typeof Sun }[] = [
     { value: "light", label: t("settings.light"), icon: Sun },
     { value: "dark", label: t("settings.dark"), icon: Moon },
@@ -81,6 +82,15 @@ export function PreferencesDialog({
               ))}
             </div>
           </fieldset>
+          <label className="flex min-h-11 items-center gap-3 text-sm text-foreground chat-wide:hidden">
+            <input
+              type="checkbox"
+              checked={mobileChatVisible}
+              onChange={(e) => setMobileChatVisible(e.target.checked)}
+              className="size-5 accent-primary"
+            />
+            {t("chat.showMobileBubble")}
+          </label>
           <GeminiStatusCard />
         </div>
       </DialogContent>

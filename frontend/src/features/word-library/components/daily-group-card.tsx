@@ -2,7 +2,7 @@ import { ArrowUpRight, CircleHelp, Plus, RotateCcw, Trash2 } from "lucide-react"
 import { useEffect, useId, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/shared/ui/button";
-import { type DailyGroup, reviewableWords } from "../model/daily-groups";
+import { type DailyGroup, missingStudyContent, reviewableWords } from "../model/daily-groups";
 import type { DayStudyState } from "../model/day-study-state";
 import { DayStudyButton, DayStudyStatusText } from "./day-study-action";
 
@@ -17,6 +17,7 @@ export function DailyGroupCard({
   studyState,
   healthIssue,
   onComplete,
+  canCompleteContent,
   preparationProgress,
   preparationNotice,
 }: {
@@ -31,11 +32,13 @@ export function DailyGroupCard({
   healthIssue?: string;
   onRecheck?: () => void;
   onComplete?: (group: DailyGroup) => void;
+  canCompleteContent: boolean;
   preparationProgress?: { ready: number; total: number };
   preparationNotice?: string;
 }) {
   const { t, i18n } = useTranslation();
   const statusId = useId();
+  const missing = group.words.map(missingStudyContent).filter((fields) => fields.length);
   const [hintOpen, setHintOpen] = useState(false);
   const hintRef = useRef<HTMLSpanElement>(null);
   useEffect(() => {
@@ -299,6 +302,19 @@ export function DailyGroupCard({
         >
           {preparationNotice}
         </p>
+      )}
+      {canCompleteContent && missing.length > 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-2 text-xs text-muted-foreground">
+          <span>
+            {t("library.daily.manage.missingContent", {
+              meanings: missing.filter((fields) => fields.includes("meaning")).length,
+              examples: missing.filter((fields) => fields.includes("examples")).length,
+            })}
+          </span>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => onComplete?.(group)}>
+            {t("library.daily.manage.completeMissing", { count: missing.length })}
+          </Button>
+        </div>
       )}
     </article>
   );

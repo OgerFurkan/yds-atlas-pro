@@ -1,4 +1,20 @@
 import { expect, test } from "bun:test";
+import { mergeWordEdit } from "../../../packages/shared/src/word-schema";
+
+test("a personal adaptation retains the original credit and identifies changed content", () => {
+  const attribution = {
+    license: "CC BY-SA 4.0" as const,
+    source: "https://example.org/source",
+    author: "Fixture",
+  };
+  const old = { meanings: ["eski"], attribution };
+  expect(mergeWordEdit(old, { meanings: ["eski"] }).attribution).toEqual(attribution);
+  expect(mergeWordEdit(old, { meanings: ["yeni"] }).attribution).toEqual({
+    ...attribution,
+    modified: true,
+  });
+});
+
 import {
   editedWordFields,
   preserveExampleMetadata,

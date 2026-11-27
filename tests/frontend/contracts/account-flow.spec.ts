@@ -1,6 +1,9 @@
-import { expect, type Page, test } from "../../../frontend/playwright-test";
+import { mockOrigin } from "../../../frontend/config/playwright/loopback";
+import { expect, type Page, test } from "../../../frontend/config/playwright/test-fixtures";
+import { createSession } from "../../../packages/shared/src/game-engine";
 import type { GameSession } from "../../../packages/shared/src/index";
 import { healthyGemini } from "../fixtures/day-study-mock";
+import { readyDayWords } from "../fixtures/day-study-words";
 
 const alice = "11111111-1111-4111-8111-111111111111";
 const bob = "22222222-2222-4222-8222-222222222222";
@@ -151,14 +154,22 @@ async function mockCloud(page: Page, waitForSessionSave?: Promise<void>) {
       const suggestions = names.map((name: string) => ({
         word: name,
         alternatives: [],
-        meanings: ["Dayanıklı"],
+        meanings: body.senses?.find((sense: { word: string }) => sense.word === name)?.meanings
+          ?.length
+          ? body.senses.find((sense: { word: string }) => sense.word === name).meanings
+          : ["Dayanıklı"],
         usageNote: "Örnek kullanım.",
-        partOfSpeech: "Adjective",
+        partOfSpeech:
+          body.senses?.find((sense: { word: string }) => sense.word === name)?.partOfSpeech ||
+          (name.toLowerCase() === "hello" ? "Interjection" : "Adjective"),
         cefr: "C1",
         examples: Array.from({ length: 5 }, (_, index) => ({
           sentence: `The ${name} example is number ${index}.`,
-          translation: `${index}. örnek dayanıklı.`,
-          translationFocus: ["dayanıklı"],
+          translation:
+            name.toLowerCase() === "hello"
+              ? `${index}. örnekte merhaba denir.`
+              : `${index}. örnek dayanıklı.`,
+          translationFocus: [name.toLowerCase() === "hello" ? "merhaba" : "dayanıklı"],
         })),
       }));
       await route.fulfill({ json: { suggestions, provider: "Gemini", model: "contract-test" } });
@@ -283,8 +294,11 @@ test("matching responds while a cloud save is pending", async ({ page }) => {
     await page.goto("/#game");
     await login(page);
     await page.getByRole("button", { name: "Kaldığım yerden devam et" }).click();
-    const left = page.locator(`[data-matching-side="left"][data-word-id="${first.id}"]`);
-    const right = page.locator(`[data-matching-side="right"][data-word-id="${first.id}"]`);
+    await expect(page.locator("#matching-board [data-word-id]")).toHaveCount(0);
+    const left = page.locator('[data-matching-side="left"]').filter({ hasText: first.word });
+    const right = page
+      .locator('[data-matching-side="right"]')
+      .filter({ hasText: first.meanings[0] });
     await left.click();
     await expect(left).toHaveAttribute("aria-pressed", "true");
     await left.click();
@@ -292,14 +306,18 @@ test("matching responds while a cloud save is pending", async ({ page }) => {
     await right.click();
     await expect(left).toBeDisabled();
     await expect(page.getByText("1 / 2 eşleşti")).toBeVisible();
-    await page.locator(`[data-matching-side="left"][data-word-id="${second.id}"]`).click();
-    await page.locator(`[data-matching-side="right"][data-word-id="${second.id}"]`).click();
+    await page.locator("#matching-board").getByText(second.word, { exact: true }).click();
+    await page.locator("#matching-board").getByText(second.meanings[0], { exact: true }).click();
     await page.locator("#matching-next").click();
-    await expect(page.locator("#choice-correct")).toBeVisible();
-    await page.locator("#choice-correct").click();
+    await expect(page.locator("#question-choices")).toBeVisible();
+    await expect(page.locator("#choice-correct, #choice-wrong")).toHaveCount(0);
+    const prompt = await page.locator("#question-sentence h2").innerText();
+    const term = [first, second].find((item) => item.word === prompt);
+    expect(term).toBeDefined();
+    await page.locator("#question-choices").getByText(term!.meanings[0], { exact: true }).click();
     await expect(page.locator("#question-next")).toBeEnabled();
     await page.locator("#question-next").click();
-    await expect(page.locator("#choice-correct")).toBeEnabled();
+    await expect(page.locator("#question-choices button").first()).toBeEnabled();
   } finally {
     releaseSave();
   }
@@ -314,6 +332,29 @@ async function login(page: Page, email = "alice@example.com") {
   await form.getByRole("button", { name: "Giriş yap", exact: true }).click();
   await expect(page.getByRole("button", { name: "Hesabım", exact: true })).toBeVisible();
 }
+test("chat keeps a mounted account's messages local if the browser session changes before send", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  await page.goto("/");
+  await login(page);
+  await page.getByRole("button", { name: "Atlas'a sor" }).click();
+  const chat = page.getByRole("dialog", { name: "YDS Atlas Pro Asistanı" });
+  // Model the interval between writing a new session and delivering its auth event.
+  await page.evaluate(
+    (next) => {
+      const key = Object.keys(sessionStorage).find(
+        (k) => k.startsWith("sb-") && k.endsWith("-auth-token"),
+      );
+      if (!key) throw Error("Synthetic browser session missing");
+      sessionStorage.setItem(key, JSON.stringify(next));
+    },
+    authSession(bob, "bob@example.com"),
+  );
+  await chat.getByRole("button", { name: "Indicate ne demek?", exact: true }).click();
+  await expect(chat.getByText("Oturum değişti. İşlemi yeniden başlat.")).toBeVisible();
+  expect(cloud.requests.filter((request) => request.path === "/api/ai/chat")).toHaveLength(0);
+});
 test("chat menu cancels pending requests and restores the previous conversation", async ({
   page,
 }) => {
@@ -427,8 +468,380 @@ test("account login, reload and logout preserve guest data and isolate a second 
   await login(page, "bob@example.com");
   await expect(page.getByRole("button", { name: "Benefit kelime ayrıntıları" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Evidence kelime ayrıntıları" })).toHaveCount(0);
+  for (const email of ["alice@example.com", null]) {
+    await page.getByRole("button", { name: "Hesabım", exact: true }).click();
+    await page.getByRole("button", { name: "Çıkış yap", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Guest kelime ayrıntıları" })).toBeVisible();
+    if (email) {
+      await login(page, email);
+      await expect(page.getByRole("button", { name: "Evidence kelime ayrıntıları" })).toBeVisible();
+    }
+  }
   expect(errors).toEqual([]);
 });
+test("incomplete account library preserves the private plan across a retry", async ({ page }) => {
+  const cloud = await mockCloud(page);
+  const assigned = cloud.libraries[alice][0];
+  const excluded = word("cccccccc-cccc-4ccc-8ccc-cccccccccccc", "Observe");
+  cloud.libraries[alice].push(excluded);
+  const plan = {
+    ["yds-atlas-daily-word-groups-v1:" + alice]: JSON.stringify([
+      { day: 60, words: [assigned.id] },
+    ]),
+    ["yds-atlas-daily-word-exclusions-v1:" + alice]: JSON.stringify([excluded.id]),
+    ["yds-atlas-daily-plan-size-v1:" + alice]: "30",
+  };
+  let incomplete = true;
+  await page.route("**/api/words", async (route) => {
+    if (!incomplete || route.request().method() !== "GET") return route.fallback();
+    return route.fulfill({
+      status: 503,
+      json: {
+        error: "Kelime listesi eksik geldi (1000/1001). Yeniden dene.",
+        code: "INCOMPLETE_WORD_LIST",
+      },
+    });
+  });
+  await page.goto("/#library");
+  await page.evaluate((plan) => {
+    for (const [key, value] of Object.entries(plan)) localStorage.setItem(key, value);
+  }, plan);
+  const readPlan = () =>
+    page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), Object.keys(plan));
+  await login(page);
+  await expect(page.getByText(/Kelime listesi eksik geldi \(1000\/1001\)/)).toBeVisible();
+  expect(await readPlan()).toEqual(Object.values(plan));
+  incomplete = false;
+  await page.getByRole("button", { name: "Yeniden dene" }).click();
+  await expect(page.getByRole("button", { name: "Evidence kelime ayrıntıları" })).toBeVisible();
+  expect(await readPlan()).toEqual(Object.values(plan));
+  expect(cloud.requests.filter(({ method }) => method !== "GET")).toEqual([]);
+});
+
+test("failed account reload preserves the cached goal and draft until retry succeeds", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  cloud.accounts[alice].dailyGoal = 50;
+  await page.goto("/#library");
+  await login(page);
+  const libraryWord = page.getByRole("button", { name: "Evidence kelime ayrıntıları" });
+  await expect(libraryWord).toBeVisible();
+  const goalKey = "yds-atlas-daily-goal:" + alice;
+  const draftKey = "yds-atlas-learning-session-v2:" + alice;
+  const rawDraft = JSON.stringify(createSession([readyDayWords[0]], 5), null, 2);
+  await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), {
+    key: draftKey,
+    raw: rawDraft,
+  });
+  const stored = () =>
+    page.evaluate((keys) => keys.map((key) => localStorage.getItem(key)), [goalKey, draftKey]);
+  expect(await stored()).toEqual(["50", rawDraft]);
+
+  let unavailable = true;
+  await page.route("**/api/account", async (route) => {
+    if (!unavailable) return route.fallback();
+    expect(route.request().method()).toBe("GET");
+    await route.fulfill({
+      status: 503,
+      json: { error: "Günlük hedef yüklenemedi. Yeniden dene." },
+    });
+  });
+  const requestStart = cloud.requests.length;
+  await page.reload();
+  await expect(page.getByRole("status")).toHaveText("Günlük hedef yüklenemedi. Yeniden dene.");
+  expect(await stored()).toEqual(["50", rawDraft]);
+
+  unavailable = false;
+  await page.getByRole("button", { name: "Yeniden dene" }).click();
+  await expect(libraryWord).toBeVisible();
+  expect(await stored()).toEqual(["50", rawDraft]);
+  const reloadRequests = cloud.requests.slice(requestStart);
+  expect(
+    reloadRequests.some(({ path, method }) => path === "/api/account" && method === "GET"),
+  ).toBe(true);
+  expect(
+    reloadRequests.filter(
+      ({ path, method }) =>
+        (path.startsWith("/api/account") || path.startsWith("/api/learning/")) && method !== "GET",
+    ),
+  ).toEqual([]);
+});
+
+test("offline assessment action survives account bootstrap and resumes from the local draft", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  const entry = readyDayWords[0];
+  const snapshot = { ...createSession([entry], 5), assessmentActions: [] };
+  cloud.accounts[alice].session = { snapshot, revision: 1 };
+  await page.route("**/api/learning/session", (route) =>
+    route.fulfill({ status: 503, json: { error: "Sentetik bağlantı kesintisi" } }),
+  );
+  await page.goto("/#game");
+  await login(page);
+  const resume = page.getByRole("button", { name: "Kaldığım yerden devam et" });
+  await resume.click();
+  await page.getByRole("button", { name: "Kartı çevir ve anlamı göster" }).click();
+  await page.getByRole("button", { name: "Bir sonraki kelime", exact: true }).click();
+  const key = "yds-atlas-learning-session-v2:" + alice;
+  await expect
+    .poll(() =>
+      page.evaluate((key) => JSON.parse(localStorage.getItem(key)!).assessmentActions.length, key),
+    )
+    .toBe(1);
+  const raw = await page.evaluate((key) => localStorage.getItem(key), key);
+  await page.reload();
+  await resume.click();
+  expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(raw);
+  expect(cloud.accounts[alice].session?.revision).toBe(1);
+});
+
+for (const terminal of ["completed", "discarded"] as const) {
+  test(`reload preserves an unmarked local draft when the cloud session is ${terminal}`, async ({
+    page,
+  }) => {
+    const cloud = await mockCloud(page);
+    await page.goto("/#game");
+    await login(page);
+    const draft: GameSession = {
+      ...createSession([readyDayWords[0]], 5),
+      phase: "final-context",
+      assessmentActions: [{ type: "confidence", value: 20 }],
+    };
+    const snapshot: GameSession =
+      terminal === "discarded"
+        ? { ...draft, discarded: true }
+        : {
+            ...draft,
+            phase: "complete",
+            queue: [],
+            saved: true,
+            assessmentActions: [{ type: "confidence", value: 0 }, { type: "advance" }],
+          };
+    cloud.accounts[alice].session = { snapshot, revision: 7 };
+    const keys = {
+      draft: "yds-atlas-learning-session-v2:" + alice,
+      pending: "yds-atlas-unsent-session-v1:" + alice,
+    };
+    const raw = JSON.stringify(draft, null, 2);
+    await page.evaluate(({ key, raw }) => localStorage.setItem(key, raw), { key: keys.draft, raw });
+    const conflict = page
+      .getByRole("status")
+      .filter({ hasText: "yerel taslak bu cihazda korundu" });
+    await page.reload();
+    await expect(conflict).toBeVisible();
+    await page.getByRole("button", { name: "Yeniden dene" }).click();
+    await expect(conflict).toBeVisible();
+    expect(
+      await page.evaluate(
+        (keys) => [localStorage.getItem(keys.draft), localStorage.getItem(keys.pending)],
+        keys,
+      ),
+    ).toEqual([raw, null]);
+    await expect(page.getByRole("button", { name: "Kaldığım yerden devam et" })).toHaveCount(0);
+    expect(
+      cloud.requests.filter((r) => r.path.startsWith("/api/learning/") && r.method !== "GET"),
+    ).toEqual([]);
+    expect(cloud.accounts[alice].session).toEqual({ snapshot, revision: 7 });
+    page.once("dialog", (d) => d.accept());
+    await page.getByRole("button", { name: "Taslağı sakla ve bulut oturumunu kullan" }).click();
+    await expect(page.getByRole("button", { name: "Hesabım", exact: true })).toBeVisible();
+    expect(
+      await page.evaluate(
+        (owner) => JSON.parse(localStorage.getItem("atlas-preserved-drafts-v1:" + owner)!),
+        alice,
+      ),
+    ).toEqual([raw]);
+    expect(
+      cloud.requests.filter((r) => r.path.startsWith("/api/learning/") && r.method !== "GET"),
+    ).toEqual([]);
+  });
+}
+
+test("an old account queue cannot send its next goal after Alice signs in again", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  let release = () => {};
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const sent: number[] = [];
+  await page.route("**/api/account/goal", async (route) => {
+    sent.push(route.request().postDataJSON().goal);
+    if (sent.length === 1) await held;
+    await route.fulfill({ json: { goal: sent.at(-1) } });
+  });
+  const change = async () => {
+    await page.getByRole("button", { name: "Hedefi düzenle" }).click();
+    await page.getByRole("button", { name: "Hedefi 10 artır" }).click();
+    await page.getByRole("button", { name: "Tamam", exact: true }).click();
+  };
+  const logout = async () => {
+    await page.getByRole("button", { name: "Hesabım", exact: true }).click();
+    await page.getByRole("button", { name: "Çıkış yap", exact: true }).click();
+    await expect(page.getByRole("button", { name: "Giriş yap", exact: true })).toBeVisible();
+  };
+  try {
+    await page.goto("/");
+    await login(page);
+    await change();
+    await expect.poll(() => sent).toEqual([30]);
+    await change();
+    await logout();
+    await login(page, "bob@example.com");
+    await logout();
+    await login(page);
+    const response = page.waitForEvent("requestfinished", {
+      predicate: (r) => r.url().endsWith("/api/account/goal"),
+    });
+    release();
+    await response;
+    await change();
+    await expect.poll(() => sent).toEqual([30, 30]);
+    expect(cloud.accounts[bob].dailyGoal).toBe(20);
+  } finally {
+    release();
+  }
+});
+
+test("retrying a partial guest transfer preserves the source and skips accepted words", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  const guest = Array.from({ length: 501 }, (_, i) => word("guest-" + i, "Guestword" + i));
+  const raw = JSON.stringify(guest);
+  await page.goto("/");
+  await page.evaluate((value) => localStorage.setItem("yds-atlas-words-v1", value), raw);
+  await login(page);
+  const accepted = new Set<string>();
+  const sizes: number[] = [];
+  await page.route("**/api/words/import", async (route) => {
+    const inputs = route.request().postDataJSON() as { word: string }[];
+    sizes.push(inputs.length);
+    if (sizes.length === 2) {
+      await route.fulfill({ status: 503, json: { error: "Sentetik kesinti" } });
+      return;
+    }
+    expect(JSON.parse(atob(route.request().headers().authorization.split(".")[1])).sub).toBe(alice);
+    const before = accepted.size;
+    for (const input of inputs) accepted.add(input.word);
+    await route.fulfill({
+      json: { added: accepted.size - before, duplicates: inputs.length - (accepted.size - before) },
+    });
+  });
+  await page.getByRole("button", { name: "Hesabım", exact: true }).click();
+  const button = page.getByRole("button", { name: /misafir kelimelerini hesabıma aktar/ });
+  await button.click();
+  await expect(page.getByText("Sentetik kesinti")).toBeVisible();
+  expect(accepted.size).toBe(500);
+  await button.click();
+  await expect(page.getByText(/Cihazdaki kelimeler aktarıldı/)).toBeVisible();
+  expect(sizes).toEqual([500, 1, 500, 1]);
+  expect(accepted.size).toBe(501);
+  expect(await page.evaluate(() => localStorage.getItem("yds-atlas-words-v1"))).toBe(raw);
+  expect(cloud.libraries[bob]).toHaveLength(1);
+});
+
+test("guest transfer retries smaller payloads and detects a changed source before showing success", async ({
+  page,
+}) => {
+  await mockCloud(page);
+  const key = "yds-atlas-words-v1";
+  const guest = [word("guest-1", "First"), word("guest-2", "Second"), word("guest-3", "Third")];
+  const changed = JSON.stringify([...guest, word("guest-4", "Fourth")]);
+  await page.goto("/");
+  await page.evaluate(({ key, guest }) => localStorage.setItem(key, JSON.stringify(guest)), {
+    key,
+    guest,
+  });
+  await login(page);
+  const sizes: number[] = [];
+  const received = new Set<string>();
+  await page.route("**/api/words/import", async (route) => {
+    const batch = route.request().postDataJSON() as { word: string }[];
+    sizes.push(batch.length);
+    if (batch.length > 2) {
+      await route.fulfill({
+        status: 413,
+        json: { code: "BODY_TOO_LARGE", error: "İstek çok büyük." },
+      });
+      return;
+    }
+    const before = received.size;
+    for (const entry of batch) received.add(entry.word);
+    if (sizes.length === 3)
+      await page.evaluate(({ key, changed }) => localStorage.setItem(key, changed), {
+        key,
+        changed,
+      });
+    const added = received.size - before;
+    await route.fulfill({ json: { added, duplicates: batch.length - added } });
+  });
+  await page.getByRole("button", { name: "Hesabım", exact: true }).click();
+  const submit = page.getByRole("button", { name: /misafir kelimelerini hesabıma aktar/ });
+  await submit.click();
+  await expect(page.getByText(/Misafir kütüphanesi değişti/)).toBeVisible();
+  expect(sizes).toEqual([3, 2, 1]);
+  await submit.click();
+  await expect(page.getByText(/Cihazdaki kelimeler aktarıldı/)).toBeVisible();
+  expect(sizes.slice(3)).toEqual([4, 2, 2]);
+  expect(received.size).toBe(4);
+  expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(changed);
+});
+
+test("a queued guest plan change cannot initialize either library after login", async ({
+  page,
+  context,
+}) => {
+  await mockCloud(page);
+  const holder = await context.newPage();
+  await mockCloud(holder);
+  await holder.goto("/");
+  await page.goto("/#library");
+  await page.getByRole("tab", { name: /Günlük Plan/ }).click();
+  const key = "yds-atlas-words-v1";
+  await holder.evaluate(
+    (key) =>
+      new Promise<void>((held) => {
+        void navigator.locks.request(key, async () => {
+          held();
+          await new Promise((resolve) =>
+            window.addEventListener("release-guest", resolve, { once: true }),
+          );
+        });
+      }),
+    key,
+  );
+  await page.getByRole("button", { name: "40", exact: true }).click();
+  await expect
+    .poll(() =>
+      holder.evaluate(
+        async (key) => (await navigator.locks.query()).pending?.some((lock) => lock.name === key),
+        key,
+      ),
+    )
+    .toBe(true);
+  await login(page);
+  await holder.evaluate(async (key) => {
+    window.dispatchEvent(new Event("release-guest"));
+    await navigator.locks.request(key, () => {});
+  }, key);
+  expect(
+    await page.evaluate(
+      ({ key, owner }) =>
+        [
+          key,
+          key + ":" + owner,
+          "yds-atlas-daily-plan-size-v1",
+          "yds-atlas-daily-plan-size-v1:" + owner,
+        ].map((k) => localStorage.getItem(k)),
+      { key, owner: alice },
+    ),
+  ).toEqual([null, null, null, null]);
+});
+
 test("Gemini suggestion is previewed before application and explicit cloud save", async ({
   page,
 }) => {
@@ -441,13 +854,13 @@ test("Gemini suggestion is previewed before application and explicit cloud save"
   await dialog.getByRole("button", { name: "Öneri oluştur", exact: true }).click();
   await expect(dialog.getByText(/GEMINI ÖNERİSİ/)).toBeVisible();
   await page.screenshot({
-    path: `test-results-cloud/ai-preview-${test.info().project.name}.png`,
+    path: test.info().outputPath(`ai-preview-${test.info().project.name}.png`),
     fullPage: true,
   });
   expect(cloud.libraries[alice]).toHaveLength(1);
   await dialog.getByRole("button", { name: "İnceledim, öneriyi forma aktar" }).click();
   expect(cloud.libraries[alice]).toHaveLength(1);
-  await dialog.getByRole("button", { name: "Kütüphaneye ekle", exact: true }).click();
+  await dialog.getByRole("button", { name: "Manuel kaydet", exact: true }).click();
   await expect(dialog).not.toBeVisible();
   await expect(page.getByRole("button", { name: "Resilient kelime ayrıntıları" })).toBeVisible();
   expect(cloud.libraries[alice]).toHaveLength(2);
@@ -468,7 +881,7 @@ test("new account words are completed automatically before saving", async ({ pag
   await page.getByRole("button", { name: "Kelime ekle", exact: true }).first().click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("textbox", { name: /İngilizce kelime/ }).fill("Resilient");
-  const saveButton = dialog.getByRole("button", { name: "Kütüphaneye ekle", exact: true });
+  const saveButton = dialog.getByRole("button", { name: "AI ile kaydet", exact: true });
   await expect(saveButton).toBeEnabled();
   await saveButton.click();
   await expect(dialog).not.toBeVisible();
@@ -478,6 +891,65 @@ test("new account words are completed automatically before saving", async ({ pag
   )!.body as { examples: { source: string }[] };
   expect(saved.examples).toHaveLength(5);
   expect(saved.examples[0].source).toContain("Gemini");
+});
+
+test("Hello with a typed Turkish meaning keeps it when AI saves five examples", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  await page.goto("/");
+  await login(page);
+  await page.getByRole("button", { name: "Kelime ekle", exact: true }).first().click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByRole("textbox", { name: /İngilizce kelime/ }).fill("hello");
+  await dialog.getByRole("textbox", { name: /Türkçe anlam/ }).fill("merhaba");
+  await dialog.getByRole("button", { name: "AI ile kaydet", exact: true }).click();
+  await expect(dialog).not.toBeVisible();
+  const generation = cloud.requests.find(({ path }) => path === "/api/ai/words/complete");
+  expect(generation?.body).toMatchObject({ senses: [{ word: "Hello", meanings: ["merhaba"] }] });
+  const saved = cloud.libraries[alice].find(({ word }) => word.toLowerCase() === "hello");
+  expect(saved?.meanings).toEqual(["merhaba"]);
+  expect(saved?.examples).toHaveLength(5);
+  expect(saved?.partOfSpeech).toBe("Interjection");
+  expect(saved?.examples.every(({ translation }) => translation.includes("merhaba"))).toBe(true);
+});
+
+test("authorized Settings shows a safe Gemini error and retries", async ({ page }) => {
+  await mockCloud(page);
+  let allowed = true;
+  let calls = 0;
+  await page.route("**/api/control", (route) =>
+    route.fulfill(
+      allowed ? { json: { authorized: true } } : { status: 403, json: { code: "CONTROL_DENIED" } },
+    ),
+  );
+  await page.route("**/api/control/ai-status", (route) =>
+    route.fulfill(
+      ++calls === 1
+        ? { status: 503, json: { error: "raw fixture diagnostic" } }
+        : { json: { keys: [], lastKey: null, pause: null } },
+    ),
+  );
+  await page.goto("/");
+  await login(page);
+  const settings = page
+    .getByRole("button", { name: "Ayarlar", exact: true })
+    .filter({ visible: true });
+  if (!(await settings.isVisible())) await page.getByRole("button", { name: "Menüyü aç" }).click();
+  await settings.click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("alert")).toHaveText("Gemini durum bilgisi yüklenemedi.");
+  await expect(dialog.getByText("raw fixture diagnostic")).toHaveCount(0);
+  await dialog.getByRole("button", { name: /Yeniden kontrol/ }).click();
+  await expect(dialog.getByRole("alert")).toHaveCount(0);
+  await expect(dialog.getByRole("heading", { name: "Gemini teknik durumu" })).toBeVisible();
+  expect(calls).toBe(2);
+  await page.keyboard.press("Escape");
+  allowed = false;
+  if (!(await settings.isVisible())) await page.getByRole("button", { name: "Menüyü aç" }).click();
+  await settings.click();
+  await expect(dialog.getByRole("heading", { name: "Gemini teknik durumu" })).toHaveCount(0);
+  expect(calls).toBe(2);
 });
 
 test("six confirmed legacy words auto-upgrade on opening the library, preserving examples and scores", async ({
@@ -505,7 +977,7 @@ test("six confirmed legacy words auto-upgrade on opening the library, preserving
   // The account owner grants explicit consent once; subsequent tier completion
   // and shared dictionary warmup run without the two legacy operation banners.
   expect(cloud.requests.some((req) => req.method === "PUT")).toBe(false);
-  const enable = page.getByRole("button", { name: "Otomatik tamamlamayı aç" });
+  const enable = page.getByRole("button", { name: "Eski örnekleri tamamla" });
   await expect(enable).toBeVisible();
   page.once("dialog", (dialog) => void dialog.accept());
   await enable.click();
@@ -583,7 +1055,7 @@ test("automatic legacy repair stops on a simulated concurrent tab edit", async (
   await page.goto("/");
   await login(page);
   await page.goto("/#library");
-  const enable = page.getByRole("button", { name: "Otomatik tamamlamayı aç" });
+  const enable = page.getByRole("button", { name: "Eski örnekleri tamamla" });
   await expect(enable).toBeVisible();
   page.once("dialog", (dialog) => void dialog.accept());
   await enable.click();
@@ -614,6 +1086,122 @@ test("AI task list is previewed without saving", async ({ page }) => {
   await expect(page.getByText("The Resilient example is number 0.")).toBeVisible();
   expect(cloud.libraries[alice]).toHaveLength(1);
   expect(cloud.requests.some((request) => request.path === "/api/ai/words/suggest")).toBe(true);
+});
+
+test("online assessment restores the current question without a browser draft", async ({
+  page,
+}) => {
+  const cloud = await mockCloud(page);
+  await page.route("**/api/account", (route) =>
+    route.fulfill({
+      json: {
+        ...cloud.accounts[alice],
+        onlineProtocol: 1,
+      },
+    }),
+  );
+  const id = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+  const routeName = "/api/learning/online";
+  const token = "0123456789abcdef0123456789abcdef";
+  let cancelled = false;
+  const question = {
+    id,
+    revision: 3,
+    phase: "final-meaning",
+    status: "active",
+    total: 5,
+    group: 1,
+    done: 0,
+    prompt: "Evidence",
+    choices: [{ token, text: "Kanıt" }],
+  };
+  await page.route("**" + routeName + "**", async (route) => {
+    const request = route.request();
+    if (request.method() === "GET") {
+      await route.fulfill({
+        json:
+          new URL(request.url()).pathname === routeName
+            ? { current: cancelled ? null : question }
+            : question,
+      });
+      return;
+    }
+    expect(new URL(request.url()).pathname).toBe(routeName + "/" + id);
+    expect(request.postDataJSON()).toMatchObject({ revision: 3, action: { kind: "cancel" } });
+    cancelled = true;
+    await route.fulfill({
+      json: { ...question, status: "cancelled", revision: 4, choices: undefined },
+    });
+  });
+  await page.goto("/");
+  await login(page);
+  await page.goto("/#game");
+  await expect(page.getByRole("button", { name: "Kanıt", exact: true })).toBeEnabled();
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Kanıt", exact: true })).toBeEnabled();
+  expect(
+    cloud.requests.filter(
+      (request) => request.path === "/api/learning/session" && request.method !== "GET",
+    ),
+  ).toEqual([]);
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "İptal et", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Değerlendirme iptal edildi" })).toBeVisible();
+});
+
+test("a signed-in account finishes local practice completely offline without recording a score", async ({
+  page,
+  context,
+}) => {
+  const cloud = await mockCloud(page);
+  const entry = readyDayWords[0];
+  cloud.libraries[alice] = [entry];
+  await page.route("**/api/account", (route) =>
+    route.fulfill({ json: { ...cloud.accounts[alice], onlineProtocol: 1 } }),
+  );
+  await page.route("**/api/learning/online", (route) => route.abort("internetdisconnected"));
+  await page.goto("/");
+  await login(page);
+  await context.setOffline(true);
+  await page.getByRole("button", { name: "Hedefe Başla" }).click();
+  await page.getByRole("button", { name: "Puansız pratik", exact: true }).click();
+  await page.getByRole("tab", { name: "Kütüphanem" }).click();
+  await page.getByRole("button", { name: "Mevcut 1 kelimeyle kısa görev başlat" }).click();
+  const key = "yds-atlas-learning-session-v2:" + alice;
+  const draft = () =>
+    page.evaluate((key) => JSON.parse(localStorage.getItem(key)!) as GameSession, key);
+  await page.getByRole("button", { name: "Kartı çevir ve anlamı göster" }).click();
+  await page.locator("#flashcard-next").click();
+  await expect.poll(async () => (await draft()).phase).toBe("matching");
+  for (let i = 0; i < 8; i++) {
+    const session = await draft();
+    expect(session.localPractice).toBe(true);
+    if (session.phase === "complete") break;
+    if (session.phase.endsWith("matching")) {
+      await page.locator("#matching-board").getByText(entry.word, { exact: true }).click();
+      await page.locator("#matching-board").getByText(entry.meanings[0], { exact: true }).click();
+      await page.locator("#matching-next").click();
+    } else {
+      const correct = session.phase.endsWith("meaning") ? entry.meanings[0] : entry.word;
+      await page.locator("#question-choices").getByText(correct, { exact: true }).click();
+      if (session.phase.startsWith("final-"))
+        await page.getByRole("button", { name: "Kolay hatırladım" }).click();
+      await page.locator("#question-next").click();
+    }
+    await expect.poll(async () => (await draft()).phase).not.toBe(session.phase);
+  }
+  await expect.poll(async () => (await draft()).saved).toBe(true);
+  await context.setOffline(false);
+  await page.reload();
+  await page.getByRole("button", { name: "Hesabım", exact: true }).waitFor();
+  expect((await draft()).saved).toBe(true);
+  expect(
+    cloud.requests.filter(
+      ({ path, method }) => path.startsWith("/api/learning") && method !== "GET",
+    ),
+  ).toEqual([]);
+  expect(cloud.accounts[alice].progress).toEqual([]);
+  expect(cloud.libraries[alice][0].score).toBe(entry.score);
 });
 
 test("cloud assessment resumes, persists before completion, and restores measured scores", async ({
@@ -748,7 +1336,12 @@ test("one Study click uses the verified pool before AI, saves missing fields and
   page,
 }) => {
   const cloud = await mockCloud(page);
-  const own = { ...cloud.libraries[alice][0], usageNote: "My private note", score: 37 };
+  const own = {
+    ...cloud.libraries[alice][0],
+    meanings: ["Kanıt"],
+    usageNote: "My private note",
+    score: 37,
+  };
   const missing = {
     ...word("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "Reliable"),
     meanings: [],
@@ -922,6 +1515,8 @@ test("clearing an account day during an unfinished task preserves the game and t
     examples: Array.from({ length: 5 }, (_, i) => ({
       sentence: `Evidence supports report ${i}.`,
       translation: "Kanıt raporu destekler.",
+      translationFocus: ["Kanıt"],
+      difficulty: ["easy", "easy", "medium", "yds", "yds"][i],
     })),
   };
   cloud.libraries[alice] = [original];
@@ -939,6 +1534,7 @@ test("clearing an account day during an unfinished task preserves the game and t
   await expect(confirm).toContainText("Yarım kalan görevin korunacak.");
   await expect(confirm.getByRole("radio", { name: /Günü ve kelimeleri sil/ })).toBeDisabled();
   await confirm.getByRole("button", { name: "Günü temizle" }).click();
+  await expect(page.getByRole("button", { name: "1. güne kelime ekle" })).toBeVisible();
   await page.reload();
   await page.getByRole("tab", { name: "Günlük Plan" }).click();
   await expect(page.getByRole("button", { name: "1. güne kelime ekle" })).toBeVisible();
@@ -1048,6 +1644,9 @@ for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const)
           json: {
             provider: "Gemini",
             model: "synthetic-only",
+            failures: names
+              .slice(selected.length)
+              .map((word, index) => ({ word, reason: index === 0 ? "wrong_sense" : "examples" })),
             suggestions: selected.map((name) => ({
               word: name,
               alternatives: [],
@@ -1135,6 +1734,9 @@ for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const)
         expect(cloud.libraries[alice]).toHaveLength(1);
         return;
       }
+      const failures = dialog.getByRole("list", { name: "Tamamlanamayan kelimeler" });
+      await expect(failures.getByText(/İstenen Türkçe anlam/).first()).toBeVisible();
+      await expect(failures.getByText(/2 kolay, 1 orta ve 2 YDS/).first()).toBeVisible();
       retryPhase = true;
       await dialog.getByRole("button", { name: "AI ile tekrar dene" }).click();
       await expect(dialog).not.toBeVisible({ timeout: 30_000 });
@@ -1163,3 +1765,136 @@ for (const scenario of ["first-compact", "all-compact", "all-invalid"] as const)
     },
   );
 }
+
+test("two independent devices preserve their day plans across a lost acknowledgement and conflict", async ({
+  page,
+  browser,
+}) => {
+  const device = await browser.newContext({
+    baseURL: mockOrigin,
+    serviceWorkers: "block",
+  });
+  const other = await device.newPage();
+  let revision = 0;
+  let accepted = "";
+  let plan: unknown = null;
+  let loseReply = true;
+  const key = "yds-atlas-daily-word-groups-v1:" + alice;
+  async function prepare(p: Page, day: number, reloadOnly = false) {
+    const mock = await mockCloud(p);
+    Object.assign(mock.accounts[alice], { planProtocol: 1 });
+    await p.route("**/api/account/plan", async (route) => {
+      const req = route.request();
+      if (req.method() === "PUT") {
+        const input = req.postDataJSON();
+        expect(input.owner).toBe(alice);
+        if (input.command !== accepted) {
+          if (input.revision !== revision)
+            return route.fulfill({
+              status: 409,
+              json: { code: "PLAN_CONFLICT", error: "Plan değişti." },
+            });
+          revision++;
+          plan = input.plan;
+          accepted = input.command;
+          if (loseReply) {
+            loseReply = false;
+            return route.abort("failed");
+          }
+        }
+      }
+      return route.fulfill({ json: { owner: alice, revision, plan } });
+    });
+    await p.goto("/#library");
+    if (reloadOnly) {
+      await login(p);
+      return;
+    }
+    await p.evaluate(
+      ({ key, day }) =>
+        localStorage.setItem(
+          key,
+          JSON.stringify([
+            {
+              day,
+              words:
+                day === 60
+                  ? ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "legacy-device-only-word"]
+                  : ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"],
+            },
+          ]),
+        ),
+      { key, day },
+    );
+    await login(p);
+    await expect(p.getByRole("button", { name: "Cihazdaki planı hesaba aktar" })).toBeVisible();
+  }
+  try {
+    await Promise.all([prepare(page, 60), prepare(other, 1)]);
+    await expect(page.getByText(/Kütüphanede bulunmayan 1 kayıt/)).toBeVisible();
+    page.once("dialog", (d) => d.accept());
+    await page.getByRole("button", { name: "Cihazdaki planı hesaba aktar" }).click();
+    await expect(page.getByRole("button", { name: "Aynı işlemi yeniden doğrula" })).toBeVisible();
+    const context = page.context();
+    const raw = await page.evaluate((key) => localStorage.getItem(key), key);
+    await page.close();
+    page = await context.newPage();
+    await prepare(page, 60, true);
+    expect(await page.evaluate((key) => localStorage.getItem(key), key)).toBe(raw);
+    await page.getByRole("button", { name: "Aynı işlemi yeniden doğrula" }).click();
+    await expect(page.getByRole("button", { name: "Aynı işlemi yeniden doğrula" })).toHaveCount(0);
+    await other.getByRole("button", { name: "Cihazdaki planı hesaba aktar" }).click();
+    await expect(other.getByText("Plan değişti.", { exact: true })).toBeVisible();
+    other.once("dialog", (d) => d.accept());
+    await other.getByRole("button", { name: "Güncel hesap planını kullan" }).click();
+    await other.getByRole("button", { name: "Hesaptaki planı kullan" }).click();
+    expect(revision).toBe(1);
+    expect(plan).toMatchObject({
+      groups: [{ day: 60, words: ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"] }],
+    });
+    expect(
+      JSON.parse(await other.evaluate((key) => localStorage.getItem(key)!, key)),
+    ).toMatchObject([{ day: 1 }]);
+  } finally {
+    await device.close();
+  }
+});
+
+test("bounded account pages discard the first revision on conflict before displaying words", async ({
+  page,
+}) => {
+  const mock = await mockCloud(page);
+  const original = mock.libraries[alice][0];
+  const second = word("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "Second");
+  let generation = 0,
+    calls = 0;
+  await page.route("**/api/words", (route) =>
+    route.fulfill({
+      status: 413,
+      json: { code: "WORD_LIST_LIMIT", error: "Bounded transport required" },
+    }),
+  );
+  await page.route("**/api/words/page", (route) => {
+    calls++;
+    const { cursor } = route.request().postDataJSON();
+    if (!cursor) generation++;
+    if (cursor && generation === 1)
+      return route.fulfill({ status: 409, json: { code: "WORD_LIST_CHANGED", error: "Retry" } });
+    const row = cursor ? second : { ...original, word: generation === 1 ? "Stale" : "Current" };
+    return route.fulfill({
+      json: {
+        owner: alice,
+        revision: String(generation),
+        total: cursor ? null : 2,
+        words: [row],
+        cursor: { owner: alice, revision: String(generation), id: row.id, time: row.updatedAt },
+      },
+    });
+  });
+  await page.goto("/#library");
+  await login(page);
+  await expect(page.getByRole("button", { name: "Current kelime ayrıntıları" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Second kelime ayrıntıları" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Stale kelime ayrıntıları" })).toHaveCount(0);
+  expect(calls).toBe(4);
+});

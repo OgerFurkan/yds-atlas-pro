@@ -9,23 +9,19 @@ import {
   Compass,
   LibraryBig,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { completedOn, readDailyGoal, stepDailyGoal } from "@/shared/lib/daily-progress";
+import { dateParts } from "@/shared/lib/istanbul-date";
 import { Button } from "@/shared/ui/button";
-import {
-  completedToday,
-  dailyGoal as getDailyGoal,
-  setDailyGoal,
-  stepDailyGoal,
-} from "../model/daily-progress";
-import { dateParts } from "../model/date";
+import { getStreak } from "../model/streak";
 import { DailyGoalHero } from "./daily-goal-hero";
 import { RecentWord } from "./recent-word";
 import { StreakCard } from "./streak-card";
 
 interface DashboardPageProps {
   words: WordEntry[];
-  onGoalChange: (goal: number) => void;
+  onGoalChange: (goal: number, previous: number) => Promise<boolean>;
   onAddWord: () => void;
   onOpenLibrary: (group?: "all" | "hard" | "review" | "learned") => void;
   onStartLearning: () => void;
@@ -65,6 +61,14 @@ function MetricCard({ label, value, hint, tone, icon, onClick }: MetricCardProps
   );
 }
 
+function loadGoal() {
+  try {
+    return readDailyGoal();
+  } catch {
+    return null;
+  }
+}
+
 export function DashboardPage({
   words,
   onGoalChange,
@@ -79,13 +83,25 @@ export function DashboardPage({
     return () => window.clearInterval(timer);
   }, []);
   const today = dateParts(now, i18n.resolvedLanguage === "en" ? "en-US" : "tr-TR");
-  const [dailyGoal, setDailyGoalState] = useState(getDailyGoal);
+  const [dailyGoal, setDailyGoalState] = useState(loadGoal);
+  const goalRequest = useRef(0);
   useEffect(() => {
-    const refresh = () => setDailyGoalState(getDailyGoal());
+    const refresh = () => {
+      setDailyGoalState(loadGoal());
+      setNow(new Date());
+    };
     window.addEventListener("storage", refresh);
     return () => window.removeEventListener("storage", refresh);
   }, []);
-  const todayWords = completedToday();
+  let history: {
+    words: ReturnType<typeof completedOn>;
+    streak: ReturnType<typeof getStreak>;
+  } | null;
+  try {
+    history = { words: completedOn(now), streak: getStreak(now) };
+  } catch {
+    history = null;
+  }
 
   const counts = {
     all: words.length,
@@ -94,11 +110,14 @@ export function DashboardPage({
     learned: words.filter((word) => getWordGroup(word.score) === "learned").length,
   };
 
-  function changeGoal(step: number) {
+  async function changeGoal(step: number) {
+    if (dailyGoal === null) return;
     const goal = stepDailyGoal(dailyGoal, step);
     if (goal === dailyGoal) return;
-    setDailyGoalState(setDailyGoal(goal));
-    onGoalChange(goal);
+    const request = ++goalRequest.current;
+    setDailyGoalState(goal);
+    const saved = await onGoalChange(goal, dailyGoal);
+    if (request === goalRequest.current && !saved) setDailyGoalState(loadGoal());
   }
 
   return (
@@ -116,12 +135,28 @@ export function DashboardPage({
         </Button>
       </div>
 
-      <DailyGoalHero
-        goal={dailyGoal}
-        completed={todayWords}
-        onChange={changeGoal}
-        onStart={onStartLearning}
-      />
+      {dailyGoal === null ? (
+        <p role="alert">
+          Günlük hedef okunamadı. Kayıt korundu.{" "}
+          <button type="button" className="underline" onClick={() => setDailyGoalState(loadGoal())}>
+            Yeniden dene
+          </button>
+        </p>
+      ) : !history ? (
+        <p role="alert">
+          Öğrenme geçmişi okunamadı.{" "}
+          <button type="button" className="underline" onClick={() => setNow(new Date())}>
+            Yeniden dene
+          </button>
+        </p>
+      ) : (
+        <DailyGoalHero
+          goal={dailyGoal}
+          completed={history.words}
+          onChange={changeGoal}
+          onStart={onStartLearning}
+        />
+      )}
 
       <section className="mt-8">
         <div className="mb-4 flex items-end justify-between gap-4">
@@ -216,7 +251,7 @@ export function DashboardPage({
             </div>
           )}
         </div>
-        <StreakCard now={now} />
+        {history && <StreakCard streak={history.streak} />}
       </section>
     </>
   );

@@ -1,6 +1,6 @@
 import { Check, Layers } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { dailyGoalOptions } from "@/features/dashboard/model/daily-progress";
+import { dailyGoalOptions } from "@/shared/lib/daily-progress";
 import { Button } from "@/shared/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/shared/ui/select";
 

@@ -60,8 +60,8 @@ export function wordAiAvailability({ phase, health, wordIssue }: Snapshot) {
   if (
     !health.databaseConfigured ||
     !health.aiConfigured ||
-    !health.ai?.configured ||
-    !health.ai.quotaConfigured
+    health.ai?.configured === false ||
+    health.ai?.quotaConfigured === false
   )
     return "not-configured";
   if (health.ai?.word.readyKeys === 0) return "cooldown";

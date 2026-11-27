@@ -17,7 +17,7 @@ import {
   selectMatching,
   startMatchingBoard,
 } from "../../../frontend/src/features/learning-game/model/matching-engine";
-import { starterVocabulary } from "../../../frontend/src/features/word-library/data/starter-vocabulary";
+import { starterVocabulary } from "../../../packages/shared/src/starter-vocabulary";
 
 function matchingSession(count = 7): GameSession {
   const words = starterVocabulary.slice(0, count).map((word, index) => ({

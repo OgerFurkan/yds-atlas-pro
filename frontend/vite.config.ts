@@ -2,18 +2,40 @@ import { fileURLToPath, URL } from "node:url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
+import { mockOrigin } from "./config/playwright/loopback.js";
 import { assertPublicEnvironment } from "./config/public-env.js";
-import { mockOrigin } from "./playwright-local.js";
 
 // https://vite.dev/config/
 export default defineConfig(({ command, mode }) => {
   const localFixtures = command === "serve" && mode === "local-fixtures";
   const contract = mode === "local-contract";
   const testMode = localFixtures || contract || mode === "local-e2e" || mode === "local-dev";
-  if (!testMode)
-    assertPublicEnvironment(loadEnv(mode, fileURLToPath(new URL("./", import.meta.url)), "VITE_"));
+  if (!testMode) {
+    const publicEnv = loadEnv(mode, fileURLToPath(new URL("./", import.meta.url)), "VITE_");
+    if (
+      command === "build" &&
+      process.env.VERCEL_ENV &&
+      !["pre", "prod"].includes(publicEnv.VITE_ATLAS_ENV)
+    )
+      throw new Error("Hosted builds require explicit VITE_ATLAS_ENV.");
+    assertPublicEnvironment({
+      ...publicEnv,
+      ATLAS_HOSTED_IDENTITIES: process.env.ATLAS_HOSTED_IDENTITIES,
+    });
+  }
+  const proxyTarget = process.env.API_PROXY_TARGET ?? "http://127.0.0.1:3000";
+  if (command === "serve" && !testMode) {
+    const proxy = new URL(proxyTarget);
+    if (
+      !["localhost", "127.0.0.1", "[::1]"].includes(proxy.hostname) ||
+      proxy.href !== proxy.origin + "/" ||
+      !/^https?:$/.test(proxy.protocol)
+    )
+      throw new Error("API_PROXY_TARGET must be a loopback origin.");
+  }
   return {
     cacheDir: process.env.VITE_TEST_CACHE_DIR ?? "node_modules/.vite",
+    envDir: testMode ? false : undefined,
     envPrefix: testMode ? [] : "VITE_",
     define: contract
       ? {
@@ -27,6 +49,16 @@ export default defineConfig(({ command, mode }) => {
     plugins: [
       react(),
       tailwindcss(),
+      (contract || mode === "local-e2e") && {
+        name: "atlas-loopback-preview",
+        configurePreviewServer(server) {
+          server.middlewares.use((request, _response, next) => {
+            // Keep local Chromium asset transfers out of the streaming compressor.
+            delete request.headers["accept-encoding"];
+            next();
+          });
+        },
+      },
       localFixtures && {
         name: "atlas-local-fixtures",
         async configureServer(server) {
@@ -93,7 +125,7 @@ export default defineConfig(({ command, mode }) => {
       proxy: testMode
         ? undefined
         : {
-            "/api": process.env.API_PROXY_TARGET ?? "http://localhost:3000",
+            "/api": proxyTarget,
           },
     },
   };

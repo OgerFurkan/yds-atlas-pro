@@ -1,4 +1,4 @@
-import type { Page } from "../../../frontend/playwright-test";
+import type { Page } from "../../../frontend/config/playwright/test-fixtures";
 
 export async function installSpeechMock(page: Page, automatic = true) {
   await page.addInitScript(
@@ -33,7 +33,7 @@ export async function installSpeechMock(page: Page, automatic = true) {
       Object.defineProperty(window, "speechSynthesis", {
         configurable: true,
         value: {
-          getVoices: () => [],
+          getVoices: () => [{ lang: "en-GB" }, { lang: "en-US" }],
           cancel() {
             const playing = current;
             current = null;

@@ -1,13 +1,21 @@
 import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { usableExamples } from "@/features/learning-game/model/game-engine";
+import { hasAtlasTiers } from "./tiered-examples";
 
 /** Scored study uses only unlearned words with enough material to play. */
 export function isDayStudyReady(word: WordEntry) {
-  return (
-    getWordGroup(word.score) !== "learned" &&
-    word.meanings.some((meaning) => meaning.trim().length > 0) &&
-    usableExamples(word).length >= 5
-  );
+  return getWordGroup(word.score) !== "learned" && !missingStudyContent(word).length;
+}
+
+export function missingStudyContent(word: WordEntry) {
+  const missing: ("meaning" | "examples")[] = [];
+  if (!word.meanings.some((meaning) => meaning.trim())) missing.push("meaning");
+  if (
+    !hasAtlasTiers(word.examples) ||
+    usableExamples({ ...word, examples: word.examples.slice(0, 5) }).length !== 5
+  )
+    missing.push("examples");
+  return missing;
 }
 
 export const DAILY_PLAN_DAYS = 60;
@@ -63,6 +71,13 @@ export interface DayAssignment {
 export function clampDailyGroupSize(size: number) {
   if (!Number.isFinite(size)) return DEFAULT_DAILY_GROUP_SIZE;
   return Math.min(MAX_DAILY_GROUP_SIZE, Math.max(MIN_DAILY_GROUP_SIZE, Math.round(size)));
+}
+
+// Persisted assignments break ties by ID; the legacy display-order fallback also considers spelling.
+export function dailyPlanWordIds(words: readonly WordEntry[]) {
+  return [...words]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    .map(({ id }) => id);
 }
 
 function creationOrder(first: WordEntry, second: WordEntry) {

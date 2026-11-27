@@ -2,12 +2,12 @@
 import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { WordDetails } from "@/features/word-library/components/word-details";
 import { WordStatus } from "@/features/word-library/components/word-status";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/tabs";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 import { formatWordType } from "../model/word-normalization";
 
 export interface WordListActions {

@@ -1,4 +1,4 @@
-import type { WordEntry, WordInput } from "@yds-atlas/shared";
+import { matchesRequestedSense, type WordEntry, type WordInput } from "@yds-atlas/shared";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   aiSuggestionToWordInput,
@@ -12,15 +12,18 @@ import { wordKey } from "@/features/word-library/model/word-normalization";
 import { ApiError } from "@/shared/api/api-client";
 import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
+import { lookupStudyContent } from "../api/day-study-api";
 
 /** Account-scoped, resumable recovery while library is open; never edits scores or removes examples. */
 export function LegacyTierUpgrade({
   words,
+  owner,
   onSave,
   onNotify,
   automatic = false,
 }: {
   words: WordEntry[];
+  owner: string | null;
   onSave: (input: WordInput, id: string, expectedUpdatedAt: string) => Promise<unknown>;
   onNotify: Notify;
   automatic?: boolean;
@@ -54,7 +57,7 @@ export function LegacyTierUpgrade({
   ).length;
 
   async function upgrade(unattended = false) {
-    if (busy || !candidates.length) return;
+    if (!owner || busy || !candidates.length) return;
     if (
       !unattended &&
       !window.confirm(
@@ -78,11 +81,25 @@ export function LegacyTierUpgrade({
       // Small requests and per-word authenticated saves: partial progress is kept.
       for (let offset = 0; offset < candidates.length && !cancel.current; offset += 5) {
         const batch = candidates.slice(offset, offset + 5);
-        const aiBatch = batch.filter((word) => !curatedLegacyExamples(word.word));
+        const cached = new Map<string, WordInput>();
+        const aiBatch: WordEntry[] = [];
+        const controller = new AbortController();
+        activeRequest.current = controller;
+        for (const word of batch) {
+          try {
+            const pool = await lookupStudyContent(word, owner, controller.signal);
+            const curated = curatedLegacyExamples(word.word);
+            if (pool) cached.set(word.id, pool);
+            else if (curated && matchesRequestedSense(word, curated)) cached.set(word.id, curated);
+            else aiBatch.push(word);
+          } catch (error) {
+            reason = error instanceof Error ? error.message : "Sözlük okunamadı.";
+            break;
+          }
+        }
+        if (controller.signal.aborted || reason) break;
         let response: Awaited<ReturnType<typeof completeWordsWithGemini>> | null = null;
         if (aiBatch.length) {
-          const controller = new AbortController();
-          activeRequest.current = controller;
           try {
             // Reuse the bounded quota-aware retry policy used by new-word import.
             response = await withAiRecovery(
@@ -90,6 +107,12 @@ export function LegacyTierUpgrade({
                 completeWordsWithGemini(
                   aiBatch.map((word) => word.word),
                   controller.signal,
+                  owner,
+                  aiBatch.map(({ word, meanings, partOfSpeech }) => ({
+                    word,
+                    meanings,
+                    partOfSpeech: partOfSpeech || undefined,
+                  })),
                 ),
               (state) => setRetry(state.secondsRemaining > 0 ? state : null),
               undefined,
@@ -120,7 +143,7 @@ export function LegacyTierUpgrade({
             setDone(completed + skipped);
             continue;
           }
-          const curated = curatedLegacyExamples(word.word);
+          const curated = cached.get(word.id);
           const suggestion = proposals.get(wordKey(word.word));
           if (!curated && (!response || !suggestion)) {
             skipped++;
@@ -128,7 +151,17 @@ export function LegacyTierUpgrade({
             continue;
           }
           try {
-            const generated = curated ?? aiSuggestionToWordInput(suggestion!, response!.model);
+            const source = response?.dictionarySources?.find(
+              (entry) => wordKey(entry.word) === wordKey(word.word),
+            );
+            const generated =
+              curated ??
+              (suggestion &&
+                response &&
+                aiSuggestionToWordInput(suggestion, response.model, source));
+            if (!generated) throw new Error("No validated example proposal.");
+            if (!matchesRequestedSense(fresh, generated))
+              throw new Error("Kelimenin anlamı doğrulanamadı.");
             const input = mergeLegacyTieredExamples(fresh, generated);
             await onSave(input, fresh.id, fresh.updatedAt);
             completed++;

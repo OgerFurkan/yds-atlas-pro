@@ -1,7 +1,11 @@
-import { readStorage } from "@/shared/lib/storage";
+import {
+  completedDays,
+  goalHistory,
+  progressHistory,
+  readDailyGoal,
+} from "@/shared/lib/daily-progress";
+import { dayOffset, localDateKey, startOfWeek, weekdayLabels } from "@/shared/lib/istanbul-date";
 import { storageKeys } from "@/shared/lib/storage-keys";
-import { dailyGoal } from "./daily-progress";
-import { dayOffset, localDateKey, startOfWeek, weekdayLabels } from "./date";
 
 export const streakStorageKey = storageKeys.completedDays;
 
@@ -29,13 +33,13 @@ export function calculateStreak(completedKeys: string[], today: string) {
 
 export function getStreak(now = new Date()) {
   const today = localDateKey(now);
-  const legacy = readStorage<Record<string, string[]>>(storageKeys.dailyProgress, {});
-  const milestones = readStorage<Record<string, boolean>>(streakStorageKey, {});
-  const targets = readStorage<Record<string, number>>(storageKeys.goalPerDay, {});
+  const legacy = progressHistory();
+  const milestones = completedDays();
+  const targets = goalHistory();
   const dates = [
     ...Object.keys(milestones).filter((date) => milestones[date]),
     ...Object.keys(legacy).filter((date) => {
-      const target = targets[date] ?? (date === today ? dailyGoal() : null);
+      const target = targets[date] ?? (date === today ? readDailyGoal() : null);
       return target !== null && (legacy[date]?.length ?? 0) >= target;
     }),
   ];

@@ -17,7 +17,7 @@ The table records the move to the repository root and the main behavior reviewed
 | `backend/tests/gemini-validation-diagnostics.test.ts`       | `tests/backend/ai/gemini-validation-diagnostics.test.ts`                                                                                      | Validation diagnostics                                                           |
 | `backend/tests/turkish-wiktionary-fallback.test.ts`         | `tests/backend/lexicon/turkish-wiktionary-fallback.test.ts`                                                                                   | Licensed provider fallback                                                       |
 | `backend/tests/legacy-gloss-extraction.test.ts`             | `tests/backend/lexicon/legacy-gloss-extraction.test.ts`                                                                                       | Legacy gloss extraction                                                          |
-| `backend/tests/persistent-tooltip-queue.node.test.mjs`      | `tests/backend/lexicon/persistent-tooltip-queue.node.test.mjs`                                                                                | Durable queue claims, retries and SQL constraints                                |
+| `backend/tests/persistent-tooltip-queue.node.test.mjs`      | `tests/backend/lexicon/persistent-tooltip-queue.node.test.mjs`                                                                                | Retired callers absent; historical SQL privileges and lease constraints          |
 | `backend/tests/sentence-tooltip-contract.node.test.mjs`     | `tests/backend/lexicon/sentence-tooltip-contract.node.test.mjs`                                                                               | Tooltip provenance, publication and generation                                   |
 | `backend/tests/game-safe-dictionary.node.test.mjs`          | `tests/backend/lexicon/game-safe-dictionary.node.test.mjs`                                                                                    | Assessment-safe dictionary behavior                                              |
 | `backend/tests/feedback-two-features-api.node.test.mjs`     | `tests/backend/lexicon/feedback-lexicon-http.node.test.mjs`                                                                                   | Lexicon route dispatch and feature gates                                         |
@@ -166,11 +166,11 @@ bun run test:coverage --coverage-reporter=lcov --coverage-dir (Join-Path ([Syste
 - `frontend/src/features/word-library/components/library-summary.tsx`
 - `frontend/src/features/word-library/components/library-toolbar.tsx`
 - `frontend/src/features/word-library/components/library-view-tabs.tsx`
-- `frontend/src/features/word-library/components/pronunciation-buttons.tsx`
-- `frontend/src/features/word-library/components/sentence-word-tooltips.tsx`
+- `frontend/src/shared/ui/pronunciation-buttons.tsx`
+- `frontend/src/shared/vocabulary/sentence-word-tooltips.tsx`
 - `frontend/src/features/word-library/components/tooltip-backfill.tsx`
 - `frontend/src/features/word-library/components/word-details.tsx`
-- `frontend/src/features/word-library/components/word-example.tsx`
+- `frontend/src/shared/vocabulary/word-example.tsx`
 - `frontend/src/features/word-library/components/word-form-dialog.tsx`
 - `frontend/src/features/word-library/components/word-form-fields.tsx`
 - `frontend/src/features/word-library/components/word-import-review.tsx`
@@ -182,7 +182,7 @@ bun run test:coverage --coverage-reporter=lcov --coverage-dir (Join-Path ([Syste
 - `frontend/src/features/word-library/hooks/use-word-library.ts`
 - `frontend/src/features/word-library/hooks/use-word-selection.ts`
 - `frontend/src/features/word-library/hooks/use-word-spellcheck.ts`
-- `frontend/src/features/word-library/model/sentence-tooltip.ts`
+- `frontend/src/shared/vocabulary/sentence-tooltip.ts`
 - `frontend/src/features/word-library/model/spellcheck.types.ts`
 - `frontend/src/features/word-library/workers/spellcheck.worker.ts`
 - `frontend/src/main.tsx`
@@ -209,7 +209,7 @@ bun run test:coverage --coverage-reporter=lcov --coverage-dir (Join-Path ([Syste
 - `frontend/src/shared/ui/preferences-dialog.tsx`
 - `frontend/src/shared/ui/progress.tsx`
 - `frontend/src/shared/ui/select.tsx`
-- `frontend/src/shared/ui/separator.tsx`
+- `frontend/src/shared/ui/separator.tsx` (historical path, removed in Step 5 after reference review)
 - `frontend/src/shared/ui/tabs.tsx`
 - `frontend/src/shared/ui/textarea.tsx`
 

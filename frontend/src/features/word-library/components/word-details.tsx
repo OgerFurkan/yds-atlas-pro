@@ -11,10 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
+import { PronunciationButtons } from "@/shared/ui/pronunciation-buttons";
+import { WordCredit } from "@/shared/ui/word-credit";
+import { WordExample } from "@/shared/vocabulary/word-example";
 import { hasAtlasTiers } from "../model/tiered-examples";
 import { formatWordType } from "../model/word-normalization";
-import { PronunciationButtons } from "./pronunciation-buttons";
-import { WordExample } from "./word-example";
 import { WordStatus } from "./word-status";
 
 export function WordDetails({ word }: { word: WordEntry }) {
@@ -53,6 +54,7 @@ export function WordDetails({ word }: { word: WordEntry }) {
               <Badge variant="outline">{word.cefr}</Badge>
               <WordStatus score={word.score} />
             </div>
+            {word.attribution && <WordCredit credit={word.attribution} />}
             {word.usageNote && <p className="text-sm leading-7 text-slate-600">{word.usageNote}</p>}
             <PronunciationButtons
               word={word.word}

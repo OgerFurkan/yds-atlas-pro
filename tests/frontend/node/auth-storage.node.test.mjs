@@ -5,7 +5,7 @@ import { test } from "node:test";
 import { runInNewContext } from "node:vm";
 
 const source = readFileSync(
-  new URL("../../../frontend/src/features/auth/model/auth-storage.ts", import.meta.url),
+  new URL("../../../frontend/src/shared/lib/auth-storage.ts", import.meta.url),
   "utf8",
 );
 const compiled =

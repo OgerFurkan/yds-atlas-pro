@@ -1,13 +1,13 @@
 ﻿import type { WordEntry, WordInput } from "@yds-atlas/shared";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { dailyGoal } from "@/features/dashboard/model/daily-progress";
 import {
   aiSuggestionToWordInput,
   suggestWordsWithGemini,
 } from "@/features/word-library/api/ai-word-api";
 import type { WordFillProgress } from "@/features/word-library/model/prepare-word-inputs";
 import { wordKey } from "@/features/word-library/model/word-normalization";
+import { dailyGoal } from "@/shared/lib/daily-progress";
 import { Alert, AlertDescription } from "@/shared/ui/alert";
 import { Card, CardContent } from "@/shared/ui/card";
 import { GuidedTour } from "@/shared/ui/guided-tour";

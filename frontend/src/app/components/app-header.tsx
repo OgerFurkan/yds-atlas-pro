@@ -17,7 +17,7 @@ import type { Notify } from "@/shared/lib/notify";
 import { Button } from "@/shared/ui/button";
 import { LearningMenu } from "./learning-menu";
 
-export type AppScreen = "home" | "library" | "game" | "login" | "inspector";
+export type AppScreen = "home" | "library" | "game" | "login" | "inspector" | "control-center";
 interface AppHeaderProps {
   screen: AppScreen;
   onNavigate: (screen: AppScreen) => void;

@@ -1,5 +1,5 @@
-﻿import { expect, type Page, test } from "../../../frontend/playwright-test";
-
+﻿import { expect, type Page, test } from "../../../frontend/config/playwright/test-fixtures";
+import { readyDayWords } from "../fixtures/day-study-words";
 import { installSpeechMock } from "../helpers/speech-mock";
 
 const sessionKey = "yds-atlas-learning-session-v2";
@@ -12,10 +12,65 @@ async function expectNoOverflow(page: Page) {
   );
 }
 
-test("old sentence tooltip import is collapsed and cannot run without explicit consent", async ({
+test("a quota failure keeps the selected day available for a local retry", async ({ page }) => {
+  await page.goto("/#library");
+  await page.evaluate(
+    (words) => localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words)),
+    readyDayWords,
+  );
+  await page.reload();
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await page.evaluate((sessionKey) => {
+    const original = Storage.prototype.setItem;
+    Storage.prototype.setItem = function (key, value) {
+      if (key === sessionKey) {
+        Storage.prototype.setItem = original;
+        throw new DOMException("Test storage full", "QuotaExceededError");
+      }
+      original.call(this, key, value);
+    };
+  }, sessionKey);
+  await page.getByRole("button", { name: "1. günün kelimeleriyle çalış" }).click();
+  await expect(page.getByText(/Tarayıcı kaydı yapılamadı/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ara ver" })).toHaveCount(0);
+  await expect(page.getByText(/ancak buluta kaydedilemedi/)).toHaveCount(0);
+  expect(await sessionState(page)).toBeNull();
+  await page.getByRole("button", { name: "Çalış", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Ara ver" })).toBeVisible();
+  expect((await sessionState(page)).day).toBe(1);
+});
+
+test("discard confirmation preserves progress made in another tab on the same task", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/#library");
+  await page.evaluate(
+    (words) => localStorage.setItem("yds-atlas-words-v1", JSON.stringify(words)),
+    readyDayWords,
+  );
+  await page.reload();
+  await page.getByRole("tab", { name: "Günlük Plan" }).click();
+  await page.getByRole("button", { name: "1. günün kelimeleriyle çalış" }).click();
+  await page.getByRole("button", { name: "Görevi iptal et" }).click();
+  const confirmation = page.getByRole("alertdialog");
+  const original = await sessionState(page);
+  const second = await context.newPage();
+  await second.goto("/#game");
+  await second.getByRole("button", { name: "Kaldığım yerden devam et" }).click();
+  await second.getByRole("button", { name: "Kartı çevir ve anlamı göster" }).click();
+  await second.getByRole("button", { name: "Bir sonraki kelime", exact: true }).click();
+  await expect.poll(() => sessionState(second)).not.toEqual(original);
+  const newer = await sessionState(second);
+  expect(newer.id).toBe(original.id);
+  await confirmation.getByRole("button", { name: "Çalışmayı sonlandır" }).click();
+  await expect(confirmation.getByRole("alert")).toContainText("Görev başka bir oturumda değişti");
+  expect(await sessionState(page)).toEqual(newer);
+});
+
+test("library maintenance never offers or starts retired personal sentence backfill", async ({
   page,
 }) => {
-  // Keep a real guest-library row so the optional recovery control is present.
   await page.addInitScript(() => {
     const now = new Date().toISOString();
     localStorage.setItem(
@@ -43,30 +98,16 @@ test("old sentence tooltip import is collapsed and cannot run without explicit c
   let posted = 0;
   await page.route("**/api/lexicon/tooltip/backfill", (route) => {
     posted++;
-    return route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        status: "queued",
-        scannedWords: 0,
-        scannedSentences: 0,
-        distinctCandidates: 0,
-        queuedCandidates: 0,
-        deduplicatedGlobally: true,
-        mayBeIncomplete: false,
-      }),
-    });
+    return route.fulfill({ status: 410, json: { code: "TOOLTIP_BACKFILL_RETIRED" } });
   });
   await page.goto("/#library");
   const recovery = page.locator("#library-word-controls details");
   await expect(recovery.locator("summary")).toContainText("Gelişmiş kütüphane bakımı");
   const start = page.getByRole("button", { name: "Eski cümleleri sözlüğe ekle" });
-  await expect(start).not.toBeVisible();
+  await expect(start).toHaveCount(0);
   expect(posted).toBe(0);
   await recovery.locator("summary").click();
-  await expect(start).toBeVisible();
-  page.once("dialog", (dialog) => dialog.dismiss());
-  await start.click();
+  await expect(start).toHaveCount(0);
   expect(posted).toBe(0);
 });
 
@@ -112,6 +153,7 @@ test("daily task survives reload, shows translated cards and automatically saves
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.addInitScript(() => {
+    if (localStorage.getItem("yds-atlas-words-v1") !== null) return;
     const now = new Date().toISOString();
     const words = Array.from({ length: 20 }, (_, index) => ({
       id: `library-word-${index}`,
@@ -125,7 +167,7 @@ test("daily task survives reload, shows translated cards and automatically saves
       examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
         sentence: `The atlasword${index} appears in test context ${exampleIndex}.`,
         translation: `Test translation ${index}-${exampleIndex}.`,
-        translationFocus: [`Çeviri ${index}`],
+        translationFocus: [`Test translation ${index}`],
       })),
       pronunciationUk: "",
       pronunciationUs: "",
@@ -156,10 +198,11 @@ test("daily task survives reload, shows translated cards and automatically saves
   await page.locator('#word-example [data-testid="sentence-word"]').first().click();
   await expect(page.getByRole("button", { name: "UK telaffuzunu dinle" })).toBeVisible();
   await page.screenshot({
-    path: `test-results/card-${test.info().project.name}.png`,
+    path: test.info().outputPath(`card-${test.info().project.name}.png`),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Bir sonraki kelime", exact: true }).click();
+  await expect.poll(async () => (await sessionState(page)).queue.length).toBe(4);
   const before = await sessionState(page);
   await page.reload();
   await page.getByRole("button", { name: "Kaldığım yerden devam et" }).click();
@@ -175,8 +218,15 @@ test("daily task survives reload, shows translated cards and automatically saves
     } else if (session.phase.endsWith("matching")) {
       const ids: string[] = session.matching.left;
       for (const id of ids) {
-        await page.locator(`[data-matching-side="left"][data-word-id="${id}"]`).click();
-        await page.locator(`[data-matching-side="right"][data-word-id="${id}"]`).click();
+        const index = id.slice("library-word-".length);
+        await page
+          .locator("#matching-board")
+          .getByText("atlasword" + index, { exact: true })
+          .click();
+        await page
+          .locator("#matching-board")
+          .getByText("Test meaning " + index, { exact: true })
+          .click();
       }
       await page.locator("#matching-next").click();
     } else {
@@ -191,7 +241,10 @@ test("daily task survives reload, shows translated cards and automatically saves
           0,
         );
       }
-      await page.locator("#choice-correct").click();
+      const fixtureIndex = session.queue[0].slice("library-word-".length);
+      const answer =
+        (session.phase.endsWith("context") ? "atlasword" : "Test meaning ") + fixtureIndex;
+      await page.locator("#question-choices").getByText(answer, { exact: true }).click();
       // After feedback, every displayed English token can expose a tooltip.
       await expect(
         page.locator('#question-sentence [data-testid="sentence-word"]').first(),
@@ -211,18 +264,27 @@ test("daily task survives reload, shows translated cards and automatically saves
       await expect(page.getByRole("main")).not.toContainText(/puan|sıranın sonuna/i);
       await page.getByRole("button", { name: "Devam et", exact: true }).click();
     }
+    await expect
+      .poll(async () => {
+        const next = await sessionState(page);
+        return (
+          next.phase !== session.phase ||
+          JSON.stringify(next.queue) !== JSON.stringify(session.queue)
+        );
+      })
+      .toBe(true);
   }
   expect(iterations).toBeLessThan(130);
   await expect(page.getByRole("heading", { name: "Bugün kendine bir adım kattın." })).toBeVisible();
   await expect(
-    page.getByText("Kelime grupların ve günlük ilerlemen güncellendi.", { exact: true }),
+    page.getByText("Puansız pratik tamamlandı. Kelime puanların korundu.", { exact: true }).first(),
   ).toBeVisible();
   const scores = await page.evaluate(() =>
     JSON.parse(localStorage.getItem("yds-atlas-words-v1") ?? "[]").map(
       (word: { score: number }) => word.score,
     ),
   );
-  expect(scores).toEqual(Array(20).fill(100));
+  expect(scores).toEqual([...Array(5).fill(20), ...Array(15).fill(60)]);
   await page.goto("/#home");
   await expect(page.getByRole("progressbar", { name: "Günlük kelime hedefi" })).toHaveAttribute(
     "aria-valuenow",
@@ -286,7 +348,7 @@ test("spotlight game tutorial requires actions and preserves real data", async (
     else await page.locator("#question-next").click();
     if (index === 9)
       await page.screenshot({
-        path: `test-results/tutorial-${test.info().project.name}.png`,
+        path: test.info().outputPath(`tutorial-${test.info().project.name}.png`),
         fullPage: true,
       });
   }

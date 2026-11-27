@@ -1,4 +1,4 @@
-﻿import { expect, test } from "../../../frontend/playwright-test";
+﻿import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 
 test("login page opens from the header, supports auth modes and returns to guest use", async ({
   page,
@@ -26,7 +26,7 @@ test("login page opens from the header, supports auth modes and returns to guest
   await expect(page.getByRole("heading", { name: "Tekrar hoş geldin." })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({
-    path: `test-results/login-${test.info().project.name}.png`,
+    path: test.info().outputPath(`login-${test.info().project.name}.png`),
     fullPage: true,
   });
   await page.getByRole("button", { name: "Misafir olarak devam et" }).click();
@@ -77,7 +77,7 @@ test("sign-up slides the Atlas panel to the right and sign-in slides it back", a
     })
     .toBe(true);
   await page.screenshot({
-    path: `test-results/signup-slide-${testInfo.project.name}.png`,
+    path: test.info().outputPath(`signup-slide-${testInfo.project.name}.png`),
     fullPage: true,
   });
   await expect(brand.getByText("Kelime kütüphaneni hesabında sakla")).toBeVisible();

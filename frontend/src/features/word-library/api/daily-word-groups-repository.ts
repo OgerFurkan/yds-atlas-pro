@@ -1,16 +1,14 @@
-import { readStorage, writeStorage } from "@/shared/lib/storage";
+import { readStoredJson, writeStorage } from "@/shared/lib/storage";
 import { storageKeys } from "@/shared/lib/storage-keys";
+import { allocateDailyGroups, type DailyWordGroup } from "../model/allocate-daily-groups";
+
+export type { DailyWordGroup } from "../model/allocate-daily-groups";
 
 const STORAGE_KEY = storageKeys.dailyWordGroups;
 const MAX_DAY = 60;
 const MAX_WORDS_PER_DAY = 40;
 const INIT_KEY = storageKeys.dailyPlanInitialized;
 const EXCLUDED_KEY = storageKeys.dailyWordExclusions;
-
-export interface DailyWordGroup {
-  day: number;
-  words: string[];
-}
 
 function isDailyWordGroup(value: unknown): value is DailyWordGroup {
   if (value === null || typeof value !== "object") return false;
@@ -27,21 +25,45 @@ function isValidDay(day: number): boolean {
 }
 
 export class DailyWordGroupsRepository {
-  private getStoredGroups(): DailyWordGroup[] {
-    try {
-      const value = readStorage<unknown>(STORAGE_KEY, []);
-      if (!Array.isArray(value)) return [];
-      return value
-        .filter(isDailyWordGroup)
-        .map((group) => ({ day: group.day, words: [...group.words] }));
-    } catch {
-      return [];
-    }
+  private readonly read: (key: string) => unknown;
+  private readonly write: (key: string, value: unknown) => void;
+  constructor(
+    read: (key: string) => unknown = readStoredJson,
+    write: (key: string, value: unknown) => void = writeStorage,
+  ) {
+    this.read = read;
+    this.write = write;
+  }
+
+  private getStoredGroups(legacyCleanup = false): DailyWordGroup[] {
+    const value = this.read(STORAGE_KEY);
+    if (value === undefined) return [];
+    if (
+      !Array.isArray(value) ||
+      !value.every(isDailyWordGroup) ||
+      (!legacyCleanup &&
+        value.some((group) => !isValidDay(group.day) || group.words.some((id) => !id.trim())))
+    )
+      throw new Error("Günlük plan atamaları doğrulanamadı. Özgün kayıt korundu.");
+    return value;
+  }
+
+  getStoredGroupSize(): number | undefined {
+    const value = this.read(storageKeys.dailyPlanGroupSize);
+    if (value === undefined) return undefined;
+    if (
+      typeof value !== "number" ||
+      !Number.isInteger(value) ||
+      value < 10 ||
+      value > MAX_WORDS_PER_DAY
+    )
+      throw new Error("Günlük planın grup boyutu geçersiz. Özgün kayıt korundu.");
+    return value;
   }
 
   private saveGroups(groups: DailyWordGroup[]): void {
     // Depolama hatasını sessizce yutma; çağıran katman hatayı yönetebilsin.
-    writeStorage(STORAGE_KEY, groups);
+    this.write(STORAGE_KEY, groups);
   }
 
   private sortGroupsByDay(groups: DailyWordGroup[]): DailyWordGroup[] {
@@ -52,8 +74,8 @@ export class DailyWordGroupsRepository {
     return this.sortGroupsByDay(this.getStoredGroups());
   }
 
-  getDayRemoval(day: number) {
-    const groups = this.getGroups().filter((group) => isValidDay(group.day));
+  getDayRemoval(day: number, storedGroups = this.getGroups()) {
+    const groups = storedGroups.filter((group) => isValidDay(group.day));
     const ids = [
       ...new Set(groups.filter((group) => group.day === day).flatMap((group) => group.words)),
     ].sort();
@@ -69,8 +91,26 @@ export class DailyWordGroupsRepository {
   }
 
   getExcludedWordIds(): string[] {
-    const ids = readStorage<unknown>(EXCLUDED_KEY, []);
-    return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === "string") : [];
+    const ids = this.read(EXCLUDED_KEY);
+    if (ids === undefined) return [];
+    if (
+      !Array.isArray(ids) ||
+      !ids.every((id): id is string => typeof id === "string" && !!id.trim())
+    )
+      throw new Error("Plandan çıkarılan kelimeler doğrulanamadı. Özgün kayıt korundu.");
+    return ids;
+  }
+
+  readPlan() {
+    const initialized = this.read(INIT_KEY);
+    if (initialized !== undefined && typeof initialized !== "boolean")
+      throw new Error("Günlük planın başlangıç kaydı geçersiz. Özgün kayıt korundu.");
+    return {
+      initialized,
+      size: this.getStoredGroupSize() ?? 20,
+      groups: this.getStoredGroups(),
+      exclusions: this.getExcludedWordIds(),
+    };
   }
 
   /**
@@ -78,68 +118,43 @@ export class DailyWordGroupsRepository {
    * New library words are placed in the first day below the selected target size;
    * deliberately removed words stay unassigned until added again by the user.
    */
-  syncWords(orderedWordIds: string[], targetSize: number): void {
-    const uniqueIds = [
-      ...new Set(orderedWordIds.filter((id) => typeof id === "string" && id.trim())),
-    ];
-    const validIds = new Set(uniqueIds);
-    const excluded = this.getExcludedWordIds().filter((id) => validIds.has(id));
-    const exclusions = new Set(excluded);
-    const original = this.getStoredGroups();
-    const assigned = new Set<string>();
-    const normalized: DailyWordGroup[] = [];
-
-    for (const group of this.sortGroupsByDay(original)) {
-      if (!isValidDay(group.day)) continue;
-      let target = normalized.find((item) => item.day === group.day);
-      if (!target) {
-        target = { day: group.day, words: [] };
-        normalized.push(target);
-      }
-      for (const id of group.words) {
-        if (!validIds.has(id) || assigned.has(id) || exclusions.has(id)) continue;
-        target.words.push(id);
-        assigned.add(id);
-      }
-    }
-
-    const size = Number.isFinite(targetSize)
-      ? Math.min(MAX_WORDS_PER_DAY, Math.max(10, Math.round(targetSize)))
-      : 20;
-    for (const id of uniqueIds) {
-      if (assigned.has(id) || exclusions.has(id)) continue;
-      for (let day = 1; day <= MAX_DAY; day += 1) {
-        let group = normalized.find((item) => item.day === day);
-        if (group && group.words.length >= size) continue;
-        if (!group) {
-          group = { day, words: [] };
-          normalized.push(group);
-        }
-        group.words.push(id);
-        assigned.add(id);
-        break;
-      }
-    }
-
-    const next = this.sortGroupsByDay(normalized.filter((group) => group.words.length > 0));
+  syncWords(
+    orderedWordIds: string[],
+    targetSize?: number,
+    persist = true,
+    preserveMissing = false,
+  ) {
+    const {
+      size: storedSize,
+      initialized,
+      groups: original,
+      exclusions: originalExclusions,
+    } = this.readPlan();
+    const { size, next, excluded } = allocateDailyGroups(
+      orderedWordIds,
+      original,
+      originalExclusions,
+      targetSize ?? storedSize,
+      preserveMissing,
+      MAX_DAY,
+      MAX_WORDS_PER_DAY,
+    );
+    if (!persist) return { size, groups: next };
     if (JSON.stringify(original) !== JSON.stringify(next)) this.saveGroups(next);
-    if (JSON.stringify(this.getExcludedWordIds()) !== JSON.stringify(excluded))
-      writeStorage(EXCLUDED_KEY, excluded);
-    if (!readStorage<boolean>(INIT_KEY, false)) writeStorage(INIT_KEY, true);
+    if (originalExclusions.length !== excluded.length) this.write(EXCLUDED_KEY, excluded);
+    if (orderedWordIds.length && !initialized) this.write(INIT_KEY, true);
+    return { size, groups: next };
   }
 
   /** Remove from the plan only; never delete the source library word. */
   excludeWordFromDay(wordId: string, day: number): void {
-    if (
-      !isValidDay(day) ||
-      !this.getGroups().some((g) => g.day === day && g.words.includes(wordId))
-    )
-      return;
+    const groups = this.getGroups();
+    if (!isValidDay(day) || !groups.some((g) => g.day === day && g.words.includes(wordId))) return;
     const excluded = new Set(this.getExcludedWordIds());
     excluded.add(wordId);
     // Save exclusion first, so a later sync cannot silently re-add a removed word.
-    writeStorage(EXCLUDED_KEY, [...excluded]);
-    this.removeWordFromDay(wordId, day);
+    this.write(EXCLUDED_KEY, [...excluded]);
+    this.removeFromGroups(groups, wordId, day);
   }
 
   assignWordToDay(wordId: string, day: number): void {
@@ -163,10 +178,10 @@ export class DailyWordGroupsRepository {
       groups.push({ day, words: [wordId] });
     }
 
-    this.saveGroups(this.sortGroupsByDay(groups));
     const excluded = this.getExcludedWordIds();
+    this.saveGroups(this.sortGroupsByDay(groups));
     if (excluded.includes(wordId))
-      writeStorage(
+      this.write(
         EXCLUDED_KEY,
         excluded.filter((id) => id !== wordId),
       );
@@ -184,11 +199,11 @@ export class DailyWordGroupsRepository {
     const assignedElsewhere = new Set(remaining.flatMap((group) => group.words));
     const excludedFromPlan = [...removed].filter((id) => !assignedElsewhere.has(id));
     const previousExclusions = this.getExcludedWordIds();
-    writeStorage(EXCLUDED_KEY, [...new Set([...previousExclusions, ...excludedFromPlan])]);
+    this.write(EXCLUDED_KEY, [...new Set([...previousExclusions, ...excludedFromPlan])]);
     try {
       this.saveGroups(remaining);
     } catch (error) {
-      writeStorage(EXCLUDED_KEY, previousExclusions);
+      this.write(EXCLUDED_KEY, previousExclusions);
       throw error;
     }
     return removed.size;
@@ -223,10 +238,10 @@ export class DailyWordGroupsRepository {
       target.words.push(id);
     }
     if (!groups.some((group) => group.day === day)) groups.push(target);
-    this.saveGroups(this.sortGroupsByDay(groups.filter((group) => group.words.length > 0)));
     const excluded = this.getExcludedWordIds();
+    this.saveGroups(this.sortGroupsByDay(groups.filter((group) => group.words.length > 0)));
     const nextExcluded = excluded.filter((id) => !pending.includes(id));
-    if (excluded.length !== nextExcluded.length) writeStorage(EXCLUDED_KEY, nextExcluded);
+    if (excluded.length !== nextExcluded.length) this.write(EXCLUDED_KEY, nextExcluded);
     return { added: pending.length - moved, moved, already };
   }
 
@@ -236,7 +251,10 @@ export class DailyWordGroupsRepository {
     if (typeof wordId !== "string" || !wordId.trim()) return;
     if (day !== undefined && !isValidDay(day)) return;
 
-    const groups = this.getStoredGroups();
+    this.removeFromGroups(this.getStoredGroups(), wordId, day);
+  }
+
+  private removeFromGroups(groups: DailyWordGroup[], wordId: string, day?: number) {
     let changed = false;
     const updated = groups
       .map((group) => {
@@ -290,7 +308,7 @@ export class DailyWordGroupsRepository {
   // validWordIds sağlanırsa kütüphaneden silinmiş kelimeler de temizlenir.
   // Bu liste verilmezse hangi ID'nin kütüphanede bulunduğu bilinemez.
   cleanupInvalidAssignments(validWordIds?: ReadonlySet<string>): void {
-    const groups = this.getStoredGroups();
+    const groups = this.getStoredGroups(true);
     const byDay = new Map<number, string[]>();
     const assignedWordIds = new Set<string>();
 

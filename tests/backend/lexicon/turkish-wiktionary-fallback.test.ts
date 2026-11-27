@@ -1,13 +1,11 @@
 import { expect, test } from "bun:test";
+import assert from "node:assert/strict";
 import { lookupPublicTurkish } from "../../../backend/src/features/lexicon/public-turkish-dictionary";
-import {
-  buildTooltipRecord,
-  readSharedTooltipGloss,
-} from "../../../backend/src/features/lexicon/sentence-lexicon-prefetch";
 import {
   lookupTurkishWiktionaryGloss,
   parseTurkishWiktionaryGloss,
 } from "../../../backend/src/features/lexicon/tr-wiktionary";
+import { buildTooltipRecord, readSharedTooltipGloss } from "./fixtures/historical-short-gloss";
 
 function turkish(word: string, entries: unknown[]) {
   return { edition: "tr", word, entries };
@@ -34,7 +32,8 @@ test("Turkish Wiktionary emits source-backed Turkish noun gloss", () => {
   expect(r.status).toBe("ready");
   expect(r.entries[0].meanings).toEqual(["iklim", "hava durumu"]);
   expect(r.source?.url).toBe("https://tr.wiktionary.org/wiki/climate");
-  const record = buildTooltipRecord("climate", r)!;
+  const record = buildTooltipRecord("climate", r);
+  assert(record);
   expect(record.part_of_speech).toBe("Tooltip");
   expect(record.provenance.provider).toBe("Wiktapi / Turkish Wiktionary");
   expect(record.provenance.validation).toBe("dictionary_verified_not_context_certified");
@@ -111,13 +110,15 @@ test("cached Turkish Wiktionary gloss requires correct source domain and licensi
     "climate",
     turkish("climate", [nouns("climate", "iklim")]),
   );
-  const record = buildTooltipRecord("climate", source)!;
-  function fakeDatabase(provenance: typeof record.provenance) {
+  const record = buildTooltipRecord("climate", source);
+  assert(record);
+  const content = record.content;
+  function fakeDatabase(provenance: NonNullable<typeof record>["provenance"]) {
     const row = {
       word_key: "climate",
       part_of_speech: "Tooltip",
       status: "machine_validated",
-      content: record.content,
+      content,
       provenance,
     };
     const chain = {

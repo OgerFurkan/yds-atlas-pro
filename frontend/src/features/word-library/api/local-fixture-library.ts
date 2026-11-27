@@ -1,5 +1,5 @@
 import { type WordEntry, wordEntrySchema } from "@yds-atlas/shared";
-import { readSession } from "@/features/learning-game/model/game-storage";
+import { readSession } from "@/features/learning-game/task-storage";
 import { readStorage } from "@/shared/lib/storage";
 import { storageKeys } from "@/shared/lib/storage-keys";
 import { getStorageScope, localFixtureProfile, scopedStorageKey } from "@/shared/lib/storage-scope";

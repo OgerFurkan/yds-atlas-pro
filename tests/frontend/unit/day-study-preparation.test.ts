@@ -5,7 +5,7 @@ import { wordEntrySchema } from "../../../packages/shared/src/index";
 const existing = wordEntrySchema.parse({
   id: "own",
   word: "Evidence",
-  meanings: ["Kişisel anlam"],
+  meanings: ["kanıt"],
   partOfSpeech: "Noun",
   score: 37,
   usageNote: "Kişisel not",
@@ -35,6 +35,7 @@ test("day preparation adds matching examples while preserving personal details",
   expect(prepared?.examples?.at(-1)).toEqual(existing.examples[0]);
 });
 test("day preparation rejects wrong words, senses, untiered data and mismatched sentences", () => {
+  expect(mergeDayStudyWord(existing, { ...candidate, meanings: ["farklı anlam"] })).toBeNull();
   expect(mergeDayStudyWord(existing, { ...candidate, word: "Benefit" })).toBeNull();
   expect(mergeDayStudyWord(existing, { ...candidate, partOfSpeech: "Verb" })).toBeNull();
   expect(

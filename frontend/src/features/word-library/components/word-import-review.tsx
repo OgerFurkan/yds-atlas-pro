@@ -67,7 +67,7 @@ export function WordImportReview({
     return () => clearInterval(timer);
   }, [demo, reduceMotion]);
   const valid = rows.length > 0 && rows.every((row) => row.isCorrect || row.accepted);
-  const offerAi = onAcceptEntriesManual && rows.some((row) => !row.meanings.length);
+  const offerAi = Boolean(onAcceptEntriesManual);
   async function accept(manual = false) {
     setError("");
     setProgress(null);
@@ -245,7 +245,7 @@ export function WordImportReview({
                   disabled={!valid || busy}
                   onClick={() => void accept(true)}
                 >
-                  Eksikleriyle kaydet
+                  Manuel kaydet
                 </Button>
               )}
               <Button id="import-accept" disabled={!valid || busy} onClick={() => void accept()}>

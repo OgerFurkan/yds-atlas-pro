@@ -7,7 +7,17 @@
 @import "@fontsource/fraunces/500.css";
 @import "@fontsource/fraunces/600.css";
 
+@custom-variant chat-wide {
+  @media (min-width: 40rem) and (min-height: 37.5rem), (min-width: 60rem),
+    (min-width: 40rem) and (pointer: fine), (min-width: 40rem) and (pointer: none) {
+    @slot;
+  }
+}
+
 :root {
+  --sentence-primary: #1d4ed8;
+  --sentence-inspected: #9a3412;
+  --sentence-highlight: #ffedd5;
   font-family: "DM Sans", sans-serif;
   color: var(--color-foreground);
   background: var(--color-background);
@@ -21,6 +31,9 @@
 
 html[data-theme="dark"] {
   color-scheme: dark;
+  --sentence-primary: #7cb5ff;
+  --sentence-inspected: #ffba70;
+  --sentence-highlight: #482d22;
   --color-background: #111b22;
   --color-foreground: #e8eef1;
   --color-card: #17252e;
@@ -354,4 +367,69 @@ html[data-theme="dark"] .library-word-card {
 
 html[data-theme="dark"] .library-word-card:hover {
   border-color: #ff955d;
+}
+
+.atlas-sentence-word {
+  display: inline;
+  padding: 0;
+  border-radius: 0.15rem;
+  font: inherit;
+  color: inherit;
+}
+.atlas-sentence-word[data-headword="true"] {
+  color: var(--sentence-primary);
+  font-weight: 700;
+}
+.atlas-sentence-word[data-inspected="true"] {
+  color: var(--sentence-inspected);
+  background: var(--sentence-highlight);
+  text-decoration: underline;
+  text-underline-offset: 0.16em;
+}
+.atlas-sentence-word:focus-visible {
+  outline: 2px solid var(--sentence-primary);
+  outline-offset: 2px;
+}
+
+.atlas-tooltip-boundary {
+  position: fixed;
+  inset: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom)
+    env(safe-area-inset-left);
+  pointer-events: none;
+  visibility: hidden;
+}
+.atlas-tooltip-title {
+  color: var(--sentence-inspected);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+.atlas-tooltip-close {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  margin: -0.25rem -0.5rem -0.25rem 0;
+  border-radius: 0.5rem;
+  font-size: 1.25rem;
+  color: var(--color-muted-foreground);
+}
+.atlas-tooltip-close:hover,
+.atlas-tooltip-close:focus-visible {
+  background: var(--color-muted);
+}
+.atlas-tooltip-audio {
+  min-height: 2rem;
+  border-radius: 0.5rem;
+  padding-inline: 0.625rem;
+  box-shadow: none;
+  font-size: 0.75rem;
+}
+body:has([data-testid="sentence-word-definition"]) .atlas-chat-launcher {
+  visibility: hidden;
+}
+
+.atlas-chat-in-flow {
+  position: static;
+  align-self: flex-end;
+  margin: 1rem;
 }

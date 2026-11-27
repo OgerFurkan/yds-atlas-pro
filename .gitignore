@@ -8,8 +8,11 @@ pnpm-debug.log*
 lerna-debug.log*
 
 node_modules
+__pycache__/
 dist
 dist-ssr
+.artifacts/
+coverage/
 playwright-report
 test-results
 test-results-cloud

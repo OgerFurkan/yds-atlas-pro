@@ -1,10 +1,13 @@
-import { expect, test } from "bun:test";
+import { beforeEach, expect, test } from "bun:test";
 import type { ServerConfig } from "../../../backend/src/config/env";
+import { resetGeminiKeyPool } from "../../../backend/src/features/ai/gemini-keys";
 import {
   requestGeminiContent,
   resetGeminiModelCapacity,
   resolvedGeminiModel,
 } from "../../../backend/src/features/ai/gemini-request";
+
+beforeEach(resetGeminiKeyPool);
 
 type FetchMock = (url: unknown, init?: RequestInit) => Promise<Response>;
 
@@ -61,7 +64,7 @@ test("429 does not switch chat models or evade project quota", async () => {
       return new Response("{}", { status: 429 });
     }),
   ).rejects.toBeDefined();
-  expect(visited).toHaveLength(2);
+  expect(visited).toHaveLength(1);
   expect(visited.every((url) => url.includes("gemini-3.5-flash-lite"))).toBe(true);
 });
 

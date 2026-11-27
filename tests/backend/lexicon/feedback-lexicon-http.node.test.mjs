@@ -7,7 +7,7 @@ import { test } from "node:test";
 // Source-under-test: the actual backend createApp router, evaluated without
 // contacting Supabase or Gemini. Everything outside the requested API path is
 // explicitly substituted with offline, synthetic dependencies.
-function source(path, bindings) {
+function source(path, bindings, names = "createApp") {
   const text = readFileSync(resolve(import.meta.dirname, path), "utf8");
   const local = text
     .replace(/^import\b[\s\S]*?;\s*/gm, "")
@@ -16,7 +16,7 @@ function source(path, bindings) {
     typeof Bun === "undefined"
       ? nodeModule.stripTypeScriptTypes(local, { mode: "transform" })
       : new Bun.Transpiler({ loader: "ts", target: "bun" }).transformSync(local);
-  return new Function(...Object.keys(bindings), `${body}\nreturn {createApp};`)(
+  return new Function(...Object.keys(bindings), `${body}\nreturn { ${names} };`)(
     ...Object.values(bindings),
   );
 }
@@ -61,6 +61,7 @@ const examples = ["easy", "easy", "medium", "yds", "yds"].map((difficulty, i) =>
   translationFocus: ["elde eder"],
 }));
 const bindings = {
+  createOperations: () => ({ observe() {} }),
   z,
   HttpError,
   wordInputSchema: fakeSchema(),
@@ -122,7 +123,25 @@ const bindings = {
   sentencePrefetchEnabled: () => false,
   readJson: async (request) => request.json(),
 };
-const { createApp } = source("../../../backend/src/app.ts", bindings);
+Object.assign(
+  bindings,
+  source("../../../backend/src/features/ai/ai-admission.ts", bindings, "createAiAdmission"),
+);
+Object.assign(
+  bindings,
+  source("../../../backend/src/shared/error-response.ts", bindings, "errorResponse"),
+);
+bindings.unmatchedRoute = Symbol("unmatched");
+function loadApp(scoped) {
+  for (const name of ["operations", "control", "lexicon", "words", "account", "learning", "ai"]) {
+    Object.assign(
+      scoped,
+      source("../../../backend/src/routes/" + name + "-routes.ts", scoped, name + "Routes"),
+    );
+  }
+  return source("../../../backend/src/app.ts", scoped);
+}
+const { createApp } = loadApp(bindings);
 const config = {
   ATLAS_FEEDBACK_LEXICON_ENABLED: true,
   APP_ORIGINS: "http://localhost",
@@ -233,7 +252,7 @@ test("active game allows safe context translations but protects answers and AI d
         throw new HttpError(409, "Cevap kapalı.", "DICTIONARY_ANSWER_PROTECTED");
     },
   };
-  const gameApp = source("../../../backend/src/app.ts", scoped).createApp(config, deps());
+  const gameApp = loadApp(scoped).createApp(config, deps());
   const safe = await gameApp(
     new Request(url + "/api/dictionary/turkish?word=evidence", { headers: authHeaders() }),
   );
@@ -257,7 +276,7 @@ test("active game allows safe context translations but protects answers and AI d
   assert.equal(values.quota, before.quota);
 });
 
-test("authenticated legacy backfill is explicit and blocked during an active game", async () => {
+test("retired backfill admits no content or game-driven queue work", async () => {
   const noGame = await createApp(
     config,
     deps(),
@@ -267,28 +286,26 @@ test("authenticated legacy backfill is explicit and blocked during an active gam
       headers: authHeaders(),
     }),
   );
-  assert.equal(noGame.status, 200);
-  const queued = await noGame.json();
-  assert.equal(queued.status, "queued");
-  assert.equal(queued.scannedWords, 1);
+  assert.equal(noGame.status, 410);
+  assert.equal((await noGame.json()).code, "TOOLTIP_BACKFILL_RETIRED");
   const scoped = {
     ...bindings,
     assertNoActiveAssessment: async () => {
       throw new HttpError(409, "Oyun sürüyor.", "INSPECTOR_DURING_ASSESSMENT");
     },
   };
-  const during = source("../../../backend/src/app.ts", scoped).createApp(config, deps());
+  const during = loadApp(scoped).createApp(config, deps());
   const response = await during(
     new Request(url + "/api/lexicon/tooltip/backfill", {
       method: "POST",
       headers: authHeaders(),
     }),
   );
-  assert.equal(response.status, 409);
-  assert.equal((await response.json()).code, "INSPECTOR_DURING_ASSESSMENT");
+  assert.equal(response.status, 410);
+  assert.equal((await response.json()).code, "TOOLTIP_BACKFILL_RETIRED");
 });
 
-test("multiple licensed Turkish senses are queued instead of permanently skipped", async () => {
+test("dictionary choices never enqueue shared content", async () => {
   const before = { ...values };
   const scoped = {
     ...bindings,
@@ -307,7 +324,7 @@ test("multiple licensed Turkish senses are queued instead of permanently skipped
       ],
     }),
   };
-  const app = source("../../../backend/src/app.ts", scoped).createApp(config, deps());
+  const app = loadApp(scoped).createApp(config, deps());
   const response = await app(
     new Request(url + "/api/dictionary/turkish?word=approach", {
       headers: authHeaders(),
@@ -315,5 +332,5 @@ test("multiple licensed Turkish senses are queued instead of permanently skipped
   );
   assert.equal(response.status, 200);
   assert.equal((await response.json()).status, "choices");
-  assert.equal(values.lexicon, before.lexicon + 1);
+  assert.equal(values.lexicon, before.lexicon);
 });

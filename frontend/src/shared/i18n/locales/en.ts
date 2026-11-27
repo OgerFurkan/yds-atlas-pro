@@ -20,6 +20,7 @@ export const en = {
   companion: enDashboard.companion,
   wordStatus: enVocabulary.wordStatus,
   taskIntro: enVocabulary.taskIntro,
+  accountData: enAccountAi.accountData,
   chat: enAccountAi.chat,
   auth: enAccountAi.auth,
   library: enVocabulary.library,

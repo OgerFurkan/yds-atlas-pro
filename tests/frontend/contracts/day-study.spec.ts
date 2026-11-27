@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "../../../frontend/playwright-test";
+import { expect, type Page, test } from "../../../frontend/config/playwright/test-fixtures";
 import { incompleteDayWords, installDayStudyMock, readyDayWords } from "../fixtures/day-study-mock";
 
 const prepare = "1. günü hazırla ve çalış";
@@ -32,19 +32,18 @@ test("bulk import shows a real save error, retries, and reports incomplete words
     .getByRole("textbox", { name: "İngilizce kelime listesi" })
     .fill("apple = elma\ntable = masa");
   await bulk.getByRole("button", { name: "Yazımı kontrol et" }).click();
-  const save = bulk.getByRole("button", { name: "Kelimeleri ekle (2)" });
+  const save = bulk.getByRole("button", { name: "Manuel kaydet" });
   await save.click();
-  await expect(bulk.getByRole("alert")).toContainText("Kelimeler kaydedilemedi.");
-  await expect(bulk.getByRole("alert")).not.toContainText("LOCAL sentetik test fixture");
+  const pending = page.getByRole("region", { name: "Bekleyen plan işlemi" });
+  await expect(pending.getByRole("status")).toContainText("Sentetik kayıt hatası");
+  await expect(pending.getByRole("status")).not.toContainText("LOCAL sentetik test fixture");
   expect(fixture.words).toHaveLength(4);
   status = 200;
-  await save.click();
-  await expect(bulk).toHaveCount(0);
-  await expect(
-    page.getByText(/Kütüphaneye 2 kelime eklendi.*2 kelimeyle çalışmak için/),
-  ).toBeVisible();
+  await pending.getByRole("button", { name: "Aynı işlemi yeniden doğrula" }).click();
+  await expect(pending).toHaveCount(0);
   await expect(page.getByRole("button", { name: "1. günü aç, 6 kelimeyi yönet" })).toBeVisible();
   expect(fixture.requests.imports).toBe(2);
+  expect(fixture.requests.importCommands[1]).toBe(fixture.requests.importCommands[0]);
   expect(fixture.requests.complete).toEqual([]);
   await page.getByRole("button", { name: "1. günü aç, 6 kelimeyi yönet" }).click();
   await page.getByRole("button", { name: "Kelime ekle", exact: true }).click();
@@ -52,8 +51,12 @@ test("bulk import shows a real save error, retries, and reports incomplete words
   await bulk.getByRole("textbox", { name: "İngilizce kelime listesi" }).fill("fruit");
   await bulk.getByRole("button", { name: "Yazımı kontrol et" }).click();
   await expect(bulk.getByRole("button", { name: "AI ile tamamla ve ekle (1)" })).toBeEnabled();
-  await bulk.getByRole("button", { name: "Eksikleriyle kaydet" }).click();
+  await bulk.getByRole("button", { name: "Manuel kaydet" }).click();
   await expect(bulk).toHaveCount(0);
+  await expect(
+    page.getByText(/Kütüphaneye 1 kelime eklendi.*1 kelimeyle çalışmak için/),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "1. günü aç, 7 kelimeyi yönet" })).toBeVisible();
   expect(fixture.words.find((word) => word.word.toLowerCase() === "fruit")?.meanings).toEqual([]);
   expect(fixture.requests.complete).toEqual([]);
 });
@@ -75,7 +78,7 @@ test("a stale offline check is refreshed on focus without starting Gemini", asyn
   expect(fixture.requests.complete).toEqual([]);
 });
 
-test("502 and pending health keep the zero-ready day blocked and agree with settings", async ({
+test("502 and pending health keep the zero-ready day blocked while settings restrict diagnostics", async ({
   page,
 }) => {
   let finish = (_status: number) => {};
@@ -101,8 +104,8 @@ test("502 and pending health keep the zero-ready day blocked and agree with sett
       await page.getByRole("button", { name: "Menüyü aç" }).click();
     await settingsButton.click();
     const settings = page.getByRole("dialog");
-    await expect(settings.getByText("Ulaşılamıyor", { exact: true })).toBeVisible();
-    await expect(settings.getByText(/HTTP 502/)).toBeVisible();
+    await expect(settings.getByRole("heading", { name: "Gemini teknik durumu" })).toHaveCount(0);
+    await expect(settings.getByText(/HTTP 502/)).toHaveCount(0);
     expect(fixture.requests.health).toBe(1);
     await settings.getByRole("button", { name: "Koyu", exact: true }).click();
     await page.keyboard.press("Escape");
@@ -172,7 +175,7 @@ test("partial readiness is explained and Study runs only the ready words even wi
   page,
 }) => {
   const fixture = await installDayStudyMock(page, {
-    words: [readyDayWords[4], ...incompleteDayWords.slice(1)],
+    words: [readyDayWords[0], ...incompleteDayWords.slice(1)],
     health: () => 502,
   });
   await openPlan(page);
@@ -182,7 +185,7 @@ test("partial readiness is explained and Study runs only the ready words even wi
   await expect(page.getByRole("button", { name: flashcard })).toBeVisible();
   await expect
     .poll(() => fixture.getSession()?.words.map((word) => word.id))
-    .toEqual([readyDayWords[4].id]);
+    .toEqual([readyDayWords[0].id]);
   expect(fixture.requests.complete).toEqual([]);
 });
 
@@ -240,4 +243,34 @@ test("a 502 after saving one word leaves partial progress visible and retry open
   await expect.poll(() => fixture.getSession()?.day).toBe(1);
   expect(fixture.requests.complete).toEqual(Array(2).fill(["Reliable", "Evidence", "Decline"]));
   expect(fixture.requests.saved).toEqual(incompleteDayWords.map((word) => word.id));
+});
+
+test("bulk day completion repairs five untiered examples and preserves the already ready word", async ({
+  page,
+}) => {
+  const [first, second, third] = readyDayWords;
+  const legacy = {
+    ...first,
+    examples: first.examples.map(({ difficulty: _difficulty, ...example }) => example),
+  };
+  const fixture = await installDayStudyMock(page, {
+    words: [legacy, second, { ...third, examples: [] }],
+  });
+  await openPlan(page);
+  await page.getByRole("button", { name: "2 eksik kelimeyi AI ile tamamla" }).click();
+  await expect(page.getByText("Günün kelime içerikleri tamamlandı.").first()).toBeVisible();
+  expect(fixture.requests.complete.flat()).toEqual([first.word, third.word]);
+  expect(fixture.getSession()).toBeUndefined();
+  expect(fixture.words.find(({ id }) => id === second.id)).toEqual(second);
+  const repaired = fixture.words.find(({ id }) => id === first.id);
+  expect(repaired?.examples.slice(0, 5).map(({ difficulty }) => difficulty)).toEqual([
+    "easy",
+    "easy",
+    "medium",
+    "yds",
+    "yds",
+  ]);
+  expect(repaired?.examples.slice(5)).toEqual(legacy.examples);
+  expect(repaired?.meanings).toEqual(first.meanings);
+  expect(repaired?.score).toEqual(first.score);
 });

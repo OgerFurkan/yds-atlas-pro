@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test";
+import assert from "node:assert/strict";
 import { readdirSync } from "node:fs";
 import { PGlite } from "@electric-sql/pglite";
 
@@ -9,20 +10,31 @@ const wordId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const taskId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 beforeAll(async () => {
   await db.exec(
-    "create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create table auth.users(id uuid primary key); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth to authenticated,anon,service_role;",
+    "create role authenticator; create role anon; create role authenticated; create role service_role bypassrls; create schema auth; create table auth.users(id uuid primary key); create table auth.sessions(id uuid primary key,user_id uuid references auth.users on delete cascade,not_after timestamptz); create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$; grant usage on schema auth to authenticated,anon,service_role;",
   );
   const migrations = new URL("../../../supabase/migrations/", import.meta.url);
   // Apply every migration in timestamp order so the test database matches production.
   for (const name of readdirSync(migrations)
     .filter((file) => file.endsWith(".sql"))
     .sort()) {
+    if (name.endsWith("_account_data_foundation.sql")) {
+      const fixture = new URL("./profile-privileges.fixture.sql", import.meta.url);
+      await db.exec("begin");
+      try {
+        await db.exec(await Bun.file(fixture).text());
+      } finally {
+        await db.exec("rollback");
+      }
+    }
     const migration = await Bun.file(new URL(name, migrations)).text();
     await db.exec(migration.replace(/^\uFEFF/, ""));
   }
 }, 60_000);
 beforeEach(async () => {
+  benchmarkVersions = undefined;
   await db.exec("reset role; truncate auth.users cascade;");
   await db.query("insert into auth.users(id) values($1),($2)", [alice, bob]);
+  await db.query("insert into auth.sessions(id,user_id) values($1,$1),($2,$2)", [alice, bob]);
   await db.query("insert into public.profiles(user_id,daily_goal) values($1,10),($2,20)", [
     alice,
     bob,
@@ -37,7 +49,17 @@ afterAll(async () => {
 });
 async function asUser<T>(id: string, work: () => Promise<T>) {
   await db.exec("set role authenticated");
-  await db.query("select set_config('request.jwt.claim.sub',$1,false)", [id]);
+  await db.query(
+    "select set_config('request.jwt.claim.sub',$1,false),set_config('request.jwt.claims',$2,false)",
+    [
+      id,
+      JSON.stringify({
+        sub: id,
+        session_id: id,
+        amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) }],
+      }),
+    ],
+  );
   try {
     return await work();
   } finally {
@@ -54,11 +76,14 @@ async function asWriter<T>(work: () => Promise<T>) {
   }
 }
 
+let benchmarkVersions: Record<string, string> | undefined;
 const storeSession = (owner: string, snapshot: object, revision: number) =>
   db.query("select public.atlas_store_learning_session($1,$2,$3,$4,true) as revision", [
     owner,
     taskId,
-    JSON.stringify(snapshot),
+    JSON.stringify(
+      benchmarkVersions ? { ...snapshot, assessmentVersions: benchmarkVersions } : snapshot,
+    ),
     revision,
   ]);
 const finishSession = (owner: string, revision: number) =>
@@ -67,6 +92,17 @@ const finishSession = (owner: string, revision: number) =>
     taskId,
     revision,
   ]);
+async function markServerCompletion() {
+  const versions = await db.query<{ id: string; version: string }>(
+    "select id,updated_at::text as version from public.words where user_id=$1",
+    [alice],
+  );
+  benchmarkVersions = Object.fromEntries(versions.rows.map(({ id, version }) => [id, version]));
+  await db.query(
+    "insert into atlas_account.online_assessments(id,user_id,state,start_command,start_request,status,expires_at) values($1,$2,'{}',$1,'{}','complete',now() + interval '1 hour')",
+    [taskId, alice],
+  );
+}
 const verifiedMark = {
   matchingDone: true,
   matchingErrors: 0,
@@ -87,12 +123,204 @@ function serverSnapshot(phase: string, words = [{ id: wordId, word: "Expand" }])
 }
 
 describe("Postgres ownership, atomicity and quotas", () => {
+  test("licensed personal copy backfill uses the bound historical revision and preserves edits and scores", async () => {
+    const credit = {
+      license: "CC BY-SA 4.0",
+      attribution: "Fixture author",
+      source: "https://example.org/source",
+    };
+    await db.query(
+      "insert into public.atlas_lexicon_entries(id,word_key,part_of_speech,sense_key,revision,content,digest) values ($1,'fixture-credit','Noun',repeat('a',64),2,'{}',repeat('b',64))",
+      [wordId],
+    );
+    await db.query(
+      "insert into public.atlas_lexicon_entry_revisions(entry_id,revision,status,action,digest,content,provenance) values ($1,1,'human_reviewed','published',repeat('a',64),'{}',$2)",
+      [wordId, JSON.stringify(credit)],
+    );
+    await db.query("update public.words set score=54,content=$1 where id=$2", [
+      JSON.stringify({
+        lexicon: { entryId: wordId, revision: 1, contractVersion: 1 },
+        usageNote: "private edit",
+      }),
+      wordId,
+    ]);
+    const migration = await Bun.file(
+      new URL(
+        "../../../supabase/migrations/20261126153000_personal_lexicon_credit.sql",
+        import.meta.url,
+      ),
+    ).text();
+    await db.exec(migration);
+    await db.exec(migration);
+    expect(
+      (await db.query("select score,content from public.words where id=$1", [wordId])).rows[0],
+    ).toMatchObject({
+      score: 54,
+      content: {
+        usageNote: "private edit",
+        lexicon: { revision: 1 },
+        attribution: { source: credit.source, author: credit.attribution, license: credit.license },
+      },
+    });
+  });
+  test("product migration restricts direct profile writes and preserves the goal RPC", async () => {
+    await asUser(alice, async () => {
+      expect((await db.query("select public.atlas_live_session() ok")).rows).toEqual([
+        { ok: true },
+      ]);
+      expect(
+        (
+          await db.query(
+            "select has_any_column_privilege(current_user,'public.profiles','UPDATE') ok",
+          )
+        ).rows,
+      ).toEqual([{ ok: false }]);
+      await expect(db.query("update public.profiles set daily_goal=30")).rejects.toMatchObject({
+        code: "42501",
+      });
+      expect((await db.query("select public.set_daily_goal(50) goal")).rows).toEqual([
+        { goal: 50 },
+      ]);
+    });
+  });
+  test("a bounded library page rejects intervening inserts, updates and deletes", async () => {
+    await db.query(
+      "insert into public.words(user_id,word) select $1,'Synthetic '||i from generate_series(1,1100)i",
+      [alice],
+    );
+    const page = (rev: string | null, time: string | null, id: string | null) =>
+      db
+        .query<{
+          page: { total: number; revision: string; rows: { id: string; updated_at: string }[] };
+        }>("select public.atlas_word_page($1,$2,$3) page", [rev, time, id])
+        .then((q) => q.rows[0].page);
+    await asUser(alice, async () => {
+      for (const mutation of [
+        "insert into public.words(user_id,word) values(auth.uid(),'New')",
+        "update public.words set word='Updated' where word='New'",
+        "delete from public.words where word='Updated'",
+      ]) {
+        const first = await page(null, null, null);
+        await db.exec(mutation);
+        const end = first.rows.at(-1);
+        assert(end);
+        await expect(page(first.revision, end.updated_at, end.id)).rejects.toMatchObject({
+          code: "40001",
+        });
+      }
+      const first = await page(null, null, null);
+      const rows = [...first.rows];
+      while (rows.length < first.total) {
+        const end = rows.at(-1);
+        assert(end);
+        const next = await page(first.revision, end.updated_at, end.id);
+        expect(next.rows.length).toBeGreaterThan(0);
+        rows.push(...next.rows);
+      }
+      expect(new Set(rows.map((w) => w.id)).size).toBe(1101);
+    });
+  });
+  test("versioned plan, atomic day import, owner export and session revocation", async () => {
+    await db.query("update public.words set content=$1 where id=$2", [
+      JSON.stringify({ srs: { interval: 12 } }),
+      wordId,
+    ]);
+    const cmd = crypto.randomUUID(),
+      importId = crypto.randomUUID();
+    const plan = { size: 30, groups: [{ day: 60, words: [wordId] }], exclusions: [] };
+    const save = (revision: number, command: string, doc: unknown) =>
+      db.query("select public.atlas_save_plan($1,$2,$3) result", [
+        revision,
+        command,
+        JSON.stringify(doc),
+      ]);
+    const add = (revision: number, command: string, name: string) =>
+      db.query<{ result: { revision: number; plan: typeof plan } }>(
+        "select public.atlas_import_to_day($1,$2,60,$3,$4) result",
+        [revision, command, JSON.stringify(plan), JSON.stringify([{ word: name }])],
+      );
+    await asUser(alice, async () => {
+      const first = await save(0, cmd, plan);
+      expect((await save(0, cmd, plan)).rows).toEqual(first.rows);
+      await expect(
+        db.query("select public.atlas_import_to_day(1,$1,1,$2,$3,true)", [
+          crypto.randomUUID(),
+          JSON.stringify(plan),
+          JSON.stringify([{ word: "Expand" }]),
+        ]),
+      ).rejects.toMatchObject({ code: "23505" });
+      const next = await add(1, importId, "Second");
+      expect(next.rows[0].result.revision).toBe(2);
+      expect((await add(1, importId, "Second")).rows[0].result.plan).toEqual(
+        next.rows[0].result.plan,
+      );
+      await expect(add(1, crypto.randomUUID(), "Uncommitted")).rejects.toMatchObject({
+        code: "40001",
+      });
+      expect(
+        (await db.query("select from public.words where word='Uncommitted'")).rows,
+      ).toHaveLength(0);
+      expect(
+        (await db.query("select public.atlas_export_account($1)->'counts'->>'words' n", [alice]))
+          .rows,
+      ).toEqual([{ n: "2" }]);
+      const exported = await db.query<{
+        words: { id: string; content: { srs?: { interval: number } } }[];
+      }>("select public.atlas_export_account($1)->'data'->'words' words", [alice]);
+      expect(exported.rows[0].words.find((row) => row.id === wordId)?.content.srs).toEqual({
+        interval: 12,
+      });
+      await db.query("delete from public.words where id=$1", [wordId]);
+      expect((await db.query("select public.atlas_read_plan()->>'revision' r")).rows).toEqual([
+        { r: "3" },
+      ]);
+    });
+    await asUser(bob, async () => {
+      expect((await db.query("select public.atlas_read_plan()->'plan' p")).rows).toEqual([
+        { p: null },
+      ]);
+      await expect(
+        db.query("select public.atlas_export_account($1)", [alice]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+    await asUser(alice, async () => {
+      await db.query("select set_config('request.jwt.claims',$1,false)", [
+        JSON.stringify({
+          session_id: alice,
+          sub: alice,
+          amr: [{ method: "password", timestamp: Math.floor(Date.now() / 1000) - 600 }],
+        }),
+      ]);
+      expect(
+        (
+          await db.query(
+            "select public.atlas_live_session() live,public.atlas_confirm_account($1) recent",
+            [alice],
+          )
+        ).rows,
+      ).toEqual([{ live: true, recent: false }]);
+      await expect(
+        db.query("select public.atlas_export_account($1)", [alice]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+    await db.query("delete from auth.sessions where user_id=$1", [alice]);
+    await asUser(alice, async () => {
+      expect((await db.query("select * from public.words")).rows).toBeEmpty();
+      await expect(db.query("select public.set_daily_goal(30)")).rejects.toMatchObject({
+        code: "42501",
+      });
+      await expect(
+        db.query("select public.atlas_export_account($1)", [alice]),
+      ).rejects.toMatchObject({ code: "42501" });
+    });
+  });
   test("word CAS rejects a stale tab after an authoritative score and a newer note", async () => {
     const original = await db.query<{ updated_at: string; score: number }>(
       "select updated_at::text,score from public.words where id=$1",
       [wordId],
     );
     const version = original.rows[0].updated_at;
+    await markServerCompletion();
     await asWriter(async () => {
       await storeSession(alice, serverSnapshot("complete"), 0);
       await finishSession(alice, 1);
@@ -225,10 +453,16 @@ describe("Postgres ownership, atomicity and quotas", () => {
       }
     }
     const reviewed: Record<string, { args: string; count: number; role: string }> = {
+      atlas_export_account: { args: "uuid", count: 1, role: "authenticated" },
       atlas_finish_learning_session: {
         args: "uuid,uuid,integer",
         count: 3,
         role: "atlas_assessment_api",
+      },
+      atlas_finish_verified_session: {
+        args: "uuid,uuid,integer",
+        count: 3,
+        role: "atlas_learning_mutator",
       },
       atlas_lexicon_claim_v1: { args: "text,text,text,uuid", count: 4, role: "service_role" },
       atlas_lexicon_publish_v1: {
@@ -236,6 +470,9 @@ describe("Postgres ownership, atomicity and quotas", () => {
         count: 10,
         role: "service_role",
       },
+      atlas_live_session: { args: "", count: 0, role: "authenticated" },
+      atlas_online_assessment_active: { args: "", count: 0, role: "authenticated" },
+      atlas_save_plan: { args: "integer,uuid,jsonb", count: 3, role: "authenticated" },
       atlas_store_learning_session: {
         args: "uuid,uuid,jsonb,integer,boolean",
         count: 5,
@@ -428,6 +665,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
       assessment: { [wordId]: verifiedMark, [foreign]: verifiedMark },
     };
     const expected = [{ result: { scores: [{ id: wordId, score: 88 }], practiceOnly: false } }];
+    await markServerCompletion();
     await asWriter(async () => {
       await storeSession(alice, snapshot, 0);
       await expect(finishSession(bob, 1)).rejects.toMatchObject({ code: "P0002" });
@@ -478,6 +716,7 @@ describe("Postgres ownership, atomicity and quotas", () => {
       { id: wordId, word: "Expand" },
       { id: second, word: "Second" },
     ];
+    await markServerCompletion();
     await asWriter(async () => {
       await storeSession(alice, serverSnapshot("meaning", words), 0);
       await expect(finishSession(alice, 1)).rejects.toMatchObject({ code: "22023" });
@@ -498,37 +737,64 @@ describe("Postgres ownership, atomicity and quotas", () => {
       ).toEqual([{ revision: 2, completed_at: null }]);
     });
   });
-  test("AI quotas are server-only, atomic, bounded and isolated by account", async () => {
+  test("AI usage is server-only and account-isolated beyond both former fixed limits", async () => {
     await asUser(alice, async () => {
       await expect(db.query("select public.consume_ai_quota($1)", [alice])).rejects.toThrow();
       await expect(db.query("select * from public.ai_usage")).rejects.toThrow();
     });
     await db.exec("set role service_role");
     try {
-      for (let i = 0; i < 15; i++)
-        expect(
-          (
-            await db.query<{ allowed: boolean }>("select public.consume_ai_quota($1) as allowed", [
-              alice,
-            ])
-          ).rows[0].allowed,
-        ).toBe(true);
+      const usage = await db.query<{ allowed: boolean }>(
+        "select public.consume_ai_quota($1) as allowed from generate_series(1,45)",
+        [alice],
+      );
+      expect(usage.rows).toHaveLength(45);
+      expect(usage.rows.every((row) => row.allowed)).toBe(true);
+      expect((await db.query("select public.consume_ai_quota($1) allowed", [bob])).rows).toEqual([
+        { allowed: true },
+      ]);
       expect(
         (
-          await db.query<{ allowed: boolean }>("select public.consume_ai_quota($1) as allowed", [
-            alice,
-          ])
-        ).rows[0].allowed,
-      ).toBe(false);
+          await db.query(
+            "select requests from public.ai_usage where user_id = $1 and bucket = date_trunc('day', now(), 'UTC')",
+            [alice],
+          )
+        ).rows,
+      ).toEqual([{ requests: 45 }]);
       expect(
         (
-          await db.query<{ allowed: boolean }>("select public.consume_ai_quota($1) as allowed", [
-            bob,
-          ])
-        ).rows[0].allowed,
-      ).toBe(true);
+          await db.query(
+            "select requests from public.ai_usage where user_id = $1 and bucket = date_trunc('day', now(), 'UTC')",
+            [bob],
+          )
+        ).rows,
+      ).toEqual([{ requests: 1 }]);
     } finally {
       await db.exec("reset role");
     }
   });
+});
+
+test("verified session MFA and direct revocation gate", async () => {
+  await asUser(alice, async () => {
+    expect(
+      (await db.query<{ ok: boolean }>("select public.atlas_control_mfa() ok")).rows[0].ok,
+    ).toBe(false);
+    await db.query("select set_config('request.jwt.claims',$1,false)", [
+      JSON.stringify({ sub: alice, session_id: alice, aal: "aal2" }),
+    ]);
+    expect(
+      (await db.query<{ ok: boolean }>("select public.atlas_control_mfa() ok")).rows[0].ok,
+    ).toBe(true);
+    await expect(
+      db.query("select public.atlas_apply_editorial($1,$1,'[]')", [alice]),
+    ).rejects.toMatchObject({ code: "42501" });
+  });
+  await db.query("delete from auth.sessions where user_id=$1", [alice]);
+  await asUser(alice, async () => {
+    await expect(db.query("select public.atlas_request_session_gate()")).rejects.toMatchObject({
+      code: "PT401",
+    });
+  });
+  await asUser(bob, () => db.query("select public.atlas_request_session_gate()"));
 });

@@ -21,7 +21,9 @@ function word(value: string, score: number, index: number): WordEntry {
     score,
     examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
       sentence: `We use ${value} in example ${exampleIndex}.`,
-      translation: "",
+      translation: `${value} anlamı · ${exampleIndex}.`,
+      translationFocus: [`${value} anlamı`],
+      difficulty: (["easy", "easy", "medium", "yds", "yds"] as const)[exampleIndex],
     })),
     pronunciationUk: "",
     pronunciationUs: "",

@@ -1,4 +1,4 @@
-import { expect, test } from "../../../frontend/playwright-test";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 
 test("the first dictionary check on a cold Vite server does not reload the tutorial", async ({
   page,

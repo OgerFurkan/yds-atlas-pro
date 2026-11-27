@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { calculateStreak } from "../../../frontend/src/features/dashboard/model/streak";
-import { starterVocabulary } from "../../../frontend/src/features/word-library/data/starter-vocabulary";
+import { starterVocabulary } from "../../../packages/shared/src/starter-vocabulary";
 
 test("streak starts with completed goals and includes consecutive days", () => {
   const result = calculateStreak(["2026-11-08", "2026-11-09", "2026-11-10"], "2026-11-10");

@@ -1,59 +1,29 @@
-import type { AiChatRequest } from "@yds-atlas/shared";
-import {
-  ArrowUp,
-  BookOpen,
-  ChevronDown,
-  History,
-  LoaderCircle,
-  MessageCircleText,
-  Plus,
-  Sparkles,
-  Trash2,
-  X,
-} from "lucide-react";
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { ApiError } from "@/shared/api/api-client";
-import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
-import { Button } from "@/shared/ui/button";
-import { Textarea } from "@/shared/ui/textarea";
-import { sendChat } from "../api/ai-chat-api";
-import { deleteHistoryConversation } from "../model/chat-history";
-import { lastFailedUserQuestion } from "../model/chat-retry";
-import { ChatMessageMarkdown } from "./chat-message-markdown";
+import { useAppPreferences } from "@/shared/hooks/use-app-preferences";
+import { useChatConversation } from "../hooks/use-chat-conversation";
+import { useChatDocking } from "../hooks/use-chat-docking";
+import { ChatComposer } from "./chat-composer";
+import { ChatHeader } from "./chat-header";
+import { ChatLauncher } from "./chat-launcher";
+import { ChatTranscript } from "./chat-transcript";
 
-export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
+export function AiChatWidget({
+  onLogin,
+  assessmentActive,
+  owner,
+}: {
+  onLogin: () => void;
+  assessmentActive: boolean;
+  owner: string | null;
+}) {
   const { t } = useTranslation();
+  const { mobileChatVisible, setMobileChatVisible } = useAppPreferences();
   const [open, setOpen] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [messages, setMessages] = useState<AiChatRequest["messages"]>([]);
-  const [busy, setBusy] = useState(false);
-  const [needsSignIn, setNeedsSignIn] = useState(false);
-  const [error, setError] = useState("");
-  const [retryMessages, setRetryMessages] = useState<AiChatRequest["messages"] | null>(null);
-  const [retryCount, setRetryCount] = useState(0);
+  const widget = useRef<HTMLDivElement>(null);
   const [menuOpen, setMenuOpen] = useState(false);
-  const [showHistory, setShowHistory] = useState(false);
-  const [history, setHistory] = useState<AiChatRequest["messages"][]>([]);
-  const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null);
-  const [confirmClearHistory, setConfirmClearHistory] = useState(false);
-  const messageEnd = useRef<HTMLDivElement>(null);
-  const activeRequest = useRef<AbortController | null>(null);
-
-  useEffect(
-    () => () => {
-      const request = activeRequest.current;
-      activeRequest.current = null;
-      request?.abort();
-    },
-    [],
-  );
-
-  useEffect(() => {
-    if (open && (messages.length || busy || error))
-      messageEnd.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, [open, messages, busy, error]);
-
+  useChatDocking(widget, assessmentActive, open, mobileChatVisible);
+  const conversation = useChatConversation(owner, assessmentActive, setOpen);
   useEffect(() => {
     if (!open) return;
     const closeOnEscape = (event: globalThis.KeyboardEvent) => {
@@ -63,454 +33,46 @@ export function AiChatWidget({ onLogin }: { onLogin: () => void }) {
     return () => window.removeEventListener("keydown", closeOnEscape);
   }, [open]);
 
-  async function send(content = draft, previouslyFailed?: AiChatRequest["messages"]) {
-    const trimmed = content.trim();
-    if ((!trimmed && !previouslyFailed) || busy) return;
-    // Retrying an overloaded provider with the entire chat history may timeout again.
-    // Keep the displayed history, but send only the last question after the first failure.
-    const conversation =
-      previouslyFailed ?? [...messages, { role: "user" as const, content: trimmed }].slice(-12);
-    const retryAttempt = previouslyFailed ? retryCount + 1 : 0;
-    // Never re-send an assistant reply accidentally on a manual retry. Keep the
-    // history visible while replaying exactly the question that failed.
-    const requestMessages = previouslyFailed ? lastFailedUserQuestion(conversation) : conversation;
-    if (!requestMessages.length) return;
-    if (!previouslyFailed) setRetryCount(0);
-    else setRetryCount(retryAttempt);
-    setMessages(conversation);
-    if (!previouslyFailed) setDraft("");
-    setError("");
-    setRetryMessages(null);
-    setNeedsSignIn(false);
-    setShowHistory(false);
-    setBusy(true);
-    const controller = new AbortController();
-    activeRequest.current = controller;
-    try {
-      const response = await sendChat(requestMessages, controller.signal);
-      if (activeRequest.current !== controller) return;
-      setRetryCount(0);
-      setMessages((current) =>
-        [...current, { role: "assistant" as const, content: response.reply }].slice(-12),
-      );
-    } catch (reason) {
-      if (activeRequest.current !== controller) return;
-      if (reason instanceof ApiError && reason.code === "UNAUTHENTICATED") {
-        setNeedsSignIn(true);
-        return;
-      }
-      // Preserve the failed conversation and let the user retry it once manually.
-      setRetryMessages(conversation);
-      if (
-        reason instanceof ApiError &&
-        (reason.code === "NETWORK_ERROR" || reason.code === "INVALID_RESPONSE")
-      )
-        setError(t("chat.apiUnavailable"));
-      else if (reason instanceof ApiError && reason.code === "AI_NOT_CONFIGURED")
-        setError(t("chat.notConfigured"));
-      else if (reason instanceof ApiError && reason.code === "AI_TIMEOUT")
-        setError(t(retryAttempt > 0 ? "chat.timeoutAgain" : "chat.timeout"));
-      else if (reason instanceof ApiError && reason.status === 429)
-        setError(
-          reason.retryAfterSeconds !== undefined
-            ? t("chat.rateLimitedFor", { seconds: Math.ceil(reason.retryAfterSeconds) })
-            : t("chat.rateLimited"),
-        );
-      else if (reason instanceof ApiError && reason.code === "AI_NETWORK_ERROR")
-        setError(t("chat.networkError"));
-      else if (reason instanceof ApiError && reason.code === "AI_AUTH_ERROR")
-        setError(t("chat.providerAuth"));
-      else if (reason instanceof ApiError && reason.code === "AI_MODEL_NOT_FOUND")
-        setError(t("chat.modelUnavailable"));
-      else if (reason instanceof ApiError && reason.code === "AI_REQUEST_REJECTED")
-        setError(t("chat.requestRejected"));
-      else if (
-        reason instanceof ApiError &&
-        (reason.code === "AI_UPSTREAM_ERROR" || reason.status === 503)
-      )
-        setError(t("chat.providerBusy"));
-      else setError(reason instanceof Error ? reason.message : t("chat.error"));
-    } finally {
-      if (activeRequest.current === controller) {
-        activeRequest.current = null;
-        setBusy(false);
-      }
-    }
-  }
-
-  function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    void send();
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-      event.preventDefault();
-      void send();
-    }
-  }
-
-  const suggestions = t("chat.suggestions", { returnObjects: true }) as string[];
-  const suggestionIcons = [BookOpen, Sparkles, History];
-
-  function cancelRequest() {
-    activeRequest.current?.abort();
-    activeRequest.current = null;
-    setBusy(false);
-  }
-
-  function newChat() {
-    cancelRequest();
-    if (messages.length) setHistory((previous) => [messages, ...previous].slice(0, 10));
-    setMessages([]);
-    setDraft("");
-    setError("");
-    setRetryMessages(null);
-    setRetryCount(0);
-    setNeedsSignIn(false);
-    setMenuOpen(false);
-    setShowHistory(false);
-    setPendingDeleteIndex(null);
-    setConfirmClearHistory(false);
-  }
-
+  if (assessmentActive) return null;
   return (
-    <div className="fixed right-4 bottom-4 z-50 flex flex-col items-end gap-3 sm:right-6 sm:bottom-6">
+    <div
+      ref={widget}
+      className={`fixed right-[max(1rem,env(safe-area-inset-right))] bottom-[max(1rem,env(safe-area-inset-bottom))] z-50 flex-col items-end gap-3 chat-wide:right-6 chat-wide:bottom-6 chat-wide:flex ${mobileChatVisible ? "flex" : "hidden"}`}
+    >
       {open && (
         <section
-          className="atlas-chat-panel flex h-[min(590px,calc(100dvh-32px))] w-[min(390px,calc(100vw-32px))] flex-col gap-2.5"
+          className="atlas-chat-panel flex h-[min(590px,calc(100dvh-32px-env(safe-area-inset-bottom)-env(safe-area-inset-top)))] w-[min(390px,calc(100vw-32px))] flex-col gap-2.5"
           role="dialog"
           aria-label={t("chat.title")}
           aria-modal="false"
         >
           <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl border border-border bg-card text-foreground shadow-[0_14px_45px_rgba(17,36,54,0.16)]">
-            <header className="relative z-10 flex shrink-0 items-center justify-between border-b border-border bg-secondary px-5 py-3">
-              <button
-                type="button"
-                className="flex items-center gap-2 rounded-lg px-2 py-1 text-sm font-bold text-foreground hover:bg-accent"
-                aria-expanded={menuOpen}
-                onClick={() => setMenuOpen(!menuOpen)}
-              >
-                YDS Atlas <span className="rounded bg-[#f27637] px-1 text-xs text-white">AI</span>
-                <ChevronDown size={16} />
-              </button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="text-foreground"
-                aria-label={t("chat.close")}
-                onClick={() => setOpen(false)}
-              >
-                <X size={19} />
-              </Button>
-              {menuOpen && (
-                <div className="absolute top-14 right-4 left-4 rounded-xl border border-border bg-popover p-2 text-popover-foreground shadow-lg">
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-muted"
-                    onClick={newChat}
-                  >
-                    <Plus size={17} />
-                    {t("chat.newChat")}
-                  </button>
-                  <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left text-sm hover:bg-[#eff5f8]"
-                    onClick={() => {
-                      cancelRequest();
-                      if (messages.length) {
-                        setHistory((previous) => [messages, ...previous].slice(0, 10));
-                        setMessages([]);
-                      }
-                      setError("");
-                      setRetryMessages(null);
-                      setNeedsSignIn(false);
-                      setShowHistory(true);
-                      setPendingDeleteIndex(null);
-                      setConfirmClearHistory(false);
-                      setMenuOpen(false);
-                    }}
-                  >
-                    <History size={17} />
-                    {t("chat.history")}
-                  </button>
-                </div>
-              )}
-            </header>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
-              {showHistory ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <h2 className="font-bold">{t("chat.history")}</h2>
-                    {history.length > 0 && (
-                      <button
-                        type="button"
-                        className="inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-semibold text-[#a3332c] hover:bg-[#fff0ee] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
-                        onClick={() => {
-                          setConfirmClearHistory((current) => !current);
-                          setPendingDeleteIndex(null);
-                        }}
-                      >
-                        <Trash2 size={15} aria-hidden="true" />
-                        {t("chat.clearHistory")}
-                      </button>
-                    )}
-                  </div>
-                  {confirmClearHistory && history.length > 0 && (
-                    <fieldset
-                      className="min-w-0 space-y-2 rounded-xl border border-[#efc5c0] bg-[#fff5f3] p-3 text-sm text-[#7c2620]"
-                      aria-label={t("chat.clearHistory")}
-                    >
-                      <p>{t("chat.clearHistoryConfirm")}</p>
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 text-xs font-medium"
-                          onClick={() => setConfirmClearHistory(false)}
-                        >
-                          {t("chat.cancelDelete")}
-                        </button>
-                        <button
-                          type="button"
-                          className="rounded-lg bg-[#a3332c] px-3 py-1.5 text-xs font-semibold text-white"
-                          onClick={() => {
-                            setHistory([]);
-                            setConfirmClearHistory(false);
-                            setPendingDeleteIndex(null);
-                          }}
-                        >
-                          {t("chat.confirmDelete")}
-                        </button>
-                      </div>
-                    </fieldset>
-                  )}
-                  {history.length ? (
-                    withOccurrenceKeys(history, (conversation) => JSON.stringify(conversation)).map(
-                      ({ item: conversation, key }, index) => (
-                        <div
-                          key={key}
-                          className="overflow-hidden rounded-xl border border-[#e3ecf2] bg-white shadow-sm"
-                        >
-                          <div className="flex min-w-0 items-center gap-1 p-1.5">
-                            <button
-                              type="button"
-                              className="min-w-0 flex-1 truncate rounded-lg px-2 py-2 text-left text-sm text-[#123b59] hover:bg-[#eff5f8] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#17649c]"
-                              onClick={() => {
-                                if (messages.length)
-                                  setHistory((previous) => [
-                                    messages,
-                                    ...previous.filter((_, itemIndex) => itemIndex !== index),
-                                  ]);
-                                else
-                                  setHistory((previous) =>
-                                    previous.filter((_, itemIndex) => itemIndex !== index),
-                                  );
-                                setMessages(conversation);
-                                setShowHistory(false);
-                                setPendingDeleteIndex(null);
-                                setConfirmClearHistory(false);
-                                setNeedsSignIn(false);
-                                setError("");
-                                setRetryMessages(null);
-                              }}
-                            >
-                              {conversation.find((message) => message.role === "user")?.content ??
-                                conversation[0]?.content}
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={t("chat.deleteConversationNamed", {
-                                title:
-                                  conversation.find((message) => message.role === "user")
-                                    ?.content ?? t("chat.history"),
-                              })}
-                              title={t("chat.deleteConversation")}
-                              className="flex size-9 shrink-0 items-center justify-center rounded-lg text-[#8b4a47] hover:bg-[#fff0ee] hover:text-[#a3332c] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#a3332c]"
-                              onClick={() => {
-                                setPendingDeleteIndex((current) =>
-                                  current === index ? null : index,
-                                );
-                                setConfirmClearHistory(false);
-                              }}
-                            >
-                              <Trash2 size={17} aria-hidden="true" />
-                            </button>
-                          </div>
-                          {pendingDeleteIndex === index && (
-                            <fieldset
-                              className="min-w-0 space-y-2 border-t border-[#efdedb] bg-[#fff8f7] px-3 py-3 text-xs text-[#7c2620]"
-                              aria-label={t("chat.deleteConversation")}
-                            >
-                              <p>{t("chat.deleteConversationConfirm")}</p>
-                              <div className="flex justify-end gap-2">
-                                <button
-                                  type="button"
-                                  className="rounded-lg border border-[#ead3d0] bg-white px-3 py-1.5 font-medium"
-                                  onClick={() => setPendingDeleteIndex(null)}
-                                >
-                                  {t("chat.cancelDelete")}
-                                </button>
-                                <button
-                                  type="button"
-                                  className="rounded-lg bg-[#a3332c] px-3 py-1.5 font-semibold text-white"
-                                  onClick={() => {
-                                    setHistory((previous) =>
-                                      deleteHistoryConversation(previous, index),
-                                    );
-                                    setPendingDeleteIndex(null);
-                                  }}
-                                >
-                                  {t("chat.confirmDelete")}
-                                </button>
-                              </div>
-                            </fieldset>
-                          )}
-                        </div>
-                      ),
-                    )
-                  ) : (
-                    <p className="text-sm text-[#536b7d]">{t("chat.historyEmpty")}</p>
-                  )}
-                </div>
-              ) : null}
-              {!showHistory && !messages.length && !busy && (
-                <div className="flex flex-col">
-                  <h2 className="text-center text-xl font-bold">{t("chat.greeting")}</h2>
-                  <p className="mt-2 text-center text-sm text-[#536b7d]">{t("chat.welcome")}</p>
-                  <div className="mt-1">
-                    {suggestions.map((suggestion, index) => {
-                      const Icon = suggestionIcons[index] ?? Sparkles;
-                      return (
-                        <button
-                          type="button"
-                          key={suggestion}
-                          className="flex w-full items-center gap-4 border-b border-border px-3 py-3.5 text-left text-sm text-foreground transition-colors hover:bg-muted focus-visible:bg-muted"
-                          onClick={() => void send(suggestion)}
-                        >
-                          <Icon size={20} className="shrink-0 text-atlas-orange" />
-                          {suggestion}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <img
-                    src="/brand/atlas-mascot.png"
-                    alt=""
-                    className="mx-auto mt-4 h-32 w-40 object-contain object-bottom"
-                  />
-                </div>
-              )}
-              {!showHistory &&
-                withOccurrenceKeys(messages, (message) =>
-                  JSON.stringify([message.role, message.content]),
-                ).map(({ item: message, key }) => (
-                  <div
-                    key={key}
-                    className={`flex ${message.role === "user" ? "justify-end" : "justify-start"}`}
-                  >
-                    {message.role === "user" ? (
-                      <p className="max-w-[88%] whitespace-pre-wrap break-words rounded-2xl bg-[#123b59] px-3.5 py-2.5 text-sm leading-6 text-white">
-                        {message.content}
-                      </p>
-                    ) : (
-                      <div className="min-w-0 max-w-[93%] rounded-2xl border border-border bg-card px-4 py-3 text-foreground shadow-sm">
-                        <ChatMessageMarkdown content={message.content} />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              {busy && (
-                <div className="flex items-center gap-2 text-xs text-slate-500" role="status">
-                  <LoaderCircle size={15} className="animate-spin" />
-                  {retryCount > 0 ? t("chat.retrying", { count: retryCount }) : t("chat.thinking")}
-                </div>
-              )}
-              {error && (
-                <div
-                  className="rounded-xl border border-red-200 bg-red-50 p-3 text-red-800"
-                  role="alert"
-                >
-                  <p className="text-xs leading-5">{error}</p>
-                  {retryMessages && !needsSignIn && (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      className="mt-2 border-red-300 bg-white text-red-800 hover:bg-red-100"
-                      disabled={busy}
-                      onClick={() => void send("", retryMessages)}
-                    >
-                      {t("chat.retrySameQuestion")}
-                    </Button>
-                  )}
-                </div>
-              )}
-              {needsSignIn && (
-                <div className="rounded-lg border border-orange-200 bg-atlas-orange/50 p-3 text-sm text-black">
-                  <p>{t("chat.loginRequired")}</p>
-                  <Button
-                    className="mt-2"
-                    size="sm"
-                    onClick={() => {
-                      setOpen(false);
-                      onLogin();
-                    }}
-                  >
-                    {t("chat.signIn")}
-                  </Button>
-                </div>
-              )}
-              <div ref={messageEnd} />
-            </div>
+            <ChatHeader
+              menuOpen={menuOpen}
+              setMenuOpen={setMenuOpen}
+              onClose={() => setOpen(false)}
+              onHide={() => setMobileChatVisible(false)}
+              onNewChat={conversation.newChat}
+              onHistory={conversation.viewHistory}
+            />
+            <ChatTranscript
+              conversation={conversation}
+              onLogin={() => {
+                setOpen(false);
+                onLogin();
+              }}
+            />
           </div>
 
-          <form
-            onSubmit={submit}
-            className="shrink-0 rounded-3xl border border-border bg-[#ffffff] p-3 shadow-[0_8px_30px_rgba(18,59,89,0.12)]"
-          >
-            <div className="flex items-end gap-2 bg">
-              <Textarea
-                value={draft}
-                onChange={(event) => setDraft(event.target.value)}
-                onKeyDown={handleKeyDown}
-                aria-label={t("chat.placeholder")}
-                placeholder={t("chat.placeholder")}
-                className="max-h-24 min-h-10 resize-none border-0 bg-transparent px-1 py-2 text-sm text-[#123b59] shadow-none placeholder:text-[#536b7d] focus-visible:ring-0"
-                maxLength={1800}
-                rows={1}
-                disabled={busy || needsSignIn}
-              />
-              <Button
-                type="submit"
-                size="icon"
-                className="size-9 shrink-0 rounded-md"
-                aria-label={t("chat.send")}
-                disabled={!draft.trim() || busy || needsSignIn}
-              >
-                <ArrowUp size={18} />
-              </Button>
-            </div>
-          </form>
+          <ChatComposer
+            draft={conversation.draft}
+            setDraft={conversation.setDraft}
+            disabled={conversation.busy || conversation.needsSignIn}
+            onSubmit={() => void conversation.send()}
+          />
         </section>
       )}
-      {!open && (
-        <Button
-          className="h-16 w-[min(350px,calc(100vw-32px))] justify-start gap-3 rounded-full border border-border bg-card px-3 text-foreground shadow-[0_8px_32px_rgba(18,59,89,0.14)] hover:bg-muted"
-          aria-expanded={false}
-          aria-label={t("chat.launcher")}
-          onClick={() => setOpen(true)}
-        >
-          <img
-            src="/brand/atlas-mascot.png"
-            alt=""
-            className="size-11 rounded-full bg-[#e8f2f7] object-cover"
-          />
-          <span className="flex-1 text-left">{t("chat.placeholder")}</span>
-          <span className="rounded-full bg-[#123b59] px-4 py-2 text-white">
-            {<MessageCircleText />}
-          </span>
-        </Button>
-      )}
+      {!open && <ChatLauncher onOpen={() => setOpen(true)} />}
     </div>
   );
 }

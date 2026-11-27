@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "../../../frontend/playwright-test";
+import { expect, type Page, test } from "../../../frontend/config/playwright/test-fixtures";
 
 async function logOverflow(page: Page, state: string) {
   const report = await page.evaluate(() => {

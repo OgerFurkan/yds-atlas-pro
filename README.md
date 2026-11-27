@@ -1,64 +1,32 @@
-﻿# YDS Atlas Pro
+# YDS Atlas Pro
 
-React + TypeScript ile YDS kelime kütüphanesi ve Günlük Görev. Bun workspaces, Tailwind CSS v4, shadcn/Radix, React Hook Form, Zod, React-Toastify ve Biome kullanır.
+YDS ve YÖKDİL kelime çalışması için React web uygulaması ve Bun API. Misafir çalışması tarayıcıda, oturumlu kullanıcı verisi Supabase’de tutulur. Puanlı değerlendirmeyi sunucu tamamlar.
 
-## Başlat
+| Alan                            | Sorumluluk                                                                    |
+| ------------------------------- | ----------------------------------------------------------------------------- |
+| `frontend/`                     | Vite web uygulaması. Giriş `src/main.tsx`, uygulama kabuğu `src/app/App.tsx`. |
+| `backend/`                      | Bun API. Sunucu girişi `src/index.ts`, HTTP bileşimi `src/app.ts`.            |
+| `packages/shared/`              | Uygulamalardan bağımsız şema, sözleşme ve saf öğrenme motoru.                 |
+| `tests/`                        | Uygulama ve çalıştırıcıya göre testler, sentetik veriler ve yardımcılar.      |
+| `scripts/quality/`, `supabase/` | Kalite profilleri, Recovery ve sabit migration geçmişi.                       |
+
+## LOCAL başlangıç
+
+[.node-version](.node-version) ve [package.json](package.json) içindeki Node ve Bun sürümlerini kullanın.
 
 ```sh
-bun install
+bun install --frozen-lockfile
 bun run dev
 ```
 
-Uygulama `http://localhost:5173` adresindedir. **Misafir kullanımı backend olmadan çalışır.** Hesap bağlantısı yapılandırıldığında Supabase Auth ile giriş, Bun API üzerinden kelime/görev/ilerleme kaydı ve Gemini önerileri kullanılabilir. [Bağlantı ve kurulum](docs/backend.md).
-
-Giriş sayfası: `/#login`. Üst menüdeki **Giriş yap** düğmesiyle açılır; kayıt, şifre sıfırlama ve misafir olarak devam etme akışları bu sayfadadır.
-
-## Hazır olanlar
-
-- Turuncu/lacivert marka amblemi ve referanstan uyarlanmış, şeffaf Atlas maskotu.
-- Tekli/toplu kelime ekleme; tarayıcıda Hunspell yazım denetimi, öneriler, baş harf ve boşluk düzeltme, tekrarların ayıklanması.
-- Kelime düzenleme, arama, CEFR ve puan grubu filtreleri; liste/kart görünümü, seçimli ve toplu silme.
-- 20 kelimelik başlangıç seti, Türkçe anlamlar, tür, editoryal CEFR, kullanım notları ve kelime başına Türkçe çevirili 5 özgün İngilizce örnek.
-- 5'li/10'lu öğrenme grupları, kartlar, anlam ve bağlam tekrarları, genel test ve hatırlama geri bildirimleriyle puanlandırma.
-- Hazırlık ve oyun için vurgulu, uygulamalı iki rehber, ara verme, sayfa yenilemesinden sonra devam, kaydedilmemiş sonuçları koruma.
-- Tamamlanmış kelimelere dayanan günlük hedef; 10–100 arasında 10'un katları.
-
-Başlangıç seti dışındaki kelimeler elle girilebilir veya yapılandırılmış hesapta Gemini ile öneri alınıp incelenerek kaydedilebilir. Canlı Cambridge verisi ve sözlükten gelen UK/US ses dosyaları bağlı değildir. Telaffuz için cihazın İngilizce sesleri kullanılabilir. Cambridge bağlantıları yalnızca sözlükte açma bağlantısıdır. Örnekler Cambridge alıntısı değildir.
-
-## Kontroller
+Misafir deneyimi `http://localhost:5173` adresinde çalışır. Hesap akışı için `bun run dev:api` ve ayrı LOCAL Supabase yapılandırması gerekir. [Katkı kılavuzu](CONTRIBUTING.md) · [Backend kurulumu](docs/backend.md)
 
 ```sh
-bun run format
-bun run format:check
-bun run check
-bun run lint
-bun run test
-bun run test:node
-bun run build:test
-bun run test:e2e
-bun run test:cloud
-bun run test:dev
+bun run quality:quick
+bun run quality:local --synthetic-schema
+bun run quality:release --synthetic-schema --online-advisories
 ```
 
-Playwright ilk kurulumunda `cd frontend` altında `bunx playwright install chromium` çalıştır. `bun run build:test` izole test derlemesini hazırlar. E2E testleri bu derlemeyi `127.0.0.1:4173` adresinde açar. Masaüstü ve mobil projeleri kelime ekleme, yazım önerileri, tam oyun, yenileme ve rehberi kontrol eder. Birim testleri oyun sırası, tekrar, puan, grup sınırları ve normalizasyonu doğrular.
+Release profili mevcut LOCAL Chromium ve izole sentetik PostgreSQL/Auth/PostgREST ile Windows Recovery kapılarını çalıştırır. [Test profilleri](tests/README.md) · [Kalite kapıları](docs/architecture/quality.md)
 
-Biome için VS Code ayarları `.vscode/` altındadır. Önerilen eklenti kurulu olduğunda kaydederken biçimlendirme etkinleşir.
-
-## Geliştirme haritası
-
-- [Ücretsiz deneme yayını ve gereken hesaplar](docs/deployment.md)
-- [Supabase/Gemini kurulumu ve güvenlik sınırları](docs/backend.md)
-- [Mimari ve dosyalar](docs/architecture.md)
-- [Oyun akışı ve puan kuralları](docs/learning-game.md)
-- [Maskot dosyası ve üretim istemi](docs/mascot.md)
-- [Proje çalışma kuralları](AGENTS.md)
-
-Uygulama girişi `frontend/src/main.tsx`, kabuk `frontend/src/app/App.tsx` dosyasıdır. Her özellik `features/<özellik>/` altında bileşen, model ve veri erişimi katmanlarına ayrılır. Ortak UI kaynakları `shared/ui/` içindedir.
-
-## Supabase ve Bun API
-
-`backend/` artık doğrulanmış Supabase oturumuyla çalışan Bun API'dir. SQLite dosyaları korunur ve açılmaz. Migration, RLS politikaları, Auth, atomik/idempotent görev sonuçları ve sunucu üzerinden Gemini bağlantısı hazırdır. Canlı proje ve anahtarlar bu aşamada bağlanmamıştır; yerel PostgreSQL ve HTTP sözleşme testleri kullanılır.
-
-API iskeletini ayrıca incelemek için `bun run dev:api` kullanılabilir; `http://localhost:3000/api/health` sağlık kontrolüdür. Korunan uçlar Supabase Bearer oturumu ister; `x-user-id` kullanılmaz.
-
-Geliştirme regresyonu: "bun run test:dev", Vite önbelleğini zorla yeniden hazırlayan ayrı bir sunucuda ilk yazım kontrolünün rehberi yenilemediğini doğrular. Üretim E2E testleri panel hizası, sekme sınırları, sesin tamamlanmasını bekleme, ses/sözlük hatalarından kurtulma ve Atlas tanıtımını da kontrol eder.
+LOCAL, PRE ve PROD kimlikleri ayrıdır. Yayın ve Recovery ayrı yetkilendirme ile yürütülür. [Mimari](docs/architecture/overview.md) · [Yayın](docs/deployment.md) · [Recovery](docs/architecture/recovery-operations.md) · [Çalışma kuralları](AGENTS.md)

@@ -1,9 +1,12 @@
-﻿export class HttpError extends Error {
+﻿import type { AiWordFailure } from "@yds-atlas/shared";
+
+export class HttpError extends Error {
   constructor(
     public status: number,
     message: string,
     public code = "REQUEST_FAILED",
     public readonly retryAfterSeconds?: number,
+    public readonly wordFailures?: AiWordFailure[],
   ) {
     super(message);
   }

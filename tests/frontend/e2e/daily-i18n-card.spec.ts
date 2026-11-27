@@ -1,4 +1,4 @@
-import { expect, test } from "../../../frontend/playwright-test";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 
 function sampleWord() {
   return {
@@ -13,6 +13,8 @@ function sampleWord() {
     examples: Array.from({ length: 5 }, (_, index) => ({
       sentence: `The garden is beautiful in spring ${index}.`,
       translation: `Bahçe ilkbaharda güzeldir ${index}.`,
+      translationFocus: ["Bahçe"],
+      difficulty: ["easy", "easy", "medium", "yds", "yds"][index],
     })),
     pronunciationUk: "",
     pronunciationUs: "",

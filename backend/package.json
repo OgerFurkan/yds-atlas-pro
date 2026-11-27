@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "bun --watch src/index.ts",
     "test": "bun --no-env-file test ../tests/backend",
-    "typecheck": "tsc --project tsconfig.json",
+    "typecheck": "node ../scripts/quality/typecheck.mjs backend",
     "lint": "cd .. && oxlint backend/src tests/backend"
   },
   "dependencies": {

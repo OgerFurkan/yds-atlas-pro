@@ -85,6 +85,7 @@ export const gameSessionSchema = z.object({
   tutorial: z.boolean(),
   saved: z.boolean(),
   discarded: z.literal(true).optional(),
+  localPractice: z.literal(true).optional(),
   assessmentActions: z.array(assessmentActionSchema).max(10_000).optional(),
 });
 export type GameSession = z.infer<typeof gameSessionSchema>;

@@ -24,6 +24,7 @@ export const aiWordSchema = z
       "Preposition",
       "Conjunction",
       "Pronoun",
+      "Interjection",
       "Phrase",
     ]),
     cefr: cefrLevelSchema,
@@ -62,22 +63,64 @@ export const aiWordListRequestSchema = z
     exclude: z.array(aiWordRequestSchema.shape.word).max(200).default([]),
   })
   .strict();
+export const aiWordFailuresSchema = z
+  .array(
+    z.object({
+      word: aiWordRequestSchema.shape.word,
+      reason: z.enum([
+        "schema",
+        "wrong_sense",
+        "examples",
+        "rate_limit",
+        "timeout",
+        "network",
+        "capacity",
+        "provider",
+        "blocked",
+        "missing",
+      ]),
+    }),
+  )
+  .max(5);
+export type AiWordFailure = z.infer<typeof aiWordFailuresSchema>[number];
 export const aiWordListResponseSchema = z.object({
   suggestions: z.array(aiWordSchema).min(1).max(5),
   provider: z.literal("Gemini"),
   model: z.string(),
   dictionarySources: z.array(dictionarySourceSchema).max(5).optional(),
+  failures: aiWordFailuresSchema.optional(),
 });
 export const aiNamedWordsRequestSchema = z
   .object({
     words: z.array(aiWordRequestSchema.shape.word).min(1).max(5),
+    senses: z
+      .array(
+        z
+          .object({
+            word: aiWordRequestSchema.shape.word,
+            meanings: z.array(z.string().trim().min(1).max(200)).max(4),
+            partOfSpeech: z.string().trim().min(1).max(40).optional(),
+          })
+          .strict(),
+      )
+      .max(5)
+      .optional(),
   })
   .strict()
   .refine(
     (value) =>
-      new Set(value.words.map((word) => word.toLocaleLowerCase("en"))).size === value.words.length,
-    "Tekrarlanan kelime gönderilemez.",
+      new Set(value.words.map((word) => word.toLocaleLowerCase("en"))).size ===
+        value.words.length &&
+      (value.senses ?? []).every(
+        (sense, i, all) =>
+          value.words.some((word) => word.toLowerCase() === sense.word.toLowerCase()) &&
+          all.findIndex((entry) => entry.word.toLowerCase() === sense.word.toLowerCase()) === i,
+      ),
+    "Kelime ve anlam kayıtları eşleşmelidir.",
   );
+export type RequestedWordSense = NonNullable<
+  z.infer<typeof aiNamedWordsRequestSchema>["senses"]
+>[number];
 export const aiChatRequestSchema = z
   .object({
     messages: z

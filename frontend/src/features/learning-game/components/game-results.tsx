@@ -9,9 +9,9 @@ import {
   Trophy,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { Badge } from "@/shared/ui/badge";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 import { resultScore } from "../model/game-engine";
 import type { GameSession } from "../model/game-session";
 

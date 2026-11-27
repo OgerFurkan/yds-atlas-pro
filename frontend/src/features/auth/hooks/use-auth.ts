@@ -1,6 +1,7 @@
 ﻿import type { Session } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import { supabase, supabaseConfigurationError } from "@/shared/api/supabase-client";
+import { setStorageScope } from "@/shared/lib/storage-scope";
 export function useAuth() {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(!!supabase);
@@ -9,10 +10,13 @@ export function useAuth() {
   useEffect(() => {
     if (!supabase) return;
     let active = true;
+    let sawEvent = false;
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, next) => {
       if (!active) return;
+      sawEvent = true;
+      setStorageScope(next?.user.id ?? null);
       setSession(next);
       setLoading(false);
       if (event === "PASSWORD_RECOVERY") setRecovering(true);
@@ -20,7 +24,8 @@ export function useAuth() {
     void supabase.auth
       .getSession()
       .then(({ data, error }) => {
-        if (!active) return;
+        if (!active || sawEvent) return;
+        setStorageScope(data.session?.user.id ?? null);
         setSession(data.session);
         setLoading(false);
         if (error) setError("Oturum yüklenemedi. Yeniden giriş yapabilirsin.");

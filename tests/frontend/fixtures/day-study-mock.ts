@@ -1,4 +1,5 @@
-import type { Page } from "../../../frontend/playwright-test";
+import { mockOrigin } from "../../../frontend/config/playwright/loopback";
+import type { Page } from "../../../frontend/config/playwright/test-fixtures";
 import {
   type GameSession,
   type WordEntry,
@@ -6,7 +7,7 @@ import {
 } from "../../../packages/shared/src/index";
 import { fixtureSource, incompleteDayWords, readyDayWords } from "./day-study-words";
 
-export const demoOrigin = "http://127.0.0.1:5178";
+export const demoOrigin = mockOrigin;
 const owner = "f17e0000-0000-4000-8000-000000000999";
 const readyByName = new Map(readyDayWords.map((word) => [word.word.toLowerCase(), word]));
 
@@ -59,9 +60,12 @@ export async function installDayStudyMock(
     complete: [] as string[][],
     saved: [] as string[],
     imports: 0,
+    importCommands: [] as string[],
     deletes: 0,
   };
   let nextWord = 200;
+  const group = { day: 1, words: words.map((word) => word.id) };
+  const plan = { owner, revision: 1, plan: { size: 20, groups: [group], exclusions: [] } };
   let session: { snapshot: GameSession; revision: number } | null = null;
   const accessToken = [
     btoa(JSON.stringify({ alg: "HS256", typ: "JWT" })),
@@ -86,23 +90,50 @@ export async function installDayStudyMock(
     if (request.headers().authorization !== `Bearer ${accessToken}`)
       return route.fulfill({ status: 401, json: { error: "Test oturumu gerekli." } });
     if (path === "/api/account")
-      return route.fulfill({ json: { dailyGoal: 20, session, progress: [], completedDays: [] } });
+      return route.fulfill({
+        json: {
+          planProtocol: options.importStatus ? 1 : undefined,
+          dailyGoal: 20,
+          session,
+          progress: [],
+          completedDays: [],
+        },
+      });
+    if (path === "/api/account/plan" && request.method() === "GET" && options.importStatus)
+      return route.fulfill({ json: plan });
     if (path === "/api/words") return route.fulfill({ json: words });
-    if (path === "/api/words/import" && request.method() === "POST") {
+    if (
+      path === "/api/account/plan/import" &&
+      request.method() === "POST" &&
+      options.importStatus
+    ) {
       ++requests.imports;
-      const status = options.importStatus?.() ?? 200;
+      const command = request.postDataJSON();
+      requests.importCommands.push(command.command);
+      if (
+        command.day !== group.day ||
+        command.owner !== owner ||
+        command.revision !== plan.revision
+      )
+        return route.fulfill({
+          status: 409,
+          json: { code: "PLAN_CONFLICT", error: "Plan değişti." },
+        });
+      const status = options.importStatus();
       if (status !== 200)
         return route.fulfill({ status, json: { error: "Sentetik kayıt hatası" } });
-      const incoming = request.postDataJSON() as WordEntry[];
+      const incoming = command.words as WordEntry[];
       let added = 0;
       for (const input of incoming) {
         if (words.some((word) => word.word.toLowerCase() === input.word.toLowerCase())) continue;
         const now = new Date().toISOString();
         const id = `f17e0000-0000-4000-8000-${String(++nextWord).padStart(12, "0")}`;
         words.push(wordEntrySchema.parse({ ...input, id, createdAt: now, updatedAt: now }));
+        group.words.push(id);
         added++;
       }
-      return route.fulfill({ json: { added, duplicates: incoming.length - added } });
+      plan.revision++;
+      return route.fulfill({ json: { ...plan, added, duplicates: incoming.length - added } });
     }
     if (request.method() === "DELETE") {
       ++requests.deletes;

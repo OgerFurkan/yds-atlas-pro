@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { storageGeneration } from "./storage-scope";
 
 export type AiIssueKind =
   | "quota"
@@ -17,12 +18,12 @@ export type AiIssue = {
   at: number;
 };
 
-const STORAGE_KEY = "yds-atlas.ai-issues.v1";
 const MAX_ISSUES = 4;
 
 function kindFor(code: string): AiIssueKind {
   if (code === "AI_QUOTA_EXCEEDED" || code === "QUOTA_EXCEEDED") return "quota";
-  if (code === "AI_AUTH_ERROR" || code === "UNAUTHENTICATED") return "auth";
+  if (code === "AI_PERMISSION_DENIED" || code === "AI_AUTH_ERROR" || code === "UNAUTHENTICATED")
+    return "auth";
   if (code === "AI_MODEL_NOT_FOUND") return "model";
   if (code === "AI_REQUEST_REJECTED" || code === "AI_INVALID_RESPONSE") return "request";
   if (code === "AI_NETWORK_ERROR" || code === "NETWORK_ERROR") return "network";
@@ -31,36 +32,16 @@ function kindFor(code: string): AiIssueKind {
   return "unknown";
 }
 
-function storage() {
-  try {
-    return typeof window === "undefined" ? null : window.localStorage;
-  } catch {
-    return null;
+// Operation messages can include the learner's word. Keep them only within this session.
+let generation = storageGeneration();
+let issues: AiIssue[] = [];
+function currentIssues() {
+  if (storageGeneration() !== generation) {
+    generation = storageGeneration();
+    issues = [];
   }
+  return issues;
 }
-
-function readIssues(): AiIssue[] {
-  try {
-    const raw = storage()?.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed
-      .filter(
-        (item): item is AiIssue =>
-          !!item &&
-          typeof item === "object" &&
-          typeof (item as AiIssue).code === "string" &&
-          typeof (item as AiIssue).message === "string" &&
-          typeof (item as AiIssue).at === "number",
-      )
-      .slice(0, MAX_ISSUES);
-  } catch {
-    return [];
-  }
-}
-
-let issues = readIssues();
 const listeners = new Set<() => void>();
 
 function publish() {
@@ -82,23 +63,13 @@ export function recordAiIssue(error: unknown) {
   const message = raw && code !== "UNKNOWN" ? raw : "Beklenmeyen bir AI yanıtı alındı.";
   issues = [
     { code, kind: kindFor(code), message, at: Date.now() },
-    ...issues.filter((issue) => issue.code !== code),
+    ...currentIssues().filter((issue) => issue.code !== code),
   ].slice(0, MAX_ISSUES);
-  try {
-    storage()?.setItem(STORAGE_KEY, JSON.stringify(issues));
-  } catch {
-    // Storage can be unavailable in private modes; the in-memory list still works.
-  }
   publish();
 }
 
 export function clearAiIssues() {
   issues = [];
-  try {
-    storage()?.removeItem(STORAGE_KEY);
-  } catch {
-    // Ignore storage failures.
-  }
   publish();
 }
 
@@ -110,7 +81,7 @@ export function subscribeAiIssues(listener: () => void) {
 }
 
 export function getAiIssues() {
-  return issues;
+  return currentIssues();
 }
 
 export function useAiIssues() {

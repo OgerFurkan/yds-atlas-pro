@@ -1,31 +1,38 @@
 import type { Locator } from "@playwright/test";
-import { expect, test } from "../../../frontend/playwright-test";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
+import { storageKeys } from "../../../frontend/src/shared/lib/storage-keys";
 import { readyDayWords } from "../fixtures/day-study-words";
 
-async function contrast(locator: Locator, focus = false) {
-  return locator.evaluate((element, focus) => {
-    const canvas = document.createElement("canvas");
-    canvas.width = canvas.height = 1;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) throw new Error("Canvas is unavailable");
-    const style = getComputedStyle(element);
-    const layers = [];
-    for (let node = focus ? element.parentElement : element; node; node = node.parentElement)
-      layers.unshift(getComputedStyle(node).backgroundColor);
-    const colors = ["#fff", ...layers, focus ? style.outlineColor : style.color];
-    const luminance = colors.map((color) => {
-      ctx.fillStyle = color;
-      ctx.fillRect(0, 0, 1, 1);
-      const [r, g, b] = Array.from(ctx.getImageData(0, 0, 1, 1).data, (value) => {
-        const channel = value / 255;
-        return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+async function contrast(locator: Locator, focus = false, selection = false) {
+  return locator.evaluate(
+    (element, { focus, selection }) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = canvas.height = 1;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas is unavailable");
+      const style = getComputedStyle(element);
+      const layers = [];
+      for (let node = focus ? element.parentElement : element; node; node = node.parentElement)
+        layers.unshift(getComputedStyle(node).backgroundColor);
+      const selected = selection ? getComputedStyle(element, "::selection") : null;
+      const colors = selected
+        ? [selected.backgroundColor, selected.color]
+        : ["#fff", ...layers, focus ? style.outlineColor : style.color];
+      const luminance = colors.map((color) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(0, 0, 1, 1);
+        const [r, g, b] = Array.from(ctx.getImageData(0, 0, 1, 1).data, (value) => {
+          const channel = value / 255;
+          return channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
+        });
+        return r * 0.2126 + g * 0.7152 + b * 0.0722;
       });
-      return r * 0.2126 + g * 0.7152 + b * 0.0722;
-    });
-    const foreground = luminance.at(-1) ?? 0;
-    const background = luminance.at(-2) ?? 0;
-    return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
-  }, focus);
+      const foreground = luminance.at(-1) ?? 0;
+      const background = luminance.at(-2) ?? 0;
+      return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+    },
+    { focus, selection },
+  );
 }
 
 for (const theme of ["light", "dark"] as const) {
@@ -45,6 +52,8 @@ for (const theme of ["light", "dark"] as const) {
     await page.getByRole("tab", { name: "Günlük Plan" }).click();
     const study = page.getByRole("button", { name: "1. günün kelimeleriyle çalış" });
     await expect(study).toBeEnabled();
+    const textSelectionContrast = await contrast(study, false, true);
+    expect(textSelectionContrast).toBeGreaterThanOrEqual(4.5);
     const studyContrast = await contrast(study);
     expect(studyContrast).toBeGreaterThanOrEqual(4.5);
     if (!isMobile) {
@@ -89,7 +98,32 @@ for (const theme of ["light", "dark"] as const) {
       page.viewportSize()?.width ?? 0,
     );
     console.log(
-      `${theme}: Study ${studyContrast.toFixed(2)}, day trigger ${triggerContrast.toFixed(2)}, selected option ${selectedContrast.toFixed(2)}, focus ${studyFocusContrast.toFixed(2)} / ${triggerFocusContrast.toFixed(2)}`,
+      `${theme}: Study ${studyContrast.toFixed(2)}, day trigger ${triggerContrast.toFixed(2)}, selected option ${selectedContrast.toFixed(2)}, text selection ${textSelectionContrast.toFixed(2)}, focus ${studyFocusContrast.toFixed(2)} / ${triggerFocusContrast.toFixed(2)}`,
     );
   });
 }
+
+test("Istanbul date and daily progress advance together at midnight", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-11-27T20:59:59Z"));
+  await page.addInitScript((key) => {
+    localStorage.setItem(
+      key,
+      JSON.stringify({ "2026-11-27": ["previous"], "2026-11-28": ["next", "other"] }),
+    );
+  }, storageKeys.dailyProgress);
+  await page.goto("/");
+  const progress = page.getByRole("progressbar", { name: "Günlük kelime hedefi" });
+  await expect(progress).toHaveAttribute("aria-valuenow", "5");
+  await expect(page.getByText(/27 KASIM/)).toBeVisible();
+
+  await page.clock.setFixedTime(new Date("2026-11-27T21:00:00Z"));
+  await page.getByRole("button", { name: "Hedefi düzenle" }).click();
+  await page.getByRole("button", { name: "Hedefi 10 artır" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Tamam", exact: true }).click();
+  await expect(progress).toHaveAttribute("aria-valuenow", "3");
+  await expect(page.getByText(/27 KASIM/)).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByText(/28 KASIM/)).toBeVisible();
+  await expect(progress).toHaveAttribute("aria-valuenow", "7");
+});

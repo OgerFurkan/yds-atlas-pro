@@ -1,8 +1,8 @@
 import { ArrowRight, Brain, Check, CheckCircle2, XCircle, Zap } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 import { isFinal, makeQuestion } from "../model/game-engine";
 import type { Confidence, GameSession } from "../model/game-session";
 import { AnswerFeedback } from "./answer-feedback";
@@ -59,9 +59,9 @@ export function QuizPanel({
           return (
             <button
               id={
-                choice === question.correct
+                session.tutorial && choice === question.correct
                   ? "choice-correct"
-                  : choice === wrongChoice
+                  : session.tutorial && choice === wrongChoice
                     ? "choice-wrong"
                     : undefined
               }

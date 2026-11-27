@@ -4,7 +4,12 @@ import { useTranslation } from "react-i18next";
 import { checkAiHealth, useAiHealth, wordAiAvailability } from "@/shared/hooks/use-ai-health";
 import { getStorageScope } from "@/shared/lib/storage-scope";
 import { prepareDayStudy } from "../api/day-study-api";
-import { type DailyGroup, type DailyPlan, isDayStudyReady } from "../model/daily-groups";
+import {
+  type DailyGroup,
+  type DailyPlan,
+  isDayStudyReady,
+  missingStudyContent,
+} from "../model/daily-groups";
 import { dayStudyState } from "../model/day-study-state";
 
 export function useDayStudy({
@@ -40,12 +45,14 @@ export function useDayStudy({
   useEffect(() => () => operation.current?.abort(), []);
   const [preparation, setPreparation] = useState<{
     day: number;
-    phase: "connecting" | "checking" | "generating" | "saving" | "partial" | "cancelled";
+    phase: "connecting" | "checking" | "generating" | "saving" | "partial" | "cancelled" | "done";
+    contentOnly?: boolean;
     ready: number;
     total: number;
     issue?: string;
   } | null>(null);
-  const preparing = preparation !== null && !["partial", "cancelled"].includes(preparation.phase);
+  const preparing =
+    preparation !== null && !["partial", "cancelled", "done"].includes(preparation.phase);
 
   function cancelStudy() {
     if (!operation.current) return;
@@ -58,35 +65,38 @@ export function useDayStudy({
     return dayStudyState(group, availability, Boolean(accountId), studyBlocked);
   }
 
-  async function requestStudy(group: DailyGroup, retry = false) {
+  async function requestStudy(group: DailyGroup, retry = false, contentOnly = false) {
     if (operation.current) return;
-    if (!retry && group.playable) {
+    if (!contentOnly && !retry && group.playable) {
       onStudyGroup(group);
       return;
     }
-    if (!accountId || studyBlocked || (!retry && stateFor(group) !== "prepare")) return;
+    if (!accountId || studyBlocked || (!contentOnly && !retry && stateFor(group) !== "prepare"))
+      return;
     const incomplete = group.words.filter(
       (word) =>
-        getWordGroup(word.score) !== "learned" &&
-        !group.playableWords.some((entry) => entry.id === word.id),
+        (contentOnly || getWordGroup(word.score) !== "learned") &&
+        missingStudyContent(word).length > 0,
     );
     if (!incomplete.length) return;
     const controller = new AbortController();
     operation.current = controller;
     const signal = AbortSignal.any([controller.signal, AbortSignal.timeout(120_000)]);
-    const total = group.playable + incomplete.length;
+    const ready = contentOnly ? group.total - incomplete.length : group.playable;
+    const total = ready + incomplete.length;
     function current() {
       signal.throwIfAborted();
       if (getStorageScope() !== accountId) throw new DOMException("Account changed", "AbortError");
       return currentPlan.current.groups[group.day - 1];
     }
     try {
-      setPreparation({ day: group.day, phase: "connecting", ready: group.playable, total });
-      const checked = await checkAiHealth();
-      current();
-      const status = wordAiAvailability(checked);
-      if (status !== "available") {
-        throw new Error(checked.errorMessage || t(`library.daily.manage.study_state_${status}`));
+      setPreparation({ day: group.day, phase: "connecting", ready, total, contentOnly });
+      if (!contentOnly) {
+        const checked = await checkAiHealth();
+        current();
+        const status = wordAiAvailability(checked);
+        if (status !== "available")
+          throw new Error(checked.errorMessage || t(`library.daily.manage.study_state_${status}`));
       }
       const result = await prepareDayStudy(
         incomplete,
@@ -98,10 +108,26 @@ export function useDayStudy({
           return onSaveStudyWord(input, id, revision, signal);
         },
         (phase, prepared) =>
-          setPreparation({ day: group.day, phase, ready: group.playable + prepared, total }),
+          setPreparation({ day: group.day, phase, ready: ready + prepared, total, contentOnly }),
       );
       const latest = current();
       const entries = new Map(listStudyWords().map((word) => [word.id, word]));
+      if (contentOnly) {
+        const remaining = latest.words.filter(
+          (word) => missingStudyContent(entries.get(word.id) ?? word).length,
+        );
+        setPreparation({
+          day: group.day,
+          phase: remaining.length ? "partial" : "done",
+          ready: latest.total - remaining.length,
+          total: latest.total,
+          contentOnly,
+          issue: remaining.length
+            ? result.issue || remaining.map((word) => word.word).join(", ")
+            : undefined,
+        });
+        return;
+      }
       const playableWords = latest.words.flatMap((word) => {
         const updated = entries.get(word.id);
         return updated && isDayStudyReady(updated) ? [updated] : [];
@@ -124,8 +150,11 @@ export function useDayStudy({
         setPreparation({
           day: group.day,
           phase: "partial",
-          ready: latest.playable,
-          total: latest.total - latest.learned,
+          contentOnly,
+          ready: contentOnly
+            ? latest.words.filter((word) => !missingStudyContent(word).length).length
+            : latest.playable,
+          total: contentOnly ? latest.total : latest.total - latest.learned,
           issue: signal.aborted
             ? t("library.daily.manage.prepareTimeout")
             : error instanceof Error

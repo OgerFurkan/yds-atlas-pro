@@ -17,7 +17,7 @@ See the [file inventory](inventory.md) for names and coverage intent.
 Run `bun run build:test` before E2E. The local browser builds ignore Vite credentials
 from the environment. Append `--list` to a Playwright command to
 check discovery without launching a browser. The browser configs stay in
-the frontend workspace to start Vite and resolve its installed Playwright
+`frontend/config/playwright/` to start Vite and resolve the installed Playwright
 version. Backend legacy `.mjs` contracts run under Bun. Some inspect source
 text or load isolated source with dependency stubs. Use executable API and
 database tests for authorization and persistence guarantees.
@@ -35,3 +35,18 @@ previously isolated loopback database plus dedicated synthetic Auth and writer
 credentials. PGlite checks policies and SQL with no external connection.
 Real staging acceptance and application rollback are described
 in the [quality guide](../docs/architecture/quality.md).
+
+## Tarayıcı profilleri ve çıktılar
+
+| Profil           | Giriş                    | Yerel hedef                                     |
+| ---------------- | ------------------------ | ----------------------------------------------- |
+| Guest            | `bun run test:e2e`       | LOCAL misafir preview, masaüstü ve telefon      |
+| Cloud            | `bun run test:cloud`     | Loopback HTTP mock, masaüstü, tablet ve telefon |
+| Cold development | `bun run test:dev`       | Soğuk Vite ve sözlük başlangıcı                 |
+| Fixtures         | `bun run test:fixtures`  | Sentetik kütüphane fixture’ı                    |
+| Inspector        | `bun run test:inspector` | Cloud içinden yalnız Inspector                  |
+| Demo             | `bun run test:demo`      | İsteğe bağlı etkileşimli masaüstü demosu        |
+
+Her doğrudan Playwright koşusu `.artifacts/playwright/<profil>/<run-id>/results` dizinine yazar. Cold development ve fixture profillerinin Vite önbelleği aynı run dizininde ayrıdır. Merkezi kalite çalıştırıcısı `.artifacts/quality/` altındaki koşu dizinlerini `ATLAS_BROWSER_RESULTS_DIR` ve `VITE_TEST_CACHE_DIR` ile sağlar. Düz coverage çıktısı `.artifacts/coverage` dizinindedir. HTML rapor gerekirse `PLAYWRIGHT_HTML_OUTPUT_DIR` ile aynı çalışma alanına yönlendirilir.
+
+Önizleme build’leri mevcut `frontend/node_modules` altındaki yolları, hosted build `frontend/dist` yolunu kullanır. Geçici veritabanları ve kalite logları işlem bazlı dizinlerde kalır. Kapanmış koşuların ihtiyaç duyulan kanıtlarını merkezi arşive aldıktan sonra yalnız sahipliği bilinen eski run dizinini temizleyin. Aktif koşular, doğrulanmış kanıtlar ve Recovery paketleri bu temizliğin dışındadır.

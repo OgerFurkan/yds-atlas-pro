@@ -1,11 +1,5 @@
-import { zodResolver } from "@hookform/resolvers/zod";
-import type { WordEdit, WordEntry, WordInput } from "@yds-atlas/shared";
-import { cefrLevelSchema, wordInputSchema } from "@yds-atlas/shared";
-import { ArrowRight, Check, LoaderCircle, Pencil, Plus, Sparkles, X } from "lucide-react";
-import { useRef, useState } from "react";
-import { useForm, useWatch } from "react-hook-form";
-import type { Notify } from "@/shared/lib/notify";
-import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
+import { cefrLevelSchema } from "@yds-atlas/shared";
+import { ArrowRight, LoaderCircle, Sparkles, X } from "lucide-react";
 import { Button } from "@/shared/ui/button";
 import {
   Dialog,
@@ -14,38 +8,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
-import { WordEditConflict, WordEditLockUnavailable } from "../api/word-repository";
-import { enrichWordInput } from "../data/starter-vocabulary";
-import { useWordSpellcheck } from "../hooks/use-word-spellcheck";
-import { needsAiMeaning, type WordAddMode } from "../model/manual-word-import";
-import type { WordFillProgress } from "../model/prepare-word-inputs";
-import { type WordFormValues, wordFormSchema } from "../model/word-form.schema";
-import {
-  editedWordFields,
-  preserveExampleMetadata,
-  toFormValues,
-  toWordInput,
-} from "../model/word-form-mappers";
+import { useWordEditor, type WordFormDialogProps } from "../hooks/use-word-editor";
 import { AiFillProgress } from "./ai-fill-progress";
 import { AiWordAssist } from "./ai-word-assist";
+import { WordExampleEditor } from "./word-example-editor";
 import { WordTextField } from "./word-form-fields";
-
-interface WordFormDialogProps {
-  open: boolean;
-  word?: WordEntry;
-  onOpenChange: (open: boolean) => void;
-  onSave: (
-    input: WordInput,
-    onProgress?: (progress: WordFillProgress) => void,
-    mode?: WordAddMode,
-  ) => Promise<void>;
-  onEdit: (patch: WordEdit, id: string, expectedUpdatedAt: string) => Promise<void>;
-  onNotify: Notify;
-}
 
 export function WordFormDialog({
   open,
   word,
+  canUseAi,
   onOpenChange,
   onSave,
   onEdit,
@@ -53,98 +25,27 @@ export function WordFormDialog({
 }: WordFormDialogProps) {
   const {
     register,
-    control,
     handleSubmit,
-    setValue,
-    reset,
-    getValues,
-    formState: { errors, isSubmitting },
-  } = useForm<WordFormValues>({
-    resolver: zodResolver(wordFormSchema),
-    defaultValues: toFormValues(word),
-  });
-  const wordField = register("word");
-  const score = useWatch({ control, name: "score" });
-  const currentWord = useWatch({ control, name: "word" });
-  const currentMeanings = useWatch({ control, name: "meanings" });
-  const currentExamples = useWatch({ control, name: "examples" });
-  const examplesPreview = (currentExamples ?? "")
-    .split("\n")
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const [editingExample, setEditingExample] = useState<number | "new" | null>(null);
-  const [draftEnglish, setDraftEnglish] = useState("");
-  const [draftTurkish, setDraftTurkish] = useState("");
-  const [progress, setProgress] = useState<WordFillProgress | null>(null);
-  const [saveConflict, setSaveConflict] = useState("");
-  const aiSource = useRef<WordInput | undefined>(undefined);
-  const spelling = useWordSpellcheck({
-    setWord: (value, options) =>
-      setValue("word", value, {
-        shouldDirty: true,
-        shouldValidate: true,
-        shouldTouch: options?.touch,
-      }),
-    onNotify,
-  });
-
-  async function save(values: WordFormValues, mode: WordAddMode = "auto") {
-    const spellingValue = values.word.trim().replace(/\s+/g, " ");
-    setSaveConflict("");
-    try {
-      const checked =
-        spellingValue === word?.word
-          ? { normalized: word.word }
-          : await spelling.verify(spellingValue);
-      if (!checked) return;
-      const input = toWordInput(values, checked.normalized);
-      if (word) {
-        const patch = editedWordFields(input, word, aiSource.current);
-        if (Object.keys(patch).length) await onEdit(patch, word.id, word.updatedAt);
-      } else {
-        const source = wordInputSchema.parse(aiSource.current ?? { word: input.word });
-        await onSave(
-          enrichWordInput(preserveExampleMetadata(input, source)),
-          mode === "manual" ? undefined : setProgress,
-          mode,
-        );
-      }
-      onOpenChange(false);
-      onNotify.success(
-        word
-          ? "Kelime güncellendi."
-          : mode === "manual" && needsAiMeaning(input)
-            ? "Kelime kaydedildi. Türkçe anlamını sonra ekleyebilirsin."
-            : "Kelime kaydedildi. Eksik bilgilerini daha sonra düzenleyebilirsin.",
-      );
-    } catch (error) {
-      if (error instanceof WordEditConflict || error instanceof WordEditLockUnavailable)
-        setSaveConflict(error.message);
-      else onNotify.error(error instanceof Error ? error.message : "Kelime kaydedilemedi.");
-    } finally {
-      setProgress(null);
-    }
-  }
-
-  function beginExampleEdit(index: number | "new") {
-    const line = index === "new" ? "" : (examplesPreview[index] ?? "");
-    const delimiter = line.indexOf("|");
-    setDraftEnglish(delimiter < 0 ? line : line.slice(0, delimiter).trim());
-    setDraftTurkish(delimiter < 0 ? "" : line.slice(delimiter + 1).trim());
-    setEditingExample(index);
-  }
-  function commitExampleEdit() {
-    if (!draftEnglish.trim()) return;
-    const rows = [...examplesPreview];
-    const updated = draftTurkish.trim()
-      ? `${draftEnglish.trim()} | ${draftTurkish.trim()}`
-      : draftEnglish.trim();
-    if (editingExample === "new") rows.push(updated);
-    else if (typeof editingExample === "number") rows[editingExample] = updated;
-    setValue("examples", rows.join("\n"), { shouldDirty: true, shouldValidate: true });
-    setEditingExample(null);
-  }
-
+    errors,
+    isSubmitting,
+    wordField,
+    score,
+    currentWord,
+    examplesPreview,
+    editingExample,
+    setEditingExample,
+    draftEnglish,
+    draftTurkish,
+    setDraftEnglish,
+    setDraftTurkish,
+    beginExampleEdit,
+    commitExampleEdit,
+    progress,
+    saveConflict,
+    spelling,
+    save,
+    applyAiDraft,
+  } = useWordEditor({ word, onOpenChange, onSave, onEdit, onNotify });
   const inputClass =
     "min-h-10 w-full min-w-0 rounded-lg border border-border bg-background px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/70 focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/15";
   const labelClass = "flex min-w-0 flex-col gap-1.5 text-xs font-semibold text-foreground";
@@ -246,183 +147,27 @@ export function WordFormDialog({
             </div>
           </section>
 
-          <section className="space-y-3 border-t border-border/70 pt-5" aria-label="Örnek cümleler">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <h3 className="text-sm font-bold text-foreground">Örnek cümleler</h3>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Cümleleri yanındaki kalemle ayrı ayrı düzenle.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                type="button"
-                variant="outline"
-                onClick={() => beginExampleEdit("new")}
-              >
-                <Plus size={15} /> Cümle ekle
-              </Button>
-            </div>
-            {/* Keep the RHF field registered; the row editor writes to this single canonical value. */}
-            <textarea
-              {...register("examples")}
-              className="sr-only"
-              tabIndex={-1}
-              aria-hidden="true"
-            />
-            <section
-              className="overflow-hidden rounded-xl border border-border/70 bg-background"
-              aria-label="Örnek cümle listesi"
-            >
-              {withOccurrenceKeys(examplesPreview, (example) => example).map(
-                ({ item: line, key }, index) => {
-                  const separator = line.indexOf("|");
-                  const english = separator < 0 ? line : line.slice(0, separator).trim();
-                  const turkish = separator < 0 ? "" : line.slice(separator + 1).trim();
-                  return (
-                    <div
-                      key={key}
-                      className="border-b border-border/55 p-3 last:border-b-0 sm:px-4"
-                    >
-                      {editingExample === index ? (
-                        <section className="space-y-2" aria-label={`${index + 1}. örneği düzenle`}>
-                          <label className={labelClass}>
-                            İngilizce cümle
-                            <textarea
-                              className={`${inputClass} min-h-16 py-2`}
-                              value={draftEnglish}
-                              onChange={(event) => setDraftEnglish(event.target.value)}
-                              rows={2}
-                            />
-                          </label>
-                          <label className={labelClass}>
-                            Türkçe çeviri
-                            <textarea
-                              className={`${inputClass} min-h-16 py-2`}
-                              value={draftTurkish}
-                              onChange={(event) => setDraftTurkish(event.target.value)}
-                              rows={2}
-                            />
-                          </label>
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              size="sm"
-                              type="button"
-                              variant="ghost"
-                              onClick={() => setEditingExample(null)}
-                            >
-                              Vazgeç
-                            </Button>
-                            <Button
-                              size="sm"
-                              type="button"
-                              disabled={!draftEnglish.trim()}
-                              onClick={commitExampleEdit}
-                            >
-                              <Check size={15} /> Uygula
-                            </Button>
-                          </div>
-                        </section>
-                      ) : (
-                        <div className="flex items-start gap-3">
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="mt-0.5 size-9 shrink-0 rounded-lg border border-border/60 text-muted-foreground hover:text-foreground"
-                            aria-label={`${index + 1}. örnek cümleyi düzenle`}
-                            title="Cümleyi düzenle"
-                            onClick={() => beginExampleEdit(index)}
-                          >
-                            <Pencil size={15} />
-                          </Button>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-sm font-medium leading-6 text-foreground">
-                              {english}
-                            </p>
-                            <p className="text-xs leading-5 text-muted-foreground">
-                              {turkish || "Türkçe çeviri eklenmemiş"}
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  );
-                },
-              )}
-              {examplesPreview.length === 0 && (
-                <p className="p-4 text-xs text-muted-foreground">Henüz örnek cümle yok.</p>
-              )}
-            </section>
-            {editingExample === "new" && (
-              <section
-                className="space-y-2 rounded-xl border border-primary/25 bg-primary/5 p-3"
-                aria-label="Yeni örnek cümle"
-              >
-                <label className={labelClass}>
-                  İngilizce cümle
-                  <textarea
-                    className={`${inputClass} min-h-16 py-2`}
-                    value={draftEnglish}
-                    onChange={(event) => setDraftEnglish(event.target.value)}
-                    rows={2}
-                  />
-                </label>
-                <label className={labelClass}>
-                  Türkçe çeviri
-                  <textarea
-                    className={`${inputClass} min-h-16 py-2`}
-                    value={draftTurkish}
-                    onChange={(event) => setDraftTurkish(event.target.value)}
-                    rows={2}
-                  />
-                </label>
-                <div className="flex justify-end gap-2">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => setEditingExample(null)}
-                  >
-                    Vazgeç
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    disabled={!draftEnglish.trim()}
-                    onClick={commitExampleEdit}
-                  >
-                    <Check size={15} /> Ekle
-                  </Button>
-                </div>
-              </section>
-            )}
-          </section>
-
+          <WordExampleEditor
+            examplesPreview={examplesPreview}
+            editingExample={editingExample}
+            draftEnglish={draftEnglish}
+            draftTurkish={draftTurkish}
+            setDraftEnglish={setDraftEnglish}
+            setDraftTurkish={setDraftTurkish}
+            beginExampleEdit={beginExampleEdit}
+            commitExampleEdit={commitExampleEdit}
+            cancelEdit={() => setEditingExample(null)}
+            examplesField={register("examples")}
+            inputClass={inputClass}
+            labelClass={labelClass}
+          />
           <section className="space-y-2 border-t border-border pt-4" aria-label="AI kelime desteği">
             <div className="flex items-center gap-2 text-sm font-bold text-foreground">
               <Sparkles size={17} className="text-atlas-orange" aria-hidden="true" /> AI ile eksik
               bilgileri tamamla
             </div>
             <div className="rounded-xl bg-muted/20 p-3">
-              <AiWordAssist
-                key={currentWord}
-                word={currentWord}
-                onApply={(input) => {
-                  aiSource.current = input;
-                  const data = wordInputSchema.parse(input);
-                  const now = new Date().toISOString();
-                  const current = getValues();
-                  reset({
-                    ...toFormValues({ ...data, id: "draft", createdAt: now, updatedAt: now }),
-                    score: current.score,
-                    sourceUrl: current.sourceUrl,
-                    pronunciationUk: current.pronunciationUk,
-                    pronunciationUs: current.pronunciationUs,
-                  });
-                  spelling.reset();
-                }}
-              />
+              <AiWordAssist key={currentWord} word={currentWord} onApply={applyAiDraft} />
               {progress && <AiFillProgress progress={progress} />}
             </div>
           </section>
@@ -491,14 +236,14 @@ export function WordFormDialog({
           <Button variant="outline" type="button" onClick={() => onOpenChange(false)}>
             Vazgeç
           </Button>
-          {!word && !currentMeanings?.trim() && (
+          {!word && canUseAi && (
             <Button
               variant="outline"
               type="button"
               disabled={isSubmitting || spelling.checking}
               onClick={() => void handleSubmit((values) => save(values, "manual"))()}
             >
-              Yalnız kelimeyi kaydet
+              Manuel kaydet
             </Button>
           )}
           <Button
@@ -509,7 +254,13 @@ export function WordFormDialog({
             {isSubmitting || spelling.checking ? (
               <LoaderCircle className="animate-spin" size={15} />
             ) : null}
-            {isSubmitting ? "Kaydediliyor…" : word ? "Değişiklikleri kaydet" : "Kütüphaneye ekle"}{" "}
+            {isSubmitting
+              ? "Kaydediliyor…"
+              : word
+                ? "Değişiklikleri kaydet"
+                : canUseAi
+                  ? "AI ile kaydet"
+                  : "Kütüphaneye ekle"}{" "}
             <ArrowRight size={16} />
           </Button>
         </div>

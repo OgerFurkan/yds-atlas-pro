@@ -1,13 +1,29 @@
-﻿# YDS Atlas Pro çalışma kuralları
+# YDS Atlas Pro çalışma kuralları
 
-- Uygulama Türkçe bir YDS kelime öğrenme ürünüdür. Marka: turuncu, lacivert/mavi ve gözlüklü kurt Atlas. Kullanıcının referansından üretilen maskot `frontend/public/brand/atlas-mascot.png` dosyasındadır.
-- Özellik bazlı klasör yapısını koru. UI, hook, model, veri ve veri erişimini ayrı dosyalara ayır. Dosyalar `kebab-case`, React bileşenleri `PascalCase`, fonksiyonlar `camelCase` olmalı.
-- Uygulama girişi `frontend/src/main.tsx`, uygulama kabuğu `frontend/src/app/App.tsx`. İkinci bir App dosyası oluşturma.
-- Stilleri Tailwind CSS ile yaz. Mevcut shadcn/Radix bileşenlerini `frontend/src/shared/ui/` içinden kullan; aynı kontrolün tekrarını feature içinde yazma. Global CSS tema ve temel stiller içindir.
-- Formlarda React Hook Form ve Zod, bildirimlerde React-Toastify, ikonlarda Lucide kullanılıyor. Rehberlerde Driver.js kullanılıyor. Yeni kütüphaneyi somut ihtiyaç varsa ekle.
-- Kod biçimlendirme Biome ile yapılır: `bun run format`, `bun run format:check`. Gerekli değişiklikleri `bun run build`, `bun run lint` ve değişiklikle ilgili testlerle doğrula.
-- Oyun kuralları ve kabul edilen puan hesabı `docs/learning-game.md` içinde. Oyun motoru saf fonksiyonlardan oluşur; görünümlerden ve depolamadan ayrı tutulmalıdır.
-- Misafir kullanımında localStorage, giriş yapılınca Bun API üzerinden Supabase kullanılır. Auth Supabase'tir; x-user-id ile kimlik doğrulama yapma. Gemini yalnızca backend'den çağrılır; gizli anahtarları VITE_ alanlarına koyma. Canlı proje henüz bağlanmadı; kurulum docs/backend.md içindedir. Başlangıç setini AI veya Cambridge verisi gibi sunma.
-- Ekranları telefon ve masaüstü için kontrol et. Depolanan cevaplar ve sonuçlar yenilemede korunmalı; sonuç kaydını yeniden denemek aynı puanı iki kere eklememeli.
+Türkçe YDS/YÖKDİL kelime öğrenme ürünü. Mevcut [marka varlıklarını](docs/mascot.md) koru.
 
-Mimari harita: `docs/architecture.md`.
+## Çalışma
+
+- Önce [güncel durum](docs/ai/current-status.md) ve göreve özel kaynakları oku. Tarihsel raporları yalnız ilgili kanıt gerektiğinde aç. Çalışma sonunda güncel durumu bir kez güncelle.
+- Aynı sohbet içinde yalnız değişen ya da görev için gerekli kaynakları oku. Tamamlanmış analizleri gereksiz yere tekrarlama.
+- İzinli işleri tek pakette tamamla. Belirsiz kaynakları ve önceki değişiklikleri koru. Uzak veya geri alınamaz işlemlerde ürün sahibinin geçerli yetkisini doğrula.
+- Her görevde bağımsız inceleme için gerekli teslim dosyalarını tek ZIP olarak sun ve doğrudan dosya bağlantısını ver. Windows’ta hedef, `[Environment]::GetFolderPath('DesktopDirectory')` ile bulunan Masaüstü altındaki `YDS-Atlas-Teslimler/` klasörüdür. Gizli değerleri, tokenları, parolaları, API anahtarlarını ve gerçek .env dosyalarını ZIP'e ekleme.
+- [Yol haritasını](docs/ai/current-status.md) izle. Sonraki adıma ürün sahibi onayıyla geç. Premium UI/UX, kapsamlı Atlas Control Center ve yeni öğrenme özellikleri ayrı ürün kapsamıdır.
+
+## Kod ve veri
+
+- React ve Bun modüler monolitinde UI, hook, model ve veri erişimi özellik sınırlarına göre ayrılır. Dosyalar kebab-case, bileşenler PascalCase, fonksiyonlar camelCase. Frontend girişi `frontend/src/main.tsx`, tek kabuk `frontend/src/app/App.tsx`.
+- Tailwind ve `frontend/src/shared/ui/` kontrollerini yeniden kullan. Global CSS tema, font ve temel stiller içindir. Formlarda React Hook Form ve Zod, bildirimlerde React-Toastify, ikonlarda Lucide, rehberlerde Driver.js kullan. Yeni bağımlılık için somut ihtiyaç gerekir.
+- Misafir verisi localStorage'da, hesap verisi Bun API üzerinden Supabase'de tutulur. Supabase Auth kimliğini doğrula. `x-user-id` üzerinden kimlik verme. Gemini backend'de kalır. `VITE_` alanlarına secret yazma.
+- Başlangıç verisini AI veya Cambridge içeriği gibi sunma. Oyun motoru saf fonksiyonlar kullanır. Yenileme kayıtlı yanıtları korur. Tekrarlanan sonuç yazımı çift puan üretmez.
+- Masaüstü, tablet, telefon ve uygulama istemcileri aynı API ve veri kurallarına uyar. Depolama ve kilitleme platform adaptöründe kalır. [Platform sözleşmesi](docs/architecture/overview.md#cross-platform-product-standard-ek-f).
+
+- Yerleşim ve import sınırları için [workspace kararını](docs/adr/0002-workspaces-and-test-profiles.md) izle. İki uygulama ortak sözleşmeleri `@yds-atlas/shared` public exportlarından alır. Tarayıcı çıktılarını [test profillerinin](tests/README.md#tarayıcı-profilleri-ve-çıktılar) run dizininde tut.
+- Yeni dosya açmadan önce mevcut domain sahibini ve tekrar kullanılabilir kodu kontrol et. [Mimari kurallar](docs/architecture/overview.md#refactoring-policy) feature girişlerini, büyük dosya incelemesini ve görev sonu kontrolünü tanımlar.
+
+- Büyük işlevsel modüller için sahiplik gerekçesi ve incelenmiş büyüme sınırı gerekir. Merkezi denetim yanlış yerleşen ve emekli olduğu doğrulanan kaynakları yakalar. Yeni domain erişimi için mevcut dar public girişleri kullan.
+
+## Doğrulama
+
+- Biome biçimini ve ilgili tip, lint, build ve regresyonları doğrula. Görünüm değişikliğinde telefon ve masaüstünü kapsa. [Merkezi kalite profilleri](docs/architecture/quality.md).
+- Yetki, ortam ve veri sözleşmeleri için [backend](docs/backend.md), [öğrenme](docs/learning-game.md), [yayın](docs/deployment.md) ve [Recovery](docs/architecture/recovery-operations.md) belgelerini kullan.

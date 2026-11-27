@@ -7,6 +7,9 @@
 - `backend/`: Bun HTTP API, doğrulanmış Supabase Auth bağlamı, RLS altında veri erişimi ve güvenli Gemini çağrıları. Mevcut SQLite veritabanı açılmaz/değiştirilmez.
 - `supabase/`: CLI 3 yapılandırması ve PostgreSQL/RLS/RPC migration'ı.
 
+- `scripts/quality/` merkezi kalite ve Recovery girişlerini taşır. `tests/` backend, frontend ve gerçek izole servis sözleşmelerini kapsar.
+- `docs/ai/current-status.md` güncel kabul ve yol haritasıdır. [Yayın](deployment.md), [kalite](architecture/quality.md) ve [Recovery](architecture/recovery-operations.md) kendi ayrı operasyon sözleşmelerini yürütür.
+
 ## Frontend
 
 ```text

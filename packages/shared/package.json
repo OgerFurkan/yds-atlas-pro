@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
+    "./environment-identity": "./src/environment-identity.ts",
     "./game-engine": "./src/game-engine.ts",
     "./matching-engine": "./src/matching-engine.ts",
     "./starter-vocabulary": "./src/starter-vocabulary.ts",

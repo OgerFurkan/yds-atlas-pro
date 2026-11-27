@@ -1,7 +1,7 @@
 import type { WordEntry } from "@yds-atlas/shared";
 import { useTranslation } from "react-i18next";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { WordStatus } from "@/features/word-library/components/word-status";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 
 export function RecentWord({ word }: { word: WordEntry }) {
   const { t } = useTranslation();

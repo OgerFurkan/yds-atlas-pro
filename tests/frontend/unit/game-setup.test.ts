@@ -6,10 +6,10 @@ import {
   taskGroupCount,
 } from "../../../frontend/src/features/learning-game/model/game-setup";
 import { aiSuggestionToWordInput } from "../../../frontend/src/features/word-library/api/ai-word-api";
-import { starterVocabulary } from "../../../frontend/src/features/word-library/data/starter-vocabulary";
 import { prepareWordInputs } from "../../../frontend/src/features/word-library/model/prepare-word-inputs";
 import { wordKey } from "../../../frontend/src/features/word-library/model/word-normalization";
 import type { WordEntry } from "../../../packages/shared/src/index";
+import { starterVocabulary } from "../../../packages/shared/src/starter-vocabulary";
 
 function stored(index: number, score = 0): WordEntry {
   return {
@@ -88,7 +88,7 @@ test("new inputs are completed in batches without overwriting user data or exist
       suggestions: words.map((word) => ({
         word,
         alternatives: [],
-        meanings: ["AI anlamı"],
+        meanings: ["ölçmek"],
         usageNote: "AI notu",
         partOfSpeech: "Verb" as const,
         cefr: "B2" as const,
@@ -116,13 +116,14 @@ test("new inputs are completed in batches without overwriting user data or exist
     [{ word: "Existing" }],
     complete,
   );
-  expect(calls).toEqual([["QUANTIFY"]]);
+  expect(calls).toEqual([["quantify"]]);
   expect(result[0].meanings).toEqual(["ölçmek"]);
   expect(result[0].score).toBe(35);
   expect(result[0].examples[0].source).toBe("Gemini · test");
   expect(result[0].examples).toHaveLength(6);
   expect(result[0].examples[5].source).toBe("Kullanıcı");
-  expect(result[2].examples).toHaveLength(0);
+  expect(result).toHaveLength(2);
+  expect(result[1].examples).toHaveLength(0);
 });
 
 test("completion progress reports only words that need AI and advances per batch", async () => {
@@ -159,7 +160,7 @@ test("completion progress reports only words that need AI and advances per batch
   expect(alreadyComplete).toEqual([]);
 });
 
-test("completion failures and oversized batches do not produce partial results", async () => {
+test("provider failure stops large lists at the first failed request", async () => {
   let calls = 0;
   const fail = async () => {
     calls++;
@@ -168,8 +169,8 @@ test("completion failures and oversized batches do not produce partial results",
   await expect(prepareWordInputs([{ word: "quantify" }], [], fail)).rejects.toThrow("unavailable");
   expect(calls).toBe(1);
   const words = Array.from({ length: 26 }, (_, index) => ({ word: `word${index}` }));
-  await expect(prepareWordInputs(words, [], fail)).rejects.toThrow("25");
-  expect(calls).toBe(1);
+  await expect(prepareWordInputs(words, [], fail)).rejects.toThrow("unavailable");
+  expect(calls).toBe(2);
 });
 
 test("dictionary sentence attribution is exact and generated examples remain attributed to Gemini", () => {

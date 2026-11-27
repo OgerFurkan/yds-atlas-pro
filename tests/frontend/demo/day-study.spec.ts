@@ -1,4 +1,4 @@
-import { test } from "../../../frontend/playwright-test";
+import { test } from "../../../frontend/config/playwright/test-fixtures";
 import {
   demoOrigin,
   incompleteDayWords,

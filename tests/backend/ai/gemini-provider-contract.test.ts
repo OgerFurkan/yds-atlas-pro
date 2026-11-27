@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, spyOn, test } from "bun:test";
+import assert from "node:assert/strict";
 import { readConfig } from "../../../backend/src/config/env";
 import { generateChatReply } from "../../../backend/src/features/ai/chat";
 import { lookupDictionaryWord } from "../../../backend/src/features/ai/dictionary-api";
@@ -64,10 +65,12 @@ describe("Gemini provider", () => {
       fetcher,
     );
     expect(result.reply).toBe("Indicate means to show.");
-    expect(new Headers(input!.headers).get("x-goog-api-key")).toBe(config.GEMINI_API_KEY!);
+    assert(input);
+    assert(config.GEMINI_API_KEY);
+    expect(new Headers(input.headers).get("x-goog-api-key")).toBe(config.GEMINI_API_KEY);
     expect(JSON.parse(input?.body as string).generationConfig.thinkingConfig).toBeUndefined();
     expect(
-      JSON.parse(input!.body as string).contents.map((message: { role: string }) => message.role),
+      JSON.parse(input.body as string).contents.map((message: { role: string }) => message.role),
     ).toEqual(["user", "model", "user"]);
   });
   test("chat does not send thinking levels to Gemini 2.5", async () => {
@@ -91,7 +94,7 @@ describe("Gemini provider", () => {
     for (const [status, code] of [
       [400, "AI_REQUEST_REJECTED"],
       [401, "AI_AUTH_ERROR"],
-      [403, "AI_AUTH_ERROR"],
+      [403, "AI_PERMISSION_DENIED"],
       [404, "AI_MODEL_NOT_FOUND"],
       [429, "AI_QUOTA_EXCEEDED"],
       [500, "AI_UPSTREAM_ERROR"],
@@ -254,11 +257,12 @@ describe("Gemini provider", () => {
     }) as unknown as typeof fetch;
     const result = await generateWord("Expand", config, undefined, fetcher);
     expect(result.suggestion.examples).toHaveLength(5);
-    expect(new Headers(input!.headers).get("x-goog-api-key")).toBe("test-secret-never-return");
-    expect(JSON.parse(input!.body as string).generationConfig.responseMimeType).toBe(
+    assert(input);
+    expect(new Headers(input.headers).get("x-goog-api-key")).toBe("test-secret-never-return");
+    expect(JSON.parse(input.body as string).generationConfig.responseMimeType).toBe(
       "application/json",
     );
-    expect(JSON.parse(input!.body as string).generationConfig.temperature).toBeUndefined();
+    expect(JSON.parse(input.body as string).generationConfig.temperature).toBeUndefined();
   });
   test("word and list generation lower Gemini 3 thinking so JSON output is not truncated", async () => {
     const wordConfig = { ...config, GEMINI_MODEL_WORD: "gemini-3.8-flash" };
@@ -320,15 +324,17 @@ describe("Gemini provider", () => {
     );
     expect(JSON.parse(requestBody).generationConfig.thinkingConfig).toBeUndefined();
   });
-  test("a rate-limited key is parked and the next project key serves the request", async () => {
+  test("a 429 parks the operation across all five keys, other projects and models", async () => {
     const pooled = readConfig({
-      GEMINI_API_KEYS: "project-a-key,project-b-key",
+      GEMINI_API_KEYS: "project-a-key,project-b-key,key-c,key-d,key-e",
+      GEMINI_KEY_PROJECT_GROUPS: "one,two,three,four,five",
       SUPABASE_URL: "https://example.supabase.co",
       SUPABASE_PUBLISHABLE_KEY: "test-public",
     });
     const used: string[] = [];
     const fetcher = (async (_url: unknown, init: RequestInit) => {
-      const key = new Headers(init.headers).get("x-goog-api-key")!;
+      const key = new Headers(init.headers).get("x-goog-api-key");
+      assert(key);
       used.push(key);
       if (key === "project-a-key")
         return Response.json(
@@ -343,15 +349,16 @@ describe("Gemini provider", () => {
       return upstream(suggestion);
     }) as unknown as typeof fetch;
 
-    const first = await generateWord("Expand", pooled, undefined, fetcher);
-    expect(first.suggestion.word).toBe("Expand");
-    expect(used).toEqual(["project-a-key", "project-b-key"]);
-
-    used.length = 0;
-    await generateWord("Expand", pooled, undefined, fetcher);
-    expect(used).toEqual(["project-b-key"]);
+    await expect(generateWord("Expand", pooled, undefined, fetcher)).rejects.toMatchObject({
+      code: "AI_QUOTA_EXCEEDED",
+      retryAfterSeconds: 17,
+    });
+    await expect(
+      generateWord("Expand", { ...pooled, GEMINI_MODEL_WORD: "gemini-other" }, undefined, fetcher),
+    ).rejects.toMatchObject({ code: "AI_QUOTA_EXCEEDED" });
+    expect(used).toEqual(["project-a-key"]);
   });
-  test("reports the soonest usable key when every project is rate limited", async () => {
+  test("honors the advertised wait without additional attempts", async () => {
     const pooled = readConfig({
       GEMINI_API_KEYS: "limit-a,limit-b",
       SUPABASE_URL: "https://example.supabase.co",
@@ -375,12 +382,12 @@ describe("Gemini provider", () => {
       code: "AI_QUOTA_EXCEEDED",
       message: expect.stringContaining("17 saniye"),
     });
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
 
     await expect(generateWord("Expand", pooled, undefined, fetcher)).rejects.toMatchObject({
       code: "AI_QUOTA_EXCEEDED",
     });
-    expect(calls).toBe(2);
+    expect(calls).toBe(1);
   });
   test("falls through a rejected key and follows the rotating key order", async () => {
     const pooled = readConfig({
@@ -390,7 +397,8 @@ describe("Gemini provider", () => {
     });
     const used: string[] = [];
     const fetcher = (async (_url: unknown, init: RequestInit) => {
-      const key = new Headers(init.headers).get("x-goog-api-key")!;
+      const key = new Headers(init.headers).get("x-goog-api-key");
+      assert(key);
       used.push(key);
       if (key === "rejected-key")
         return Response.json(

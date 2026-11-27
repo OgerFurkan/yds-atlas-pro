@@ -273,3 +273,14 @@ test("günden çıkarılmış kelimeyi toplu eklemek yeniden atanmasını sağla
   expect(repository.getExcludedWordIds()).not.toContain("excluded");
   expect(repository.getGroups()).toEqual([{ day: 2, words: ["excluded"] }]);
 });
+
+test("an earlier account list cannot remove another tab's manual day or exclusion", () => {
+  seed([{ day: 60, words: ["newer"] }]);
+  writeStorage(storageKeys.dailyWordExclusions, ["outside-snapshot"]);
+  repository.syncWords(["visible"], 20, true, true);
+  expect(stored()).toEqual([
+    { day: 1, words: ["visible"] },
+    { day: 60, words: ["newer"] },
+  ]);
+  expect(repository.getExcludedWordIds()).toEqual(["outside-snapshot"]);
+});

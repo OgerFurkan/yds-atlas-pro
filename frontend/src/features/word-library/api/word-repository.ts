@@ -26,7 +26,6 @@ export interface WordRepository {
     signal?: AbortSignal,
   ): Result<WordEntry>;
   edit(patch: WordEdit, id: string, expectedUpdatedAt: string): Result<WordEntry>;
-  applyScores(updates: { id: string; score: number }[]): Result<void>;
   addMany(inputs: WordInput[]): Result<{ added: number; duplicates: number }>;
   removeMany(ids: string[]): Result<void>;
 }

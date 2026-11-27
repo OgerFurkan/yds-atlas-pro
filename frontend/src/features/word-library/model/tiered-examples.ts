@@ -25,7 +25,7 @@ export function hasAtlasTiers(examples: readonly AtlasTierExample[] | undefined)
             (part: string) =>
               typeof part === "string" &&
               part.trim().length > 0 &&
-              example.translation!.includes(part),
+              example.translation?.includes(part),
           ),
       )
   );

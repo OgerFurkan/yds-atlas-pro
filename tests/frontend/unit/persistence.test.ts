@@ -1,8 +1,4 @@
 import { afterEach, beforeEach, expect, test } from "bun:test";
-import {
-  completedToday,
-  recordDailyProgress,
-} from "../../../frontend/src/features/dashboard/model/daily-progress";
 import { getStreak } from "../../../frontend/src/features/dashboard/model/streak";
 import {
   advance,
@@ -15,12 +11,24 @@ import {
   persistSession,
   readSession,
 } from "../../../frontend/src/features/learning-game/model/game-storage";
+import { completeGuestResult } from "../../../frontend/src/features/learning-game/model/guest-result";
 import {
   continueMatching,
   selectMatching,
   startMatchingBoard,
 } from "../../../frontend/src/features/learning-game/model/matching-engine";
 import { localWordRepository } from "../../../frontend/src/features/word-library/api/local-word-repository";
+import {
+  completedToday,
+  goalHistory,
+  recordDailyProgress,
+} from "../../../frontend/src/shared/lib/daily-progress";
+import { localDateKey } from "../../../frontend/src/shared/lib/istanbul-date";
+import {
+  commitLocalChanges,
+  hasPendingLocalChanges,
+} from "../../../frontend/src/shared/lib/storage";
+import { storageKeys as keys } from "../../../frontend/src/shared/lib/storage-keys";
 
 import { installMemoryStorage } from "../helpers/memory-storage";
 
@@ -29,6 +37,17 @@ beforeEach(() => {
   fixture = installMemoryStorage();
 });
 afterEach(() => fixture.restore());
+
+test.each(["{", "null", "[]", '{"2026-01-01":42}'])(
+  "unreadable history is preserved before any result write: %s",
+  (raw) => {
+    const key = "yds-atlas-daily-progress-v1";
+    fixture.storage.setItem(key, raw);
+    expect(() => recordDailyProgress(["one"])).toThrow();
+    expect(fixture.storage.getItem(key)).toBe(raw);
+    expect(fixture.storage.getItem("yds-atlas-goal-per-day-v1")).toBeNull();
+  },
+);
 
 test("bulk import is atomic and case-insensitive duplicates do not overwrite records", () => {
   const original = localWordRepository.save({ word: "abandon", score: 35 });
@@ -59,7 +78,15 @@ test("a short task does not complete a larger daily goal or start a streak", () 
   recordDailyProgress(Array.from({ length: 100 }, (_, index) => `word-${index}`));
   expect(getStreak().current).toBe(1);
   fixture.storage.setItem("yds-atlas-daily-goal", "10");
+  recordDailyProgress(["another"]);
+  expect(Object.values(goalHistory())).toEqual([100]);
   expect(getStreak().current).toBe(1);
+});
+
+test("unreadable progress cannot appear as an empty dashboard", () => {
+  fixture.storage.setItem("yds-atlas-daily-progress-v1", "broken");
+  expect(() => completedToday()).toThrow();
+  expect(() => getStreak()).toThrow();
 });
 
 test("saved snapshots retain the selected answer across a reload", () => {
@@ -77,9 +104,9 @@ test("saved snapshots retain the selected answer across a reload", () => {
 });
 
 test("invalid saved sessions are rejected instead of breaking the page", () => {
+  const word = localWordRepository.save({ word: "abandon" });
   fixture.storage.setItem(gameStorageKey, JSON.stringify({ phase: "unknown" }));
   expect(readSession()).toBeNull();
-  const word = localWordRepository.save({ word: "abandon" });
   fixture.storage.setItem(
     gameStorageKey,
     JSON.stringify({ ...createSession([word], 5), queue: ["missing"] }),
@@ -119,4 +146,93 @@ test("invalid matching references and duplicate cards cannot be restored", () =>
   expect(readSession()).toBeNull();
   persistSession({ ...session, matching: { ...session.matching!, left: [word.id, word.id] } });
   expect(readSession()).toBeNull();
+});
+
+for (const boundary of [
+  "journal",
+  keys.goalPerDay,
+  keys.dailyProgress,
+  keys.completedDays,
+  keys.gameSession,
+  "cleanup",
+]) {
+  test("guest result resumes exactly once after interruption at " + boundary, () => {
+    const original = localWordRepository.save({ word: "Resume", score: 77 });
+    const result = { ...createSession([original], 5), phase: "complete" as const, queue: [] };
+    persistSession(result);
+    fixture.storage.setItem(keys.dailyGoal, "10");
+    recordDailyProgress(Array.from({ length: 9 }, (_, i) => "previous-" + i));
+    fixture.storage.removeItem(keys.goalPerDay);
+    const { setItem, removeItem } = fixture.storage;
+    fixture.storage.setItem = (key, value) => {
+      if (key === boundary || (boundary === "journal" && key.endsWith("pending-write-v1")))
+        throw new Error("quota");
+      setItem(key, value);
+    };
+    fixture.storage.removeItem = (key) => {
+      if (boundary === "cleanup") throw new Error("quota");
+      removeItem(key);
+    };
+    expect(() =>
+      commitLocalChanges(() => completeGuestResult(result, () => localWordRepository.list())),
+    ).toThrow();
+    fixture.storage.setItem = setItem;
+    fixture.storage.removeItem = removeItem;
+    commitLocalChanges(() => completeGuestResult(result, () => localWordRepository.list()));
+    const after = fixture.storage.getItem(keys.words);
+    expect(localWordRepository.list()[0].score).toBe(77);
+    commitLocalChanges(() => completeGuestResult(result, () => localWordRepository.list()));
+    expect(fixture.storage.getItem(keys.words)).toBe(after);
+    expect(completedToday()).toBe(10);
+    expect(JSON.parse(fixture.storage.getItem(keys.completedDays)!)[localDateKey()]).toBe(true);
+    expect(readSession()?.saved).toBe(true);
+    expect(hasPendingLocalChanges()).toBe(false);
+  });
+}
+
+test("a matching score from another operation cannot authorize an outdated result", () => {
+  const first = localWordRepository.save({ word: "Collision" });
+  const result = { ...createSession([first], 5), phase: "complete" as const, queue: [] };
+  persistSession(result);
+  localWordRepository.edit({ usageNote: "New revision" }, first.id, first.updatedAt);
+  expect(() =>
+    commitLocalChanges(() => completeGuestResult(result, () => localWordRepository.list())),
+  ).toThrow("Puanlar kaydedilmedi");
+  expect(completedToday()).toBe(0);
+  expect(readSession()?.saved).toBe(false);
+});
+
+test("a read failure on a later history key prevents every result write", () => {
+  const original = localWordRepository.save({ word: "Recover", score: 42 });
+  const result = { ...createSession([original], 5), phase: "complete" as const, queue: [] };
+  persistSession(result);
+  const { getItem, setItem } = fixture.storage;
+  const writes: string[] = [];
+  fixture.storage.setItem = (key, value) => {
+    writes.push(key);
+    setItem(key, value);
+  };
+  fixture.storage.getItem = (key) => {
+    if (key === keys.completedDays) throw new Error("denied");
+    return getItem(key);
+  };
+  expect(() =>
+    commitLocalChanges(() => completeGuestResult(result, () => localWordRepository.list())),
+  ).toThrow();
+  expect(writes).toEqual([]);
+  expect(readSession()?.saved).toBe(false);
+});
+test("a conflicting record after interruption is preserved and recovery remains pending", () => {
+  const { setItem } = fixture.storage;
+  fixture.storage.setItem = (key, value) => {
+    if (key === keys.dailyProgress) throw new Error("quota");
+    setItem(key, value);
+  };
+  expect(() => commitLocalChanges(() => recordDailyProgress(["one"]))).toThrow();
+  fixture.storage.setItem = setItem;
+  setItem(keys.goalPerDay, '{"2026-01-01":30}');
+  expect(() => commitLocalChanges(() => {})).toThrow("çakışıyor");
+  expect(hasPendingLocalChanges()).toBe(true);
+  expect(fixture.storage.getItem(keys.goalPerDay)).toBe('{"2026-01-01":30}');
+  expect(fixture.storage.getItem(keys.dailyProgress)).toBeNull();
 });

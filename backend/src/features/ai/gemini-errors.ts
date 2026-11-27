@@ -1,32 +1,44 @@
 import { HttpError } from "../../shared/errors";
 
 type ProviderError = {
-  error?: { status?: string; details?: { reason?: string; retryDelay?: string }[] };
+  error?: {
+    details?: {
+      reason?: string;
+      retryDelay?: string;
+      violations?: { quotaId?: string; quotaMetric?: string }[];
+    }[];
+  };
 };
 
 function retrySeconds(payload: ProviderError | null, response: Response) {
   const details = payload?.error?.details;
-  const fromDetails = (Array.isArray(details) ? details : [])
-    .map((detail) => Number.parseFloat(detail?.retryDelay ?? ""))
-    .find((seconds) => Number.isFinite(seconds) && seconds > 0);
-  if (fromDetails) return Math.max(1, Math.ceil(fromDetails));
-  const header = response.headers.get("retry-after")?.trim();
-  if (!header) return undefined;
-  if (/^\d+$/.test(header)) {
-    const seconds = Number(header);
-    return Number.isSafeInteger(seconds) ? Math.max(1, seconds) : undefined;
+  const waits: number[] = [];
+  for (const entry of Array.isArray(details) ? details : []) {
+    if (typeof entry?.retryDelay === "string" && /^\d+(?:\.\d+)?s$/.test(entry.retryDelay))
+      waits.push(Math.ceil(Number.parseFloat(entry.retryDelay)));
   }
-  const date = Date.parse(header);
-  return Number.isFinite(date) ? Math.max(1, Math.ceil((date - Date.now()) / 1000)) : undefined;
+  const header = response.headers.get("retry-after")?.trim();
+  if (header && /^\d+$/.test(header)) waits.push(Number(header));
+  else if (header) waits.push(Math.ceil((Date.parse(header) - Date.now()) / 1000));
+  const valid = waits.filter(
+    (seconds) => Number.isSafeInteger(seconds) && seconds >= 0 && seconds <= 8e12,
+  );
+  return valid.length ? Math.max(1, ...valid) : undefined;
 }
 
-// Google usually sends retryDelay in a 429 body, sometimes only a Retry-After header.
-export async function retryDelaySeconds(response: Response) {
-  const payload = (await response
-    .clone()
-    .json()
-    .catch(() => null)) as ProviderError | null;
-  return retrySeconds(payload, response);
+export async function providerQuota(response: Response) {
+  const payload = (await response.json().catch(() => null)) as ProviderError | null;
+  const details = payload?.error?.details;
+  const kinds = new Set<string>();
+  for (const detail of Array.isArray(details) ? details : []) {
+    for (const violation of Array.isArray(detail?.violations) ? detail.violations : []) {
+      const id = typeof violation?.quotaId === "string" ? violation.quotaId.toLowerCase() : "";
+      if (id.includes("perday")) kinds.add("daily");
+      if (id.includes("perminute"))
+        kinds.add(id.includes("token") ? "tokens_per_minute" : "requests_per_minute");
+    }
+  }
+  return { wait: retrySeconds(payload, response), kind: kinds.size ? [...kinds] : ["unknown"] };
 }
 
 // Never return provider bodies: they may contain request content or credentials.
@@ -45,8 +57,18 @@ export async function assertGeminiResponse(response: Response, service = "gemini
   const invalidKey = reasons?.some((reason) =>
     ["API_KEY_INVALID", "API_KEY_EXPIRED"].includes(reason),
   );
-  if (invalidKey || response.status === 401 || response.status === 403)
-    throw new HttpError(503, "Gemini API anahtarı veya proje erişimi reddedildi.", "AI_AUTH_ERROR");
+  if (response.status === 403 && !invalidKey)
+    throw new HttpError(
+      503,
+      "Gemini erişim izni yetersiz. Yöneticiye bildir.",
+      "AI_PERMISSION_DENIED",
+    );
+  if (invalidKey || response.status === 401)
+    throw new HttpError(
+      503,
+      "Gemini erişim anahtarı geçersiz. Yöneticiye bildir.",
+      "AI_AUTH_ERROR",
+    );
   if (response.status === 404)
     throw new HttpError(
       503,
@@ -58,7 +80,7 @@ export async function assertGeminiResponse(response: Response, service = "gemini
     throw new HttpError(
       429,
       wait
-        ? `Gemini dakikalık istek sınırına ulaşıldı. ${wait} saniye sonra tekrar dene.`
+        ? `Gemini sağlayıcı limitine ulaşıldı. ${wait} saniye sonra tekrar dene.`
         : "Gemini istek sınırına ulaşıldı. Bir dakika sonra tekrar dene.",
       "AI_QUOTA_EXCEEDED",
       wait,

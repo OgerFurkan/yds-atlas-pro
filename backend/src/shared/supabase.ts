@@ -36,6 +36,13 @@ export async function authenticate(
     throw new HttpError(503, "Oturum servisine ulaşılamadı. Yeniden dene.", "AUTH_UNAVAILABLE");
   if (error || !data.user || data.user.is_anonymous)
     throw new HttpError(401, "Oturum doğrulanamadı. Yeniden giriş yap.", "UNAUTHENTICATED");
+  const live = await db.rpc("atlas_live_session");
+  if (live.error?.code === "PT401" || live.error?.code === "PGRST301")
+    throw new HttpError(401, "Oturum kapatıldı. Yeniden giriş yap.", "UNAUTHENTICATED");
+  if (live.error)
+    throw new HttpError(503, "Oturum durumu okunamadı. Yeniden dene.", "AUTH_UNAVAILABLE");
+  if (live.data !== true)
+    throw new HttpError(401, "Oturum kapatıldı. Yeniden giriş yap.", "UNAUTHENTICATED");
   return { userId: data.user.id, db };
 }
 export function quotaClient(config: ServerConfig) {

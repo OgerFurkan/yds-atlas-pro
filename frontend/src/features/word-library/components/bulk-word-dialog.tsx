@@ -40,6 +40,7 @@ export function BulkWordDialog({
   const [saving, setSaving] = useState(false);
   const lock = useRef(false);
   const [missingWords, setMissingWords] = useState<WordInput[]>([]);
+  const [failureReasons, setFailureReasons] = useState<Record<string, string>>({});
   const [savedCount, setSavedCount] = useState(0);
   const [submitError, setSubmitError] = useState("");
 
@@ -63,24 +64,30 @@ export function BulkWordDialog({
     setSaving(true);
     setSubmitError("");
 
+    let reasons: Record<string, string> = {};
     let failedWords: string[] = [];
+    let issue = "";
 
     try {
       const result = await onAddMany(
         words,
         (progress) => {
           failedWords = progress.failedWords ?? [];
+          issue = progress.issue ?? "";
+          reasons = progress.failureReasons ?? {};
           onProgress?.(progress);
         },
         mode,
       );
 
+      setFailureReasons(reasons);
       const failedKeys = new Set(failedWords.map(wordKey));
       setMissingWords(words.filter((entry) => failedKeys.has(wordKey(entry.word))));
       const added = savedCount + result.added;
 
       if (failedWords.length > 0) {
         setSavedCount(added);
+        setSubmitError(issue);
         return;
       }
 
@@ -92,13 +99,18 @@ export function BulkWordDialog({
       );
       changeOpen(false);
     } catch (error) {
+      const failed = new Set(failedWords.map(wordKey));
+      if (failed.size === words.length) {
+        setMissingWords(words);
+        setFailureReasons(reasons);
+      }
       if (error instanceof ApiError) {
         setSubmitError(
           error.status === 401
             ? "Kaydetmek için oturumunu yenile."
             : error.status === 400 || error.status === 422
               ? "Listedeki bilgiler kabul edilmedi. Kelimeleri ve anlamları gözden geçir."
-              : "Kelimeler kaydedilemedi. Bağlantını kontrol edip tekrar dene.",
+              : error.message,
         );
       } else {
         setSubmitError(error instanceof Error ? error.message : "Kelimeler kaydedilemedi.");
@@ -118,12 +130,12 @@ export function BulkWordDialog({
               {targetDay ? `${targetDay}. güne toplu kelime ekle` : "Toplu kelime ekle"}
             </DialogTitle>
             <DialogDescription>
-              Anlam yazdığın kelimeler doğrudan kütüphaneye eklenir. Çalışmak için her kelimede
-              Türkçe anlam ve beş uygun örnek gerekir.
+              Manuel kayıtta girdiğin bilgiler korunur. AI ile kayıtta örnekler ve eksik bilgiler
+              belirttiğin Türkçe anlama göre tamamlanır.
             </DialogDescription>
             <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
               <span className="rounded-md border border-emerald-300/50 bg-emerald-50/10 px-2 py-1">
-                <strong>hello = merhaba</strong> · Direkt kaydet
+                <strong>hello = merhaba, selam</strong>
               </span>
               {canUseAi && (
                 <span className="rounded-md border border-sky-300/50 bg-sky-50/10 px-2 py-1">
@@ -178,9 +190,17 @@ export function BulkWordDialog({
 
               <p className="text-xs leading-relaxed">AI bu kelimeleri tamamlayamadı:</p>
 
-              <p className="break-words text-xs font-medium">
-                {missingWords.map((entry) => entry.word).join(", ")}
-              </p>
+              <ul
+                aria-label="Tamamlanamayan kelimeler"
+                className="max-h-40 list-disc overflow-y-auto pl-5 text-xs"
+              >
+                {missingWords.map(({ word }) => (
+                  <li key={wordKey(word)}>
+                    <strong>{word}</strong>
+                    {failureReasons[word] && <> · {failureReasons[word]}</>}
+                  </li>
+                ))}
+              </ul>
 
               <p className="text-xs">
                 Eksikleriyle kaydedebilir, anlam ve örnekleri çalışmadan önce tamamlayabilirsin.

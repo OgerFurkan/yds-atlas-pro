@@ -137,7 +137,7 @@ export const CURATED_LEGACY_WORDS = Object.freeze(Object.keys(EXAMPLES));
 
 export function curatedLegacyExamples(word: string): WordInput | null {
   const items = EXAMPLES[wordKey(word)];
-  if (!items || items.length !== 5) return null;
+  if (items?.length !== 5) return null;
   return {
     word,
     examples: items.map(([sentence, translation, focus], index) => ({

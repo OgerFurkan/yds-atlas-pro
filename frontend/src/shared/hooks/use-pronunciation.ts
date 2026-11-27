@@ -90,6 +90,10 @@ export function usePronunciation() {
         utterance.voice =
           speechSynthesis.getVoices().find((voice) => voice.lang.replace("_", "-") === language) ??
           null;
+        if (!utterance.voice) {
+          finish(current, "error", language + " aksanı için kullanılabilir ses yok.");
+          return;
+        }
         utterance.onend = () => finish(current, "ended");
         utterance.onerror = (event) => {
           if (event.error === "interrupted" || event.error === "canceled")

@@ -29,15 +29,19 @@ export function dictionaryWord(raw: string) {
     );
   return word;
 }
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
 export function parsePublicTurkish(word: string, raw: unknown): PublicTurkishResult {
   const empty: PublicTurkishResult = { status: "missing", word, entries: [] };
-  if (!raw || typeof raw !== "object") return empty;
-  const body = raw as Record<string, any>;
-  if (!Array.isArray(body.entries) || !body.entries.length) return empty;
+  const body = asRecord(raw);
+  if (!Array.isArray(body?.entries) || !body.entries.length) return empty;
   if (typeof body.word !== "string" || body.word.toLocaleLowerCase("en") !== word)
     throw new HttpError(502, "Sözlük kelime doğrulaması başarısız.", "DICTIONARY_WORD_MISMATCH");
-  const origin = body.source;
-  if (origin?.license?.name !== "CC BY-SA 4.0" || origin?.license?.url !== LICENSE)
+  const origin = asRecord(body.source);
+  const license = asRecord(origin?.license);
+  if (license?.name !== "CC BY-SA 4.0" || license.url !== LICENSE)
     throw new HttpError(
       502,
       "Sözlük kaynağının lisansı doğrulanamadı.",
@@ -45,6 +49,7 @@ export function parsePublicTurkish(word: string, raw: unknown): PublicTurkishRes
     );
   let sourceUrl: URL;
   try {
+    if (typeof origin?.url !== "string") throw new Error("Invalid source URL.");
     sourceUrl = new URL(origin.url);
   } catch {
     throw new HttpError(502, "Sözlük bağlantısı geçersiz.", "DICTIONARY_SOURCE_INVALID");
@@ -181,7 +186,10 @@ export async function lookupPublicTurkish(
   pending.set(word, task);
   try {
     const result = await task;
-    if (cache.size >= 450) cache.delete(cache.keys().next().value!);
+    if (cache.size >= 450) {
+      const oldest = cache.keys().next();
+      if (!oldest.done) cache.delete(oldest.value);
+    }
     cache.set(word, { expires: now + 3_600_000, result });
     return result;
   } finally {

@@ -1,4 +1,4 @@
-import { expect, test } from "../../../frontend/playwright-test";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 
 const gameKey = "yds-atlas-learning-session-v2";
 const wordsKey = "yds-atlas-words-v1";
@@ -18,6 +18,8 @@ function fixture(count: number, sharedMeaning = false) {
     examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
       sentence: "The Word" + index + " is in example " + exampleIndex + ".",
       translation: "Örnek " + index + ".",
+      difficulty: ["easy", "easy", "medium", "yds", "yds"][exampleIndex],
+      translationFocus: ["Örnek"],
     })),
     pronunciationUk: "",
     pronunciationUs: "",
@@ -229,7 +231,7 @@ test("English dark-mode review fits a tablet viewport without horizontal overflo
     true,
   );
   await page.screenshot({
-    path: "test-results/day-review-tablet-dark-" + test.info().project.name + ".png",
+    path: test.info().outputPath("day-review-tablet-dark-" + test.info().project.name + ".png"),
   });
   await page.getByRole("button", { name: "Exit" }).click();
   await expect(page.getByTestId("daily-plan-hero")).toBeVisible();

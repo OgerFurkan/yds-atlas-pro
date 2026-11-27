@@ -1,10 +1,14 @@
 import type { GameSession } from "@yds-atlas/shared";
 import { SQL } from "bun";
 import { databaseError, HttpError } from "../../shared/errors";
+import type { RequestContext } from "../../shared/supabase";
 import { invalidAssessment } from "./assessment-scoring";
+import { onlineAssessment } from "./online-assessment";
 
 type AssessmentResult = { scores: { id: string; score: number }[]; practiceOnly: boolean };
 export type AssessmentWriter = {
+  ping?(): Promise<boolean>;
+  online?(request: Request, path: string, ctx: RequestContext): Promise<unknown>;
   save(userId: string, snapshot: GameSession, revision: number, ranked: boolean): Promise<number>;
   complete(userId: string, id: string, revision: number): Promise<AssessmentResult>;
 };
@@ -28,6 +32,26 @@ export function createAssessmentWriter(
     return sql;
   }
   return {
+    async ping() {
+      if (!url) return false;
+      const query = connection()`select 1`;
+      const timer = setTimeout(() => query.cancel(), 2500);
+      try {
+        await query;
+        return true;
+      } finally {
+        clearTimeout(timer);
+      }
+    },
+    async online(request, path, ctx) {
+      const db = connection();
+      try {
+        return await onlineAssessment(request, path, ctx, db);
+      } catch (error) {
+        if (error instanceof Error && "errno" in error) assessmentDatabaseError(error);
+        throw error;
+      }
+    },
     async close() {
       await sql?.close({ timeout: 2 });
     },

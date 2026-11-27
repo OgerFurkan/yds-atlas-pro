@@ -1,4 +1,4 @@
-import { expect, test } from "../../../frontend/playwright-test";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 
 const sessionKey = "yds-atlas-learning-session-v2";
 
@@ -18,6 +18,8 @@ test("daily plan groups words by day and starts the selected group directly", as
         examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
           sentence: `The dailyword${index} appears in context ${exampleIndex}.`,
           translation: `Çeviri ${index}-${exampleIndex}.`,
+          difficulty: ["easy", "easy", "medium", "yds", "yds"][exampleIndex],
+          translationFocus: [`Çeviri ${index}`],
         })),
         pronunciationUk: "",
         pronunciationUs: "",
@@ -40,7 +42,7 @@ test("daily plan groups words by day and starts the selected group directly", as
   await expect(firstGroup.getByText("2 tekrar")).toBeVisible();
   await expect(firstGroup.getByText("15 öğrenilen")).toBeVisible();
   await page.screenshot({
-    path: `test-results/daily-plan-${test.info().project.name}.png`,
+    path: test.info().outputPath(`daily-plan-${test.info().project.name}.png`),
     fullPage: false,
   });
 
@@ -139,6 +141,7 @@ test("daily plan can bulk-move several library words into another day", async ({
   await selection.getByRole("checkbox", { name: /benefit/ }).check();
   page.once("dialog", (confirm) => confirm.accept());
   await dayDialog.getByRole("button", { name: "Seçilen 2 kelimeyi güne ekle" }).click();
+  await expect(selection).toHaveCount(0);
   await expect(dayDialog.getByText("anlam 0")).toBeVisible();
   await expect(dayDialog.getByText("anlam 1")).toBeVisible();
   const groups = await page.evaluate(() =>
@@ -154,56 +157,75 @@ test("daily plan can bulk-move several library words into another day", async ({
   ).toBe(true);
 });
 
-test("bulk-created words are assigned to the day chosen before import", async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem(
-      "yds-atlas-words-v1",
-      JSON.stringify([
-        {
-          id: "existing-day-one",
-          word: "abandon",
-          meanings: ["terk etmek"],
-          alternatives: [],
-          usageNote: "",
-          partOfSpeech: "Noun",
-          cefr: "B2",
-          score: 10,
-          examples: [],
-          pronunciationUk: "",
-          pronunciationUs: "",
-          sourceUrl: "",
-          createdAt: "2026-01-01T00:00:00.000Z",
-          updatedAt: "2026-01-01T00:00:00.000Z",
-        },
-      ]),
-    );
+for (const interrupted of [false, true])
+  test("bulk-created words keep their chosen day, interrupted=" + interrupted, async ({ page }) => {
+    await page.addInitScript(() => {
+      if (localStorage.getItem("yds-atlas-words-v1") !== null) return;
+      localStorage.setItem(
+        "yds-atlas-words-v1",
+        JSON.stringify([
+          {
+            id: "existing-day-one",
+            word: "abandon",
+            meanings: ["terk etmek"],
+            alternatives: [],
+            usageNote: "",
+            partOfSpeech: "Noun",
+            cefr: "B2",
+            score: 10,
+            examples: [],
+            pronunciationUk: "",
+            pronunciationUs: "",
+            sourceUrl: "",
+            createdAt: "2026-01-01T00:00:00.000Z",
+            updatedAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]),
+      );
+    });
+    await page.goto("/#library");
+    await page.getByRole("tab", { name: /Günlük Plan/ }).click();
+    await page.getByRole("button", { name: "2. güne kelime ekle" }).click();
+    await page
+      .getByRole("dialog", { name: "2. Gün · Kelimeler" })
+      .getByRole("button", { name: "Kelime ekle", exact: true })
+      .click();
+    await page.getByRole("menuitem", { name: "Toplu kelime ekle" }).click();
+    const bulk = page.getByRole("dialog", { name: "2. güne toplu kelime ekle" });
+    await expect(bulk).toBeVisible();
+    await bulk.getByLabel("İngilizce kelime listesi").fill("benefit\nindicate");
+    await bulk.getByRole("button", { name: "Yazımı kontrol et" }).click();
+    await expect(bulk.getByRole("button", { name: /Kelimeleri ekle/ })).toBeVisible();
+    // In the offline spelling fallback, allow the user-approved spelling.
+    for (let index = 0; index < 2; index += 1) {
+      const approval = bulk.getByRole("button", { name: "Bu yazımı kullan" });
+      if ((await approval.count()) === 0) break;
+      await approval.first().click();
+    }
+    if (interrupted)
+      await page.evaluate(() => {
+        const original = Storage.prototype.setItem;
+        Storage.prototype.setItem = function (key, value) {
+          if (key === "yds-atlas-daily-word-groups-v1")
+            throw new DOMException("synthetic quota", "QuotaExceededError");
+          original.call(this, key, value);
+        };
+      });
+    await bulk.getByRole("button", { name: /Kelimeleri ekle/ }).click();
+    if (interrupted) {
+      await expect(page.getByText(/Tarayıcı kaydı yapılamadı/).first()).toBeVisible();
+      await page.reload();
+      await page.getByRole("tab", { name: /Günlük Plan/ }).click();
+      expect(
+        await page.evaluate(() => JSON.parse(localStorage.getItem("yds-atlas-words-v1")!).length),
+      ).toBe(3);
+    }
+    await expect(bulk).not.toBeVisible();
+    await page.getByRole("button", { name: "2. günü aç, 2 kelimeyi yönet" }).click();
+    const day2 = page.getByRole("dialog", { name: "2. Gün · Kelimeler" });
+    await expect(day2.getByText("Benefit", { exact: true })).toBeVisible();
+    await expect(day2.getByText("Indicate", { exact: true })).toBeVisible();
   });
-  await page.goto("/#library");
-  await page.getByRole("tab", { name: /Günlük Plan/ }).click();
-  await page.getByRole("button", { name: "2. güne kelime ekle" }).click();
-  await page
-    .getByRole("dialog", { name: "2. Gün · Kelimeler" })
-    .getByRole("button", { name: "Kelime ekle", exact: true })
-    .click();
-  await page.getByRole("menuitem", { name: "Toplu kelime ekle" }).click();
-  const bulk = page.getByRole("dialog", { name: "2. güne toplu kelime ekle" });
-  await expect(bulk).toBeVisible();
-  await bulk.getByLabel("İngilizce kelime listesi").fill("benefit\nindicate");
-  await bulk.getByRole("button", { name: "Yazımı kontrol et" }).click();
-  await expect(bulk.getByRole("button", { name: /Kelimeleri ekle/ })).toBeVisible();
-  // In the offline spelling fallback, allow the user-approved spelling.
-  for (let index = 0; index < 2; index += 1) {
-    const approval = bulk.getByRole("button", { name: "Bu yazımı kullan" });
-    if ((await approval.count()) === 0) break;
-    await approval.first().click();
-  }
-  await bulk.getByRole("button", { name: /Kelimeleri ekle/ }).click();
-  await expect(bulk).not.toBeVisible();
-  await page.getByRole("button", { name: "2. günü aç, 2 kelimeyi yönet" }).click();
-  const day2 = page.getByRole("dialog", { name: "2. Gün · Kelimeler" });
-  await expect(day2.getByText("Benefit", { exact: true })).toBeVisible();
-  await expect(day2.getByText("Indicate", { exact: true })).toBeVisible();
-});
 
 for (const score of [90, 20]) {
   test(

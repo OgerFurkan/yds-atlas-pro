@@ -1,6 +1,8 @@
 // Browser storage contract. Keep these values stable so existing saved data survives refactors.
 export const storageKeys = {
   words: "yds-atlas-words-v1",
+  sessionRevision: "yds-atlas-session-revision-v1",
+  pendingSession: "yds-atlas-unsent-session-v1",
   gameSession: "yds-atlas-learning-session-v2",
   dailyProgress: "yds-atlas-daily-progress-v1",
   dailyGoal: "yds-atlas-daily-goal",

@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { EnglishChatSentenceTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
 import { parseChatBlocks, parseChatInline } from "../model/chat-markdown";
+import { EnglishChatSentenceTooltips } from "./english-chat-sentence-tooltips";
 
 /** Model output is always rendered as React text nodes; no HTML injection. */
 function renderInline(content: string): ReactNode[] {

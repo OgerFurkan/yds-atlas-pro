@@ -1,4 +1,4 @@
-import { expect, type Page, test } from "../../../frontend/playwright-test";
+import { expect, type Page, test } from "../../../frontend/config/playwright/test-fixtures";
 import { installSpeechMock } from "../helpers/speech-mock";
 
 async function openPronunciationStep(page: Page) {
@@ -187,7 +187,7 @@ test("appearance and language preferences persist and library cards stay distinc
   ).toBeVisible();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await page.screenshot({
-    path: `test-results/preferences-${test.info().project.name}.png`,
+    path: test.info().outputPath(`preferences-${test.info().project.name}.png`),
     fullPage: true,
   });
 
@@ -210,7 +210,7 @@ test("appearance and language preferences persist and library cards stay distinc
     expect(await badge.evaluate((element) => getComputedStyle(element).color)).toBe(color);
   }
   await page.screenshot({
-    path: `test-results/library-grid-${test.info().project.name}.png`,
+    path: test.info().outputPath(`library-grid-${test.info().project.name}.png`),
     fullPage: true,
   });
   expect(await card.first().evaluate((element) => getComputedStyle(element).borderTopWidth)).toBe(
@@ -292,15 +292,25 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
     await page.locator("#atlas-card-flip").click();
     await page.locator("#flashcard-next").click();
   }
-  const session = await page.evaluate(() =>
-    JSON.parse(localStorage.getItem("yds-atlas-learning-session-v2") ?? "null"),
-  );
-  for (const id of session.matching.left as string[]) {
-    await page.locator(`[data-matching-side="left"][data-word-id="${id}"]`).click();
-    await page.locator(`[data-matching-side="right"][data-word-id="${id}"]`).click();
+  const matching = page.locator("#matching-board");
+  const leftWords = matching.locator('[data-matching-side="left"]');
+  await expect(leftWords).toHaveCount(5);
+  for (const term of await leftWords.allTextContents()) {
+    const index = term.trim().match(/\d+$/)![0];
+    await matching.getByText(term.trim(), { exact: true }).click();
+    await matching.getByText("Feedback meaning " + index, { exact: true }).click();
   }
   await page.locator("#matching-next").click();
-  await page.locator("#choice-wrong").click();
+  const exampleMeaning = async () => {
+    const text = await page.locator("#question-sentence h2").innerText();
+    return "Feedback meaning " + text.match(/\d+$/)![0];
+  };
+  const choices = page.locator("#question-choices");
+  await choices
+    .getByRole("button")
+    .filter({ hasNot: page.getByText(await exampleMeaning(), { exact: true }) })
+    .first()
+    .click();
   const feedback = page.locator("#answer-feedback");
   await expect(feedback).toBeVisible();
   expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
@@ -319,10 +329,9 @@ test("dark answer feedback keeps red and green states readable", async ({ page }
       .evaluate((element) => getComputedStyle(element).color),
   ).toBe("rgb(167, 181, 188)");
   await page.locator("#question-next").click();
-  await page.locator("#choice-correct").click();
-  expect(await feedback.evaluate((element) => getComputedStyle(element).backgroundColor)).toBe(
-    "rgb(29, 56, 46)",
-  );
+  await expect(feedback).toHaveCount(0);
+  await choices.getByText(await exampleMeaning(), { exact: true }).click();
+  await expect(feedback).toHaveCSS("background-color", "rgb(29, 56, 46)");
   expect(
     await feedback
       .locator(".text-emerald-900")
@@ -343,7 +352,7 @@ test("Atlas chat opens as a branded assistant and asks guests to sign in before 
   ).toBe("rgb(255, 255, 255)");
   await expect(page.getByRole("button", { name: "Atlas'a sor" })).toHaveCount(0);
   await page.screenshot({
-    path: `test-results/atlas-chat-${test.info().project.name}.png`,
+    path: test.info().outputPath(`atlas-chat-${test.info().project.name}.png`),
     fullPage: true,
   });
   await expect(
@@ -376,7 +385,7 @@ test("notifications include Atlas branding and an explicit dismiss button", asyn
   const toast = page.locator(".Toastify__toast.atlas-toast");
   await expect(toast).toBeVisible();
   await page.screenshot({
-    path: `test-results/atlas-toast-${test.info().project.name}.png`,
+    path: test.info().outputPath(`atlas-toast-${test.info().project.name}.png`),
     fullPage: true,
   });
   await expect(toast.locator(".atlas-toast-avatar img")).toHaveAttribute(
@@ -385,4 +394,9 @@ test("notifications include Atlas branding and an explicit dismiss button", asyn
   );
   await toast.getByRole("button", { name: "Bildirimi kapat" }).click();
   await expect(toast).toHaveCount(0);
+});
+
+test("a cold offline navigation cannot load the uncached web app", async ({ page, context }) => {
+  await context.setOffline(true);
+  await expect(page.goto("/")).rejects.toThrow(/ERR_INTERNET_DISCONNECTED/);
 });

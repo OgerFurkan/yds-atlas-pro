@@ -1,4 +1,5 @@
-import { expect, test } from "../../../frontend/playwright-test";
+import { guestOrigin } from "../../../frontend/config/playwright/loopback";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 import { readyDayWords } from "../fixtures/day-study-words";
 
 test("a guest browser without Web Locks keeps the draft and leaves the newer record untouched", async ({
@@ -51,7 +52,12 @@ test("a stale example edit preserves another tab's score and note and keeps its 
   const word = readyDayWords[0];
   const key = "yds-atlas-words-v1";
   await context.route("**/*", (route) =>
-    route.request().url().startsWith("http://127.0.0.1:4173/") ? route.continue() : route.abort(),
+    route
+      .request()
+      .url()
+      .startsWith(guestOrigin + "/")
+      ? route.continue()
+      : route.abort(),
   );
   await context.addInitScript(
     ({ key, word }) => {

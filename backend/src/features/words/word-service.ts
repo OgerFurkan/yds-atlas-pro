@@ -1,5 +1,6 @@
-﻿import {
+import {
   mergeWordEdit,
+  type WordCursor,
   type WordEdit,
   type WordEntry,
   type WordInput,
@@ -44,20 +45,131 @@ export function mapWord(row: WordRow): WordEntry {
     updatedAt: new Date(row.updated_at).toISOString(),
   });
 }
-export async function listWords({ db }: RequestContext) {
+const MAX_LIST_ROWS = 20_000;
+const MAX_LIST_BYTES = 24 * 1024 * 1024;
+
+function incompleteList() {
+  return new HttpError(503, "Kelime listesi doğrulanamadı. Yeniden dene.", "INCOMPLETE_WORD_LIST");
+}
+
+export async function readWordPage({ db, userId }: RequestContext, cursor: WordCursor | null) {
+  if (cursor && cursor.owner !== userId)
+    throw new HttpError(403, "Kütüphane sahibi değişti.", "OWNER_CHANGED");
+  const { data, error } = await db.rpc("atlas_word_page", {
+    p_revision: cursor?.revision ?? null,
+    p_time: cursor?.time ?? null,
+    p_id: cursor?.id ?? null,
+  });
+  if (error?.code === "40001")
+    throw new HttpError(409, "Kütüphane değişti. Yeniden dene.", "WORD_LIST_CHANGED");
+  if (error?.code === "54000")
+    throw new HttpError(413, "Tek kelime sayfa boyutunu aşıyor.", "WORD_PAGE_LIMIT");
+  databaseError(error);
+  if (
+    !data ||
+    data.owner !== userId ||
+    typeof data.revision !== "string" ||
+    !/^\d+$/.test(data.revision) ||
+    (cursor
+      ? data.revision !== cursor.revision || data.total !== null
+      : !Number.isSafeInteger(data.total) || data.total < 0) ||
+    !Array.isArray(data.rows) ||
+    data.rows.length > 128
+  )
+    throw incompleteList();
   const words: WordEntry[] = [];
-  // Explicit pages avoid Supabase's default 1000-row truncation.
-  for (let start = 0; ; start += 500) {
-    const { data, error } = await db
-      .from("words")
-      .select("*")
-      .order("updated_at", { ascending: false })
-      .order("id")
-      .range(start, start + 499);
-    databaseError(error);
-    words.push(...(data ?? []).map(mapWord));
-    if ((data?.length ?? 0) < 500) return words;
+  let next = cursor;
+  for (const row of data.rows as WordRow[]) {
+    if (!row) throw incompleteList();
+    const word = mapWord(row);
+    if (
+      next &&
+      (rawTime(row.updated_at) > rawTime(next.time) ||
+        (rawTime(row.updated_at) === rawTime(next.time) && row.id <= next.id))
+    )
+      throw incompleteList();
+    words.push(word);
+    next = { owner: userId, revision: data.revision, time: row.updated_at, id: row.id };
   }
+  return {
+    owner: userId,
+    revision: data.revision as string,
+    total: data.total as number | null,
+    words,
+    cursor: words.length ? next : null,
+  };
+}
+async function pagedWords(ctx: RequestContext) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    let cursor: WordCursor | null = null;
+    let total = 0,
+      bytes = 0;
+    const words: WordEntry[] = [];
+    const ids = new Set<string>();
+    try {
+      do {
+        const page = await readWordPage(ctx, cursor);
+        if (!cursor) {
+          if (page.total === null) throw incompleteList();
+          total = page.total;
+        }
+        if (total > MAX_LIST_ROWS) throw listLimit();
+        bytes += new TextEncoder().encode(JSON.stringify(page.words)).length;
+        if (bytes > MAX_LIST_BYTES) throw listLimit();
+        for (const word of page.words) {
+          if (ids.has(word.id)) throw incompleteList();
+          ids.add(word.id);
+          words.push(word);
+        }
+        if (words.length === total) return words;
+        if (words.length > total || !page.words.length) throw incompleteList();
+        cursor = page.cursor;
+      } while (cursor);
+      throw incompleteList();
+    } catch (error) {
+      if (attempt || !(error instanceof HttpError) || error.code !== "WORD_LIST_CHANGED")
+        throw error;
+    }
+  }
+  throw incompleteList();
+}
+function rawTime(time: string) {
+  const micros = (time.match(/\.(\d+)/)?.[1] ?? "").padEnd(6, "0");
+  return BigInt(Date.parse(time)) * 1000n + BigInt(micros.slice(3, 6) || 0);
+}
+function listLimit() {
+  return new HttpError(413, "Kütüphane bu istemcinin liste sınırını aşıyor.", "WORD_LIST_LIMIT");
+}
+export async function listWords(ctx: RequestContext) {
+  const { db } = ctx;
+  // One PostgREST statement. A configured row cap is an incomplete response.
+  const { data, error, count } = await db
+    .from("words")
+    .select("*", { count: "exact" })
+    .order("updated_at", { ascending: false })
+    .order("id")
+    .limit(1000);
+  databaseError(error);
+  if (Array.isArray(data) && data.length === 1000 && count !== null && count > 1000)
+    return pagedWords(ctx);
+  if (!Array.isArray(data) || data.length !== count) {
+    const received =
+      Array.isArray(data) && Number.isSafeInteger(count) ? ` (${data.length}/${count})` : "";
+    throw new HttpError(
+      503,
+      `Kelime listesi eksik geldi${received}. Yeniden dene.`,
+      "INCOMPLETE_WORD_LIST",
+    );
+  }
+  if (
+    count > MAX_LIST_ROWS ||
+    new TextEncoder().encode(JSON.stringify(data)).length > MAX_LIST_BYTES
+  )
+    throw listLimit();
+  const words = data.map(mapWord);
+  if (new Set(words.map((word) => word.id)).size !== count)
+    throw new HttpError(409, "Kelime listesi doğrulanamadı.", "WORD_LIST_CHANGED");
+  return words;
 }
 /**
  * Existing records can be written with an optional optimistic concurrency guard.

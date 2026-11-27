@@ -37,16 +37,18 @@ test.each([
   }
 });
 test("server ownership comes from Supabase's verified user, not the client header", async () => {
-  const mock = spyOn(globalThis, "fetch").mockResolvedValue(
-    Response.json({
-      id: alice,
-      aud: "authenticated",
-      role: "authenticated",
-      email: "alice@example.com",
-      app_metadata: {},
-      user_metadata: {},
-    }),
-  );
+  const mock = spyOn(globalThis, "fetch")
+    .mockResolvedValue(Response.json(true))
+    .mockResolvedValueOnce(
+      Response.json({
+        id: alice,
+        aud: "authenticated",
+        role: "authenticated",
+        email: "alice@example.com",
+        app_metadata: {},
+        user_metadata: {},
+      }),
+    );
   try {
     const context = await authenticate(
       new Request("http://localhost/api/words", {

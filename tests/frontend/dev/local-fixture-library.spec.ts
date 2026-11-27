@@ -1,4 +1,4 @@
-import { expect, test } from "../../../frontend/playwright-test";
+import { expect, test } from "../../../frontend/config/playwright/test-fixtures";
 import { partiallyLearnedDayWords, readyDayWords } from "../fixtures/day-study-words";
 
 test("normal library loads and removes two fixture groups without touching guest data", async ({

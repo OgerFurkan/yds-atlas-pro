@@ -122,8 +122,7 @@ export const trLearning = {
       "{{count}} kelimeyi çalıştın; genel değerlendirmede {{total}} adımın {{correct}} tanesini ilk denemede doğru tamamladın.",
     saving: "Sonuçların kaydediliyor…",
     saved: "Kelime grupların ve günlük ilerlemen güncellendi.",
-    practiceSaved:
-      "Önceki sürümde başlayan görev pratik olarak tamamlandı. Puan ve ilerleme güncellenmedi.",
+    practiceSaved: "Puansız pratik tamamlandı. Kelime puanların korundu.",
     pending: "Sonuçların kaydedilmeyi bekliyor.",
     tutorialDescription:
       "Kartları, soruları ve geri bildirimleri deneyimledin. Bu deneme kütüphaneni ve günlük serini değiştirmedi.",

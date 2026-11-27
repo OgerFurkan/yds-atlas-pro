@@ -11,6 +11,8 @@ import {
 
 export interface DayRemoval {
   ids: string[];
+  planRevision: string;
+  wordRevisions: string[];
   conflicts: string[];
   blocked: "account" | "task" | null;
 }
@@ -32,7 +34,7 @@ export function DayRemovalDialog({
   removal: DayRemoval;
   taskActive: boolean;
   onClose: () => void;
-  onClear: () => boolean;
+  onClear: () => Promise<boolean>;
   onDelete: () => Promise<void>;
   restoreFocus: () => void;
 }) {
@@ -49,23 +51,22 @@ export function DayRemovalDialog({
 
   async function submit() {
     if (locked.current) return;
-    if (!permanent) {
-      if (onClear()) onClose();
-      else setIssue(t("library.daily.manage.clearDayFailed"));
-      return;
-    }
-    if (!canDelete) return;
-    if (!finalStep) {
+    if (permanent && !canDelete) return;
+    if (permanent && !finalStep) {
       setIssue("");
       setFinalStep(true);
       return;
     }
-    if (!acknowledged) return;
+    if (permanent && !acknowledged) return;
     locked.current = true;
     setBusy(true);
     setIssue("");
     try {
-      await onDelete();
+      if (permanent) await onDelete();
+      else if (!(await onClear())) {
+        setIssue(t("library.daily.manage.clearDayFailed"));
+        return;
+      }
       onClose();
     } catch (error) {
       setIssue(error instanceof Error ? error.message : t("library.daily.manage.clearDayFailed"));

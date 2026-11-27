@@ -20,6 +20,7 @@ export const tr = {
   companion: trDashboard.companion,
   wordStatus: trVocabulary.wordStatus,
   taskIntro: trVocabulary.taskIntro,
+  accountData: trAccountAi.accountData,
   chat: trAccountAi.chat,
   auth: trAccountAi.auth,
   library: trVocabulary.library,

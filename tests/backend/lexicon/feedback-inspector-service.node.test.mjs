@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { wordAttributionSchema } from "../../../packages/shared/src/word-schema.ts";
 
 // TypeScript 7 does not provide the old `ts.ModuleKind` compiler enum API.
 // Native Node strips types; Bun has its own transpiler. Neither test path loads
@@ -98,11 +99,13 @@ const entry = {
 function harness({
   session = [],
   rows = [entry],
-  rowForBinding = entry,
+  bindingRows = [entry],
+  truncateBindings = false,
   onElevated = () => {},
 } = {}) {
   const calls = [];
   const make = (result) => {
+    let ids;
     const q = {
       select: () => q,
       eq: (field, value) => {
@@ -112,15 +115,31 @@ function harness({
       neq: () => q,
       is: () => q,
       or: () => q,
-      in: () => q,
-      limit: () => Promise.resolve({ data: result, error: null }),
-      maybeSingle: () => Promise.resolve({ data: rowForBinding, error: null }),
+      in: (field, values) => {
+        if (field === "id") {
+          ids = values;
+          calls.push(["binding_ids", values]);
+        }
+        return q;
+      },
+      limit: () => {
+        const data = ids ? bindingRows.filter((row) => ids.includes(row.id)) : result;
+        return Promise.resolve({
+          data: ids && truncateBindings ? data.slice(0, 1) : data,
+          count: data.length,
+          error: null,
+        });
+      },
     };
     return q;
   };
   const ctx = {
     userId: "22222222-2222-4222-8222-222222222222",
     db: {
+      rpc: async (name) => {
+        assert.equal(name, "atlas_online_assessment_active");
+        return { data: false, error: null };
+      },
       from: (table) => {
         assert.equal(table, "learning_sessions");
         calls.push(["user_table", table]);
@@ -136,6 +155,7 @@ function harness({
     },
   };
   const service = loadSource("../../../backend/src/features/feedback/inspector-service.ts", {
+    "@yds-atlas/shared": { wordAttributionSchema }, // Preview contract is exercised against the isolated Data API.
     "../../shared/supabase": { quotaClient: () => elevated },
     "../../shared/errors": { HttpError, databaseError: dbError },
     "./inspector-validation": validator,
@@ -143,6 +163,40 @@ function harness({
   const config = { ATLAS_FEEDBACK_LEXICON_ENABLED: true };
   return { service, ctx, config, calls };
 }
+test("licensed detail requires a credit-aware reader and projects only validated public credit", async () => {
+  const source = "https://example.org/dictionary/obtain";
+  const row = {
+    ...entry,
+    provenance: {
+      source,
+      license: "CC BY-SA 4.0",
+      attribution: "Fixture author",
+      internal: "private",
+    },
+  };
+  const read = (row, params) => {
+    const h = harness({ rows: [row] });
+    return h.service.inspectFeedback(h.ctx, h.config, new URLSearchParams(params));
+  };
+  await assert.rejects(read(row, { word: "obtain" }), { code: "ATTRIBUTION_CLIENT_REQUIRED" });
+  const result = await read(row, { word: "obtain", attribution: "1" });
+  assert.deepEqual(result.entry.attribution, {
+    source,
+    license: "CC BY-SA 4.0",
+    author: "Fixture author",
+  });
+  await assert.rejects(
+    read(
+      { ...row, provenance: { ...row.provenance, source: "file:///local" } },
+      { word: "obtain", attribution: "1" },
+    ),
+    {
+      status: 503,
+      code: "ATTRIBUTION_UNAVAILABLE",
+      message: "Kaynak ve lisans doğrulanamadı.",
+    },
+  );
+});
 test("real inspector service refuses to expose a pool when flag off", async () => {
   const h = harness();
   await assert.rejects(
@@ -195,8 +249,18 @@ test("empty pool returns missing not generated content", async () => {
   );
   assert.equal(result.status, "missing");
 });
+test("a malformed published sense cannot produce a missing or falsely unambiguous result", async () => {
+  const malformed = { ...entry, content: { ...entry.content, meanings: [null] } };
+  for (const rows of [[malformed], [entry, malformed]]) {
+    const h = harness({ rows });
+    await assert.rejects(
+      () => h.service.inspectFeedback(h.ctx, h.config, new URLSearchParams({ word: "obtain" })),
+      (error) => error.code === "INSPECTOR_POOL_UNAVAILABLE",
+    );
+  }
+});
 test("spoofed revision on explicit save is rejected", async () => {
-  const h = harness({ rowForBinding: null });
+  const h = harness({ bindingRows: [] });
   await assert.rejects(
     () =>
       h.service.assertFeedbackWordBinding(h.config, {
@@ -248,4 +312,28 @@ test("exact user-initiated save binding is accepted", async () => {
     examples: ex,
     lexicon: { entryId: entry.id, revision: 4, contractVersion: 1 },
   });
+});
+test("a 500-word canonical import uses bounded reads and checks every revision", async () => {
+  const rows = Array.from({ length: 500 }, (_, i) => ({ ...entry, id: "word-" + i }));
+  const inputs = rows.map((row) => ({
+    ...row.content,
+    score: 0,
+    lexicon: { entryId: row.id, revision: row.revision, contractVersion: 1 },
+  }));
+  const h = harness({ bindingRows: rows });
+  await h.service.assertFeedbackWordBindings(h.config, inputs, true);
+  const batches = h.calls.filter(([name]) => name === "binding_ids").map(([, ids]) => ids);
+  assert.equal(batches.length, 13);
+  assert.equal(new Set(batches.flat()).size, 500);
+  const last = inputs.at(-1);
+  last.lexicon.revision++;
+  await assert.rejects(
+    () => h.service.assertFeedbackWordBindings(h.config, inputs, true),
+    (error) => error.code === "INSPECTOR_REVISION_CONFLICT",
+  );
+  const clipped = harness({ bindingRows: rows, truncateBindings: true });
+  await assert.rejects(
+    () => clipped.service.assertFeedbackWordBindings(clipped.config, inputs, true),
+    (error) => error.code === "LEXICON_INCOMPLETE",
+  );
 });

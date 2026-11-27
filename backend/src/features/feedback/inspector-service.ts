@@ -1,12 +1,41 @@
-import type { WordInput } from "@yds-atlas/shared";
+import {
+  lemmaCandidates,
+  lexiconPreview,
+  lexiconTerms,
+  type WordInput,
+  wordAttributionSchema,
+} from "@yds-atlas/shared";
 import type { ServerConfig } from "../../config/env";
 import { databaseError, HttpError } from "../../shared/errors";
 import type { RequestContext } from "../../shared/supabase";
 import { quotaClient } from "../../shared/supabase";
-import { canonicalQuery, type EntryRow, projectEntry, selectEntries } from "./inspector-validation";
+import {
+  canonicalQuery,
+  type EntryRow,
+  projectEntry,
+  selectEntries,
+  validEntry,
+} from "./inspector-validation";
 
+async function denyOnlineAssessment(ctx: RequestContext) {
+  const { data, error } = await ctx.db.rpc("atlas_online_assessment_active");
+  databaseError(error);
+  if (typeof data !== "boolean")
+    throw new HttpError(
+      503,
+      "Değerlendirme durumu doğrulanamadı.",
+      "INSPECTOR_SESSION_UNAVAILABLE",
+    );
+  if (data)
+    throw new HttpError(
+      409,
+      "Çevrimiçi değerlendirmede öğrenme yardımı kapalı.",
+      "INSPECTOR_ACTIVE_ASSESSMENT",
+    );
+}
 /** A server-side check is required: hiding the UI never authorizes an active assessment. */
 export async function assertNoActiveAssessment(ctx: RequestContext) {
+  await denyOnlineAssessment(ctx);
   const { data, error } = await ctx.db
     .from("learning_sessions")
     .select("id")
@@ -21,7 +50,7 @@ export async function assertNoActiveAssessment(ctx: RequestContext) {
   if (data.length > 0) {
     throw new HttpError(
       409,
-      "Devam eden oyun tamamlanmadan kelime inceleme kapalı.",
+      "Devam eden çalışma tamamlanana veya iptal edilene kadar öğrenme yardımı kapalı.",
       "INSPECTOR_ACTIVE_ASSESSMENT",
     );
   }
@@ -33,6 +62,7 @@ export async function assertNoActiveAssessment(ctx: RequestContext) {
  * Malformed snapshots and unavailable sessions fail closed.
  */
 export async function assertGameSafeDictionaryWord(ctx: RequestContext, requested: string) {
+  await denyOnlineAssessment(ctx);
   const { data, error } = await ctx.db
     .from("learning_sessions")
     .select("snapshot")
@@ -43,6 +73,7 @@ export async function assertGameSafeDictionaryWord(ctx: RequestContext, requeste
   databaseError(error);
   if (!Array.isArray(data) || data.length >= 20)
     throw new HttpError(503, "Oyun sözlük güvenliği doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
+  const candidates = lemmaCandidates(requested);
   for (const row of data) {
     const snapshot = row?.snapshot;
     if (!snapshot || !Array.isArray(snapshot.words))
@@ -52,12 +83,13 @@ export async function assertGameSafeDictionaryWord(ctx: RequestContext, requeste
         throw new HttpError(503, "Oyun kelimesi doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
       const forms = [item.word, ...item.alternatives];
       for (const value of forms) {
-        if (typeof value !== "string") continue;
+        if (typeof value !== "string" || !value.trim())
+          throw new HttpError(503, "Oyun kelimesi doğrulanamadı.", "DICTIONARY_GAME_UNAVAILABLE");
         const token = value.normalize("NFKC").toLocaleLowerCase("en").trim();
         const protectedForms = [token, token + "s", token + "es", token + "ed", token + "ing"];
         if (token.endsWith("e")) protectedForms.push(token + "d", token.slice(0, -1) + "ing");
         if (token.endsWith("y")) protectedForms.push(token.slice(0, -1) + "ies");
-        if (protectedForms.includes(requested))
+        if (candidates.includes(token) || protectedForms.includes(requested))
           throw new HttpError(
             409,
             "Çalışılan kelimenin anlamı soru sırasında kapalı.",
@@ -99,20 +131,55 @@ export async function inspectFeedback(
   raw: URLSearchParams,
 ) {
   requireFlag(config);
-  const query = validateQuery(raw);
+  const params = new URLSearchParams(raw);
+  const withAttribution =
+    params.getAll("attribution").length === 1 && params.get("attribution") === "1";
+  if (withAttribution) params.delete("attribution");
+  const query = validateQuery(params);
   await assertNoActiveAssessment(ctx);
   const { data, error } = await quotaClient(config)
     .from("atlas_lexicon_entries")
-    .select("id,word_key,part_of_speech,sense_key,revision,status,content")
+    .select("id,word_key,part_of_speech,sense_key,revision,status,content,provenance")
     .eq("word_key", query.word)
     .neq("part_of_speech", "Tooltip")
     .in("status", ["machine_validated", "human_reviewed"])
     .limit(31);
   databaseError(error);
-  if (!Array.isArray(data) || data.length === 31) {
+  if (
+    !Array.isArray(data) ||
+    data.length === 31 ||
+    !data.every((row) => validEntry(row as EntryRow))
+  ) {
     throw new HttpError(503, "Kelime havuzu sonucu doğrulanamadı.", "INSPECTOR_POOL_UNAVAILABLE");
   }
-  return selectEntries(data as EntryRow[], query);
+  const rows = data as EntryRow[];
+  const result = selectEntries(rows, query);
+  if (result.status !== "ready") return result;
+  const selected = rows.find((row) => row.id === result.entry.id);
+  if (!selected)
+    throw new HttpError(503, "Kelime havuzu sonucu doğrulanamadı.", "INSPECTOR_POOL_UNAVAILABLE");
+  const credit = licensedCredit(selected);
+  if (!credit) return result;
+  if (!withAttribution)
+    throw new HttpError(
+      409,
+      "Lisanslı içeriği görmek için uygulamayı güncelle.",
+      "ATTRIBUTION_CLIENT_REQUIRED",
+    );
+  return { ...result, entry: { ...result.entry, attribution: credit } };
+}
+
+function licensedCredit(row: EntryRow) {
+  const p = row.provenance;
+  if (!p?.license || p.license === "Atlas Original") return undefined;
+  const credit = wordAttributionSchema.safeParse({
+    license: p.license,
+    source: p.source,
+    author: p.attribution,
+  });
+  if (!credit.success)
+    throw new HttpError(503, "Kaynak ve lisans doğrulanamadı.", "ATTRIBUTION_UNAVAILABLE");
+  return credit.data;
 }
 
 /** Never trust a browser-selected pool revision when importing a word. */
@@ -121,25 +188,57 @@ export async function assertFeedbackWordBinding(
   input: WordInput,
   isNew = false,
 ) {
-  if (!input.lexicon) return;
+  return assertFeedbackWordBindings(config, [input], isNew);
+}
+
+export async function assertFeedbackWordBindings(
+  config: ServerConfig,
+  inputs: WordInput[],
+  isNew: boolean,
+) {
+  const bound = inputs.flatMap((input) =>
+    input.lexicon ? [{ input, binding: input.lexicon }] : [],
+  );
+  if (!bound.length) return;
   requireFlag(config);
-  if (isNew && input.score !== 0) {
+  if (isNew && bound.some(({ input }) => input.score !== 0)) {
     throw new HttpError(409, "Yeni kelime puanı sıfır olmalı.", "INSPECTOR_SCORE_TAMPERED");
   }
-  const { data, error } = await quotaClient(config)
-    .from("atlas_lexicon_entries")
-    .select("id,word_key,part_of_speech,sense_key,revision,status,content")
-    .eq("id", input.lexicon.entryId)
-    .eq("revision", input.lexicon.revision)
-    .in("status", ["machine_validated", "human_reviewed"])
-    .maybeSingle();
-  databaseError(error);
-  if (!data) {
-    throw new HttpError(409, "Kelime havuz kaydı güncellendi.", "INSPECTOR_REVISION_CONFLICT");
+  const ids = [...new Set(bound.map(({ binding }) => binding.entryId))];
+  const rows = new Map<string, EntryRow>();
+  const db = quotaClient(config);
+  // Bound both the PostgREST URL and the number of complete example sets per response.
+  const batchSize = 40;
+  for (let start = 0; start < ids.length; start += batchSize) {
+    const batch = ids.slice(start, start + batchSize);
+    const { data, error, count } = await db
+      .from("atlas_lexicon_entries")
+      .select("id,word_key,part_of_speech,sense_key,revision,status,content,provenance", {
+        count: "exact",
+      })
+      .in("id", batch)
+      .in("status", ["machine_validated", "human_reviewed"])
+      .limit(batch.length);
+    databaseError(error);
+    if (!Array.isArray(data) || count !== data.length)
+      throw new HttpError(503, "Sözlük kayıtları eksik okundu.", "LEXICON_INCOMPLETE");
+    for (const row of data) rows.set(row.id, row as EntryRow);
   }
+  for (const { input, binding } of bound) {
+    const row = rows.get(binding.entryId);
+    if (!row || row.revision !== binding.revision)
+      throw new HttpError(409, "Kelime havuz kaydı güncellendi.", "INSPECTOR_REVISION_CONFLICT");
+    verifyBoundContent(input, row);
+  }
+}
+
+function verifyBoundContent(input: WordInput, row: EntryRow) {
+  const credit = licensedCredit(row);
+  if (credit) input.attribution = credit;
+  else delete input.attribution;
   let expected: ReturnType<typeof projectEntry>;
   try {
-    expected = projectEntry(data as EntryRow);
+    expected = projectEntry(row);
   } catch {
     throw new HttpError(409, "Kelime havuz kaydı geçersiz.", "INSPECTOR_BINDING_INVALID");
   }
@@ -172,4 +271,40 @@ export async function assertFeedbackWordBinding(
       "INSPECTOR_BINDING_INVALID",
     );
   }
+}
+
+/** One bounded indexed read for a sentence. Never persist submitted words or glosses. */
+export async function readLexiconPreview(
+  ctx: RequestContext,
+  config: ServerConfig,
+  input: string[],
+) {
+  requireFlag(config);
+  await assertNoActiveAssessment(ctx);
+  const terms = lexiconTerms.parse(input);
+  const keys = [...new Set(terms.flatMap(lemmaCandidates))];
+  const { data, error, count } = await quotaClient(config)
+    .from("atlas_lexicon_entries")
+    .select(
+      "id,word:word_key,partOfSpeech:part_of_speech,senseKey:sense_key,revision,meanings:content->meanings,ipaUk:content->>ipaUk,ipaUs:content->>ipaUs,audioUk:content->>pronunciationUk,audioUs:content->>pronunciationUs,license:provenance->>license,source:provenance->>source,author:provenance->>attribution",
+      { count: "exact" },
+    )
+    .in("word_key", keys)
+    .in("status", ["human_reviewed", "machine_validated"])
+    .neq("part_of_speech", "Tooltip")
+    .limit(512);
+  databaseError(error);
+  if (!data || data.length !== count)
+    throw new HttpError(503, "Sözlük görünümü eksik.", "LEXICON_INCOMPLETE");
+  return lexiconPreview.array().parse(
+    data.map((row) => ({
+      ...row,
+      attribution:
+        row.license === "CC BY-SA 4.0"
+          ? { source: row.source, license: row.license, author: row.author }
+          : null,
+      audioUk: /^https:\/\//i.test(row.audioUk ?? "") ? row.audioUk : null,
+      audioUs: /^https:\/\//i.test(row.audioUs ?? "") ? row.audioUs : null,
+    })),
+  );
 }

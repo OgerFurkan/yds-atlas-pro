@@ -8,17 +8,6 @@ export function needsAiMeaning(input: WordInput): boolean {
   return !(input.meanings ?? []).some((meaning) => meaning.trim().length > 0);
 }
 
-export function splitWordInputsByMeaning(
-  inputs: WordInput[],
-  existing: readonly { word: string }[] = [],
-) {
-  const known = new Set(existing.map((entry) => wordKey(entry.word)));
-  return {
-    direct: inputs.filter((entry) => !needsAiMeaning(entry) || known.has(wordKey(entry.word))),
-    needsAi: inputs.filter((entry) => needsAiMeaning(entry) && !known.has(wordKey(entry.word))),
-  };
-}
-
 /**
  * Each line may be "hello = merhaba, selam" or simply "hello".
  * Legacy comma/semicolon-separated word-only lists remain supported.
@@ -50,6 +39,15 @@ export function parseBulkWordEntries(text: string): WordInput[] {
         throw new Error("Bir Türkçe anlam en fazla 200 karakter olabilir.");
       const key = wordKey(candidate.word);
       const original = entries.get(key);
+      if (
+        original?.meanings?.length &&
+        candidate.meanings?.length &&
+        original.meanings.join(",").toLocaleLowerCase("tr") !==
+          candidate.meanings.join(",").toLocaleLowerCase("tr")
+      )
+        throw new Error(
+          "Aynı kelime için farklı anlamlar girildi. İstenen anlamları tek satırda yaz.",
+        );
       // A user-provided meaning wins over a bare duplicate, never the other way around.
       if (!original || (needsAiMeaning(original) && !needsAiMeaning(candidate)))
         entries.set(key, candidate);

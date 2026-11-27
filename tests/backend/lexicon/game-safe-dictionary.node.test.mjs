@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import * as nodeModule from "node:module";
 import { resolve } from "node:path";
 import { test } from "node:test";
+import { lemmaCandidates } from "../../../packages/shared/src/word-key.ts";
 
 class HttpError extends Error {
   constructor(status, message, code) {
@@ -27,6 +28,7 @@ function load() {
     "databaseError",
     "HttpError",
     "quotaClient",
+    "lemmaCandidates",
     js + "\nreturn { assertGameSafeDictionaryWord };",
   )(
     (error) => {
@@ -36,13 +38,18 @@ function load() {
     () => {
       throw Error("no database");
     },
+    lemmaCandidates,
   );
 }
 const { assertGameSafeDictionaryWord } = load();
-function ctx(rows) {
+function ctx(rows, online = false) {
   return {
     userId: "synthetic-user",
     db: {
+      rpc: async (name) => {
+        assert.equal(name, "atlas_online_assessment_active");
+        return { data: online, error: null };
+      },
       from(table) {
         assert.equal(table, "learning_sessions");
         const chain = {
@@ -77,13 +84,28 @@ const snapshot = {
   words: [
     { word: "Supplant", alternatives: ["supplants", "supplanted"] },
     { word: "Deteriorate", alternatives: [] },
+    { word: "Go", alternatives: [] },
+    { word: "Run", alternatives: [] },
   ],
 };
+test("online assessments deny dictionary access without projecting the private session", async () => {
+  await assert.rejects(assertGameSafeDictionaryWord(ctx([], true), "evidence"), {
+    code: "INSPECTOR_ACTIVE_ASSESSMENT",
+  });
+});
 test("a normal surrounding word is allowed while an unfinished game exists", async () => {
   await assert.doesNotReject(() => assertGameSafeDictionaryWord(ctx([{ snapshot }]), "evidence"));
 });
 test("active word and grammatical variants remain hidden from dictionary", async () => {
-  for (const token of ["supplant", "supplants", "supplanted", "deteriorate", "deteriorating"]) {
+  for (const token of [
+    "supplant",
+    "supplants",
+    "supplanted",
+    "deteriorate",
+    "deteriorating",
+    "went",
+    "running",
+  ]) {
     await assert.rejects(
       () => assertGameSafeDictionaryWord(ctx([{ snapshot }]), token),
       (e) => e.code === "DICTIONARY_ANSWER_PROTECTED",

@@ -2,10 +2,14 @@
 
 ## Quick start
 
-Run from the workspace root:
+Use Bun 1.3.5 (also pinned by CI and the API image), Node.js 24 for the Node tests
+and repository audit, and Git. Run from the directory containing `bun.lock`.
+For an authorized fresh installation, install the locked workspaces once. With an
+existing installation, select checks for the affected surfaces. Browser tests also
+require the Chromium build matching the locked Playwright version.
 
 ```powershell
-bun install
+bun install --frozen-lockfile
 bun run check
 bun run lint
 bun run build:test

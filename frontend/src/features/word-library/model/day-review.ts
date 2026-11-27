@@ -24,7 +24,8 @@ export function createDayReviewRounds(
     [shuffled[index], shuffled[swap]] = [shuffled[swap], shuffled[index]];
   }
   if (shuffled.length > 1 && shuffled.every((word, i) => word.id === previousIds[i])) {
-    shuffled.push(shuffled.shift()!);
+    const first = shuffled.shift();
+    if (first) shuffled.push(first);
   }
   const rounds: WordEntry[][] = [];
   for (let i = 0; i < shuffled.length; i += DAY_REVIEW_ROUND_SIZE) {

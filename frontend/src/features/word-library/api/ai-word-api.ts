@@ -1,4 +1,4 @@
-﻿import {
+import {
   type AiWordResponse,
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
@@ -6,6 +6,7 @@
   aiWordRequestSchema,
   aiWordResponseSchema,
   type DictionarySource,
+  type RequestedWordSense,
   wordInputSchema,
 } from "@yds-atlas/shared";
 import { apiRequest } from "@/shared/api/api-client";
@@ -31,8 +32,12 @@ export async function completeWordsWithGemini(
   words: string[],
   signal?: AbortSignal,
   owner?: string,
+  senses?: RequestedWordSense[],
 ) {
-  const request = aiNamedWordsRequestSchema.parse({ words });
+  const request = aiNamedWordsRequestSchema.parse({
+    words,
+    senses: senses?.length ? senses : undefined,
+  });
   try {
     return aiWordListResponseSchema.parse(
       await apiRequest(
@@ -84,9 +89,10 @@ export function aiSuggestionToWordInput(
     examples: suggestion.examples.map((example, index) => ({
       ...example,
       difficulty: example.difficulty ?? (["easy", "easy", "medium", "yds", "yds"] as const)[index],
-      source: dictionarySentences.has(example.sentence.trim())
-        ? `DictionaryAPI.dev / Wiktionary (${dictionarySource!.licenseName}): ${dictionarySource!.sourceUrl}`
-        : "Gemini · " + model,
+      source:
+        dictionarySource && dictionarySentences.has(example.sentence.trim())
+          ? `DictionaryAPI.dev / Wiktionary (${dictionarySource.licenseName}): ${dictionarySource.sourceUrl}`
+          : "Gemini · " + model,
     })),
   });
 }

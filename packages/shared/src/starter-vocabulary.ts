@@ -1,6 +1,6 @@
 import { starterTranslationFocus } from "./starter-translation-focus";
 import { starterTranslations } from "./starter-translations";
-import { wordKey } from "./word-key";
+import { matchesRequestedSense, wordKey } from "./word-key";
 import { type CefrLevel, type WordInput, wordInputSchema } from "./word-schema";
 
 type VocabularySeed = [string, string, string, CefrLevel, string, string[], string[]];
@@ -335,7 +335,7 @@ export function getStarterWord(word: string) {
 
 export function enrichWordInput(input: WordInput): WordInput {
   const seed = getStarterWord(input.word);
-  if (!seed) return input;
+  if (!seed || !matchesRequestedSense(input, seed)) return input;
   return {
     ...seed,
     ...input,

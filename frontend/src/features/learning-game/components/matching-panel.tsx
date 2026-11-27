@@ -1,9 +1,9 @@
 import { ArrowRight, Check, CheckCheck, Languages, Link2, RotateCcw, X } from "lucide-react";
 import { Fragment } from "react";
 import { useTranslation } from "react-i18next";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 import type { GameSession } from "../model/game-session";
 
 export function MatchingPanel({
@@ -100,7 +100,7 @@ export function MatchingPanel({
                   key={side}
                   id={index === 0 ? `matching-${side}` : undefined}
                   data-matching-side={side}
-                  data-word-id={id}
+                  data-word-id={practice ? id : undefined}
                   type="button"
                   aria-pressed={selected}
                   aria-label={`${t(side === "left" ? "game.leftWord" : "game.rightWord")}: ${side === "left" ? word.word : word.meanings[0]}${matched ? `, ${t("game.paired")}` : ""}`}

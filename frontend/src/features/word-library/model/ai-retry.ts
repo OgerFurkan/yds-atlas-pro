@@ -15,6 +15,7 @@ type RetryableError = { status?: number; code?: string; retryAfterSeconds?: numb
 const TERMINAL_AI_CODES = new Set([
   "AI_NOT_CONFIGURED",
   "AI_AUTH_ERROR",
+  "AI_PERMISSION_DENIED",
   "AI_MODEL_NOT_FOUND",
   "AI_INVALID_RESPONSE",
   "AI_REQUEST_REJECTED",

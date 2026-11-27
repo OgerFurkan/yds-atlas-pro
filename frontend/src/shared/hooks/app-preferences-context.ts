@@ -4,6 +4,8 @@ export type AppLanguage = "tr" | "en";
 export type ColorTheme = "light" | "dark" | "system";
 
 export interface AppPreferences {
+  mobileChatVisible: boolean;
+  setMobileChatVisible: (visible: boolean) => void;
   language: AppLanguage;
   theme: ColorTheme;
   setLanguage: (language: AppLanguage) => void;

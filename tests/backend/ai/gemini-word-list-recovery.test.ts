@@ -160,6 +160,7 @@ test("bad individual entries in both passes preserve only validated neighbors", 
   }) as unknown as typeof fetch;
   const result = await generateWordList(5, [], config("p0-e"), undefined, fetcher, WORDS);
   expect(result.suggestions.map((word) => word.word)).toEqual(["alpha"]);
+  expect(result.failures).toEqual(WORDS.slice(1).map((word) => ({ word, reason: "schema" })));
   expect(count).toBe(2);
 });
 test("structured HTTP 400 still falls back to plain output without weakening validation", async () => {
@@ -197,7 +198,7 @@ test("non-thought fenced JSON is parsed; thought text is not interpreted as cont
 test.each([
   [429, "AI_QUOTA_EXCEEDED"],
   [401, "AI_AUTH_ERROR"],
-  [403, "AI_AUTH_ERROR"],
+  [403, "AI_PERMISSION_DENIED"],
 ] as const)(
   "HTTP %i keeps its real terminal error, not a false malformed-output 502",
   async (status, code) => {
@@ -456,8 +457,16 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
     return { exit: p.exitCode, stdout: Buffer.from(p.stdout).toString("utf8") };
   };
   expect(git(["cat-file", "-e", base + "^{commit}"]).exit).toBe(0);
+  // Keep the immutable attribution check inside the default test budget by
+  // invoking the pinned workspace binary directly for each historical file.
+  const biome = join(
+    cwd,
+    "node_modules",
+    ".bin",
+    process.platform === "win32" ? "biome.exe" : "biome",
+  );
   const version = Bun.spawnSync({
-    cmd: ["bunx", "biome", "--version"],
+    cmd: [biome, "--version"],
     cwd,
     stdout: "pipe",
     stderr: "pipe",
@@ -481,7 +490,7 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
   const tmp = mkdtempSync(join(tmpdir(), "p0-biome-"));
   function formatDetails(path: string, label: string, contents: string) {
     const r = Bun.spawnSync({
-      cmd: ["bunx", "biome", "format", "--stdin-file-path=" + path],
+      cmd: [biome, "format", "--stdin-file-path=" + path],
       cwd,
       stdout: "pipe",
       stderr: "pipe",
@@ -492,6 +501,10 @@ test("P0 immutable baseline Biome per-file hunk attribution", () => {
     if (r.exitCode !== 0) {
       console.info("P0_BIOME " + path + " " + label + " CLI_FAIL=" + r.exitCode);
       return { valid: false, hunks: [] as { span: string; sig: string; patch: string }[] };
+    }
+    if (contents === formatted) {
+      console.info("P0_BIOME " + path + " " + label + " EXIT=0 MATCH=true HUNKS=");
+      return { valid: true, hunks: [] as { span: string; sig: string; patch: string }[] };
     }
     writeFileSync(join(tmp, "input.ts"), contents);
     writeFileSync(join(tmp, "output.ts"), formatted);

@@ -34,7 +34,7 @@ class HttpError extends Error {
     this.code = code;
   }
 }
-const model = source("../../../frontend/src/features/word-library/model/sentence-tooltip.ts");
+const model = source("../../../frontend/src/shared/vocabulary/sentence-tooltip.ts");
 const { normalizeTurkishMeaning } = source(
   "../../../backend/src/features/lexicon/turkish-meaning.ts",
 );
@@ -42,16 +42,13 @@ const dict = source("../../../backend/src/features/lexicon/public-turkish-dictio
   HttpError,
   normalizeTurkishMeaning,
 });
-const prefetch = source("../../../backend/src/features/lexicon/sentence-lexicon-prefetch.ts", {
+const { sentenceTokens } = source(
+  "../../../backend/src/features/lexicon/sentence-lexicon-tokens.ts",
+);
+const prefetch = source("./fixtures/historical-short-gloss.ts", {
   createHash,
   randomUUID,
-  quotaClient: () => {
-    throw Error("Real DB is prohibited");
-  },
   dictionaryWord: dict.dictionaryWord,
-  lookupPublicTurkish: () => {
-    throw Error("Real dictionary access is prohibited");
-  },
 });
 const license = { name: "CC BY-SA 4.0", url: "https://creativecommons.org/licenses/by-sa/4.0/" };
 const english = (pos, meanings) => ({
@@ -93,29 +90,22 @@ test("English sentence detection does not parse Turkish as English", () => {
   assert.equal(model.isLikelyEnglishSentence("İklim hızla değişiyor."), false);
 });
 test("sentence token discovery deduplicates without sending whole sentences", () => {
-  assert.deepEqual(
-    prefetch.sentenceTokens(["The climate changes.", "climate effects on change."]),
-    ["climate", "changes", "effects", "change", "on"],
-  );
+  assert.deepEqual(sentenceTokens(["The climate changes.", "climate effects on change."]), [
+    "climate",
+    "changes",
+    "effects",
+    "change",
+    "on",
+  ]);
 });
 test("sentence discovery strips email URLs, hashtags and proper names", () => {
-  const t = prefetch.sentenceTokens([
+  const t = sentenceTokens([
     "Reports mention alice@example.com and https://test.example/path. #secret climate matters.",
   ]);
   assert.equal(t.includes("alice"), false);
   assert.equal(t.includes("https"), false);
   assert.equal(t.includes("secret"), false);
   assert.ok(t.includes("climate"));
-});
-test("queue is deduplicated and bounded, independent of personal-library writes", () => {
-  assert.ok(prefetch.queueSentenceWords(["climate matters."]) >= 1);
-  assert.equal(prefetch.queueSentenceWords(["climate matters."]), 0);
-});
-test("shared-gloss writing fails closed unless the two separate server preconditions hold", async () => {
-  const config = { ATLAS_FEEDBACK_LEXICON_ENABLED: false, SUPABASE_SECRET_KEY: "fake-not-used" };
-  assert.equal(prefetch.sentencePrefetchEnabled(config), false);
-  assert.deepEqual(await prefetch.drainSentenceQueue(config), { disabled: true, processed: 0 });
-  assert.equal(prefetch.startSentencePrefetch(config) instanceof Function, true);
 });
 test("missing Turkish is missing; never fabricate translations", () => {
   assert.equal(
@@ -338,18 +328,6 @@ test("minimal production Lexicon migration has exactly two audited publisher RPC
   assert.doesNotMatch(sql, /CREATE TABLE public\.atlas_usage_events/);
 });
 
-test("queued word on unavailable publish is explicitly scheduled for retry", () => {
-  const worker = readFileSync(
-    resolve(
-      import.meta.dirname,
-      "../../../backend/src/features/lexicon/sentence-lexicon-prefetch.ts",
-    ),
-    "utf8",
-  );
-  assert.match(worker, /if \(record && !\(await publishShortGloss\(db, record\)\)\)\s*\{/);
-  assert.match(worker, /due\.set\(word, Date\.now\(\) \+ 3600_000\)/);
-  assert.doesNotMatch(worker, /\.from\("atlas_lexicon_entries"\)\.insert\(/);
-});
 test("shared cached tooltip requires exact validated provenance", async () => {
   const parsed = dict.parsePublicTurkish(
     "obtain",
@@ -545,13 +523,22 @@ test("UI holds explicit generation and never auto-persists a generated draft", (
 });
 test("backend dictionary and generator route both enforce authenticated active-assessment check", () => {
   const app = readFileSync(resolve(import.meta.dirname, "../../../backend/src/app.ts"), "utf8");
+  const routes = readFileSync(
+    resolve(import.meta.dirname, "../../../backend/src/routes/lexicon-routes.ts"),
+    "utf8",
+  );
+  const ai = readFileSync(
+    resolve(import.meta.dirname, "../../../backend/src/routes/ai-routes.ts"),
+    "utf8",
+  );
   assert.match(
-    app,
+    routes,
     /path === "\/api\/dictionary\/turkish"[\s\S]*?await assertNoActiveAssessment\(ctx\)/,
   );
   assert.match(
-    app,
+    routes,
     /path === "\/api\/lexicon\/examples\/draft"[\s\S]*?await assertNoActiveAssessment\(ctx\)/,
   );
+  assert.match(ai, /await assertNoActiveAssessment\(ctx\)/);
   assert.match(app, /authenticate\(request, config\)/);
 });

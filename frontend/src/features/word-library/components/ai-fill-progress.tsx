@@ -83,6 +83,7 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
                 className="max-w-full break-words rounded-md border border-[#956f34] bg-[#4b3822] px-2.5 py-1 text-xs font-semibold leading-5 text-[#fff8e8]"
               >
                 {word}
+                {progress.failureReasons?.[word] && <> · {progress.failureReasons[word]}</>}
               </li>
             ))}
           </ul>

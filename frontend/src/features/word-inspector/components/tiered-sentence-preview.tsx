@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { apiRequest } from "@/shared/api/api-client";
 import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
 import { Button } from "@/shared/ui/button";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 
 import {
   type SentenceDraftResponse,

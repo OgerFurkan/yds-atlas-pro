@@ -1,9 +1,10 @@
 /** Preserves translation names and existing i18next keys. */
+
+import { enAccountAi } from "./en/accountAi";
 import { enCore } from "./en/core";
 import { enDashboard } from "./en/dashboard";
-import { enVocabulary } from "./en/vocabulary";
-import { enAccountAi } from "./en/accountAi";
 import { enLearning } from "./en/learning";
+import { enVocabulary } from "./en/vocabulary";
 
 export const en = {
   brand: enCore.brand,
@@ -19,6 +20,7 @@ export const en = {
   companion: enDashboard.companion,
   wordStatus: enVocabulary.wordStatus,
   taskIntro: enVocabulary.taskIntro,
+  accountData: enAccountAi.accountData,
   chat: enAccountAi.chat,
   auth: enAccountAi.auth,
   library: enVocabulary.library,

@@ -27,6 +27,8 @@ Doğru geri bildirimi yeşil, yanlış geri bildirimi kırmızıdır. Yanlış c
 
 ## Genel değerlendirme
 
+Puanlı değerlendirme hesapla çevrimiçi başlar. Sunucu güncel soruyu ve opak seçenekleri gönderir. Cevap ve puan sunucuda hesaplanır. Çevrimdışı görev, tekrar, rehber ve eski taslaklar puansız pratik olarak sürer.
+
 Bütün gruplar bitince üç aşama başlar:
 
 1. **Eşleştir:** En fazla beş İngilizce kelime ile karıştırılmış Türkçe karşılıkları iki sütunda gösterilir. İki taraftan da başlanabilir. Doğru çift yeşille sabitlenir; yanlış çift kırmızıyla ve doğru karşılıklarıyla açıklanır. Kullanıcı “Yeniden dene” ile devam eder. Yanlış deneme, karıştırılan her iki kelimenin değerlendirmesine bir kez işlenir. Aynı Türkçe anlama sahip kelimeler ayrı setlere alınır. Bütün çiftler tamamlanmadan sonraki sete geçilmez.
@@ -49,7 +51,7 @@ Kullanıcıya oyun sırasında veya sonuç ekranında sayısal kelime puanı ve 
 
 Doğru anlam ve bağlam yanıtlarına hatırlama katsayısı uygulanır: zor 0,60; hatırladım 0,85; kolay 1,00. Son toplam bir kez tam sayıya yuvarlanır. Hatasız eşleştirme ve iki kolay doğru yanıt 100; iki normal doğru yanıt 88; iki zor doğru yanıt 68 verir. Anlamı yanlış olan kelime en fazla 70, bağlamı yanlış olan kelime en fazla 50 alabilir.
 
-Önceki sürümden yarım kalmış v2 görevler eski iki değerlendirme aşaması ve eski puan kurallarıyla tamamlanır: anlam doğru +20/yanlış −50, bağlam doğru +40/yanlış −30; doğru cevapta zor −10, normal 0, kolay +20; önceki puanla toplam 0–100'e sınırlandırılır. Yeni v3 görevler eşleştirmeyle başlar. Aynı depolama anahtarı korunur ve eski kayıtlar silinmez.
+Eski v2 ve v3 kayıtları ve önceki puanlar korunur. Eski taslaktan devam edildiğinde sonuç puansız pratik sayılır.
 
 - 0–39: Zorlanılan.
 - 40–79: Tekrar gerektiren.
@@ -59,11 +61,11 @@ Grup ayrı bir veri alanı olarak tutulmaz; daima güncel puandan türetilir.
 
 ## Sonuçlar, günlük hedef ve seri
 
-Genel değerlendirme bittiğinde sonuçlar otomatik kaydedilir. Kaydetme başarısız olursa hata ve yeniden deneme düğmesi görünür. Mutlak puan yazıldığı için yeniden denemek aynı puanı iki kez eklemez. Silinen kayıtlar tekrar oluşturulmaz.
+Puanlı görev sonucu sunucuda kelime puanı, tamamlanan oturum ve günlük ilerlemeyle birlikte tek işlemde kaydedilir. Bağlantı kesilirse hesapla güncel soruya dönülür. Sunucu aynı son komutun yeniden gönderilmesini güvenle karşılar ve başka cihazdan gelen eski revizyonu reddeder.
 
 Günlük ilerleme, o gün tamamlanan görevlerdeki benzersiz kelimeleri sayar. Günlük hedef tamamlanınca gün başarı kaydına eklenir. Günlük seri ve rekor bu günlerden hesaplanır. Henüz tamamlanmamış bugün, dünkü seriyi hemen sıfırlamaz; arada tamamlanmadan geçmiş bir gün varsa seri yeniden başlar. Tarihler Europe/Istanbul'a göredir.
 
-Oturum sırası, cevap, geri bildirim, eşleştirme seti/sütun sırası/seçimler/hatalar ve kelime anlık görüntüleri tarayıcıda saklanır. Ara verilebilir ve yenilemeden sonra devam edilebilir.
+Pratik taslağı tarayıcıda saklanır. Puanlı oturumun anlık görüntüsü yalnız sunucuya açıktır. Öğrenci önceden bildiği veya cihazında bulunan sözlük ve kelime içeriğine erişebilir. Bu sözleşme değerlendirme anahtarını korur ve gözetimli sınav güvencesi vermez.
 
 ## İki ayrı etkileşimli rehber
 

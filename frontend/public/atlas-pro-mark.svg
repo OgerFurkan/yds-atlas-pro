@@ -1,4 +1,5 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" fill="none">
+  <title>Atlas Pro</title>
   <rect x="1" y="1" width="46" height="46" rx="13" fill="#123B59"/>
   <path d="M8 13c6-3 11-2 16 2 5-4 10-5 16-2v23c-6-3-11-2-16 2-5-4-10-5-16-2V13Z" stroke="#F7FAFC" stroke-width="2.3" stroke-linejoin="round"/>
   <path d="M24 15v20" stroke="#F7FAFC" stroke-width="1.7"/>

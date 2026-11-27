@@ -1,9 +1,10 @@
 /** Preserves translation names and existing i18next keys. */
+
+import { trAccountAi } from "./tr/accountAi";
 import { trCore } from "./tr/core";
 import { trDashboard } from "./tr/dashboard";
-import { trVocabulary } from "./tr/vocabulary";
-import { trAccountAi } from "./tr/accountAi";
 import { trLearning } from "./tr/learning";
+import { trVocabulary } from "./tr/vocabulary";
 
 export const tr = {
   brand: trCore.brand,
@@ -19,6 +20,7 @@ export const tr = {
   companion: trDashboard.companion,
   wordStatus: trVocabulary.wordStatus,
   taskIntro: trVocabulary.taskIntro,
+  accountData: trAccountAi.accountData,
   chat: trAccountAi.chat,
   auth: trAccountAi.auth,
   library: trVocabulary.library,

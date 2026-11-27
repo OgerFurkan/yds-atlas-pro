@@ -1,47 +1,18 @@
-﻿# Ücretsiz deneme yayını
+# Yayın ve ortam yönetimi
 
-Seçilen başlangıç düzeni: frontend Vercel Hobby, Bun API Render Free, veritabanı ve Auth Supabase. Frontend https://yds-atlas-pro.vercel.app adresinde yayında. 11 Kasım 2026 tarihinde Supabase temel migration ve Auth yönlendirmeleri kuruldu; Render API yayını ve Vercel ortam değişkenlerinin bağlanması bekleniyor.
+LOCAL sentetik geliştirme ortamıdır. PRE ayrı Supabase projesi ve sabit staging bağlantılarıyla yayın provasını yürütür. PROD gerçek hesap ve veri ortamıdır. Uzak değişiklikler ürün sahibi onayına ve [güncel yayın engellerine](ai/current-status.md) bağlıdır.
 
-## Giriş ekranı
+## Ortam kimliği
 
-Üst menüdeki Giriş yap düğmesi `/#login` sayfasını açar. Giriş başarılı olduğunda kullanıcı geldiği ekrana döner. Kayıt, şifre sıfırlama, şifre görünürlüğü ve misafir olarak devam etme bu sayfadadır. Oturumu olan kullanıcı `/#login` açarsa uygulamaya yönlendirilir. Şifre yenileme bağlantıları aynı sayfada yeni şifre formunu açar.
+Frontend ve Bun API aynı `ATLAS_HOSTED_IDENTITIES` eşlemesini alır. PRE ve PROD için web origin, API origin, Supabase proje ve değerlendirme veritabanı kimliği ayrıdır. Frontend `VITE_ATLAS_ENV`, API `ATLAS_ENV` ile ürün ortamını seçer. Vercel deployment türü bu seçimi belirlemez. PRE projesinin sabit URL'leri kendi kaydıyla eşleşmelidir.
 
-## Önce frontend
+Vercel ve Render yapılandırmaları repo kökündedir. Public frontend değişkenleri `frontend/.env.example` üzerinden, API değişkenleri `backend/.env.example` üzerinden belgelenir. Supabase secret, değerlendirme veritabanı şifresi ve Gemini anahtarları yalnız backend secret alanına girer. Hosted veritabanı bağlantısı dar kapsamlı değerlendirme rolü ve `sslmode=verify-full` kullanır. [Backend yapılandırması](backend.md).
 
-1. Yerel Git deposu `main` dalında hazırlandı ve `origin`, `https://github.com/OgerFurkan/yds-atlas-pro.git` adresine bağlandı. Gönderim için bilgisayarda GitHub kimlik doğrulaması gerekir. `.env` dosyaları, bağımlılıklar ve derleme çıktıları Git dışında tutulur.
-2. Vercel'e GitHub hesabınla giriş yap ve repoyu içe aktar.
-3. Root Directory repo kökü olmalı. `vercel.json`, kilitli Bun kurulumu, yalnızca frontend derlemesi ve frontend/dist çıktısını tanımlar. Çalışma alanındaki ortak paketler bu sayede bulunur.
-4. İlk UI denemesi için Supabase değişkenlerini boş bırakabiliriz. Giriş sayfası görünür; gerçek hesap girişi bağlantı ayarları olmadan çalışmaz. Misafir kullanımında kelime ve oyun kayıtları çalışır.
-5. Backend hazır olunca Vercel ortamına VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY ve VITE_API_URL ekleyip yeniden deploy et. VITE_API_URL, Render API adresi olmalıdır.
+## Yayın, migration ve geri dönüş
 
-Hobby kişisel ve ticari olmayan kullanım içindir. Ücretsiz deneme için özel alan adı almak gerekmez.
+1. Sabit kaynak fingerprint'i ve kilit dosyasıyla [merkezi release profilini](architecture/quality.md) doğrula. Test sonuçları, migration listesi ve önceki uygulama sürümü kanıtını sakla.
+2. Ürün sahibi PRE geçişini onayladığında proje kimliği, origin, Auth yönlendirmeleri ve `/api/ready` durumunu doğrula. PRE testlerinde kullanıcı izolasyonu, değerlendirme, hesap/çevrimdışı akış ve görev verisi kontrollerini çalıştır.
+3. Önceki uygulama ve yeni şema uyumluluğunu değerlendir. Şemayla uyumlu geri dönüş veya ileri düzeltme seç. DB restore ayrı hedef, veri kaybı değerlendirmesi ve açık onay gerektirir. [Recovery ve rollback](architecture/recovery-operations.md).
+4. PRE kabulünden sonra PROD için ayrıca onay al. Bağımsız yedek/witness, alarm, gerçek restore, Auth ve TLS koşulları kapanmadan canlı trafik açılmaz.
 
-## Sonra Supabase ve API
-
-1. Supabase projesini Free planında hazırla. Proje URL'si ve publishable key gerekli.
-2. [Backend rehberindeki](backend.md) migration ve Auth ayarlarını uygula. Supabase yönetim erişimi için CLI login veya bağlı Supabase aracı gerekir; publishable key tek başına migration uygulamaz.
-3. Render'a GitHub hesabınla giriş yap. Repo kökündeki render.yaml üzerinden Blueprint oluştur veya Docker Web Service ekle: Dockerfile backend/Dockerfile, context repo kökü, plan Free.
-4. APP_ORIGINS değerine yayınlanan frontend'in tam origin'ini yaz. SUPABASE_URL ve SUPABASE_PUBLISHABLE_KEY aynı projeye ait olmalı. HOST Docker içinde 0.0.0.0'dır; PORT Render tarafından verilir.
-5. Render'daki API adresinin /api/health yanıtını kontrol et. Sonra Vercel'in VITE_API_URL değerini bu adresle güncelle.
-6. Supabase Auth Site URL ve Redirect URLs alanlarına frontend'in gerçek origin'ini ekle. E-posta doğrulama ve şifre sıfırlamayı canlı ortamda ayrıca dene.
-
-Render Free, 15 dakika trafik olmadığında uyur; ilk istek servis açılana kadar yaklaşık bir dakika sürebilir. Hesap hazırlanırken bağlantı hatası olursa servis açıldıktan sonra Yeniden dene ile devam edilir. Bu nedenle ücretsiz deneme, sürekli hızlı yanıt garantisi taşımaz.
-
-## Gemini'yi en son aç
-
-Google AI Studio'da ücretsiz kotası olan bir proje kullan. Render'ın gizli ortam değişkenlerine GEMINI_API_KEY (veya birden fazla proje için GEMINI_API_KEYS) ile SUPABASE_SECRET_KEY ekle. Kelime tamamlama `GEMINI_MODEL_WORD=gemini-3.5-flash-lite`, sohbet `GEMINI_MODEL_CHAT=gemini-3.8-flash` varsayılanlarıyla çalışır. Gizli anahtarları Vercel'in VITE_ değişkenlerine veya GitHub dosyalarına koyma.
-
-AI'nın ücretsiz kotası hesaba, modele ve bölgeye bağlı olarak doğrulanmalıdır. Uygulamadaki günlük 40/dakikalık 5 sınırı sağlayıcı kotasının yerine geçmez. Anahtar havuzu yalnızca anahtarlar ayrı Google projelerinden alındıysa ek kota sağlar; aynı projedeki anahtarlar aynı dakikalık sınırı paylaşır. Ücretli kullanım etkinleştirilmeden ücretsiz kota ile canlı deneme yapılır.
-
-## Senden gerekenler
-
-- GitHub kullanıcı adın ve varsa repo URL'si.
-- GitHub ile açılmış Vercel ve Render hesapları; hesap şifreleri gerekmez.
-- Supabase Project URL ve publishable key; migration için Supabase CLI/araç erişimi.
-- Backend aşamasında Supabase secret key ve Gemini API key'i yerel backend/.env veya Render Secrets içine tanımlaman.
-- Varsa kullanmak istediğin alan adı; yoksa platform adresleriyle devam edebiliriz.
-
-Docker bu bilgisayarda kurulu olmadığı için image build burada doğrulanmadı. Dockerfile'ın kullandığı production-only workspace kurulumu ve API health yanıtı ayrı geçici klasörde test edilir. Platformdaki Linux image build, GitHub/Render bağlandıktan sonra ayrıca doğrulanır.
-
-Kaynaklar: [Vercel Vite](https://vercel.com/docs/frameworks/frontend/vite), [Vercel Hobby koşulları](https://vercel.com/docs/plans/hobby), [Render Free](https://render.com/docs/free), [Render Blueprint](https://render.com/docs/blueprint-spec), [Gemini fiyat/kota seçenekleri](https://ai.google.dev/gemini-api/docs/pricing).
-
+`/api/health` süreç sağlığını, `/api/ready` bağımlılık durumunu bildirir. Ayrıntılı operasyon görünümü ürün sahibi, canlı oturum ve MFA ister. AI davranışı ve sağlayıcı tanıları için [backend](backend.md) geçerlidir.

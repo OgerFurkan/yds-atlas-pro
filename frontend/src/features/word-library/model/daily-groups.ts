@@ -1,9 +1,21 @@
 import { getWordGroup, type WordEntry } from "@yds-atlas/shared";
 import { usableExamples } from "@/features/learning-game/model/game-engine";
+import { hasAtlasTiers } from "./tiered-examples";
 
-/** Finished days remain available for regular scored study without resetting progress. */
+/** Scored study uses only unlearned words with enough material to play. */
 export function isDayStudyReady(word: WordEntry) {
-  return word.meanings.some((meaning) => meaning.trim().length > 0) && usableExamples(word).length >= 5;
+  return getWordGroup(word.score) !== "learned" && !missingStudyContent(word).length;
+}
+
+export function missingStudyContent(word: WordEntry) {
+  const missing: ("meaning" | "examples")[] = [];
+  if (!word.meanings.some((meaning) => meaning.trim())) missing.push("meaning");
+  if (
+    !hasAtlasTiers(word.examples) ||
+    usableExamples({ ...word, examples: word.examples.slice(0, 5) }).length !== 5
+  )
+    missing.push("examples");
+  return missing;
 }
 
 export const DAILY_PLAN_DAYS = 60;
@@ -22,6 +34,14 @@ export interface DailyGroup {
   learned: number;
   playable: number;
   progress: number;
+}
+
+/**
+ * Review is unscored practice over the whole day: learned words stay in, and
+ * missing details are reported by the review panel instead of being dropped.
+ */
+export function reviewableWords(group: DailyGroup) {
+  return group.words;
 }
 
 export interface DailyPlan {
@@ -53,6 +73,13 @@ export function clampDailyGroupSize(size: number) {
   return Math.min(MAX_DAILY_GROUP_SIZE, Math.max(MIN_DAILY_GROUP_SIZE, Math.round(size)));
 }
 
+// Persisted assignments break ties by ID; the legacy display-order fallback also considers spelling.
+export function dailyPlanWordIds(words: readonly WordEntry[]) {
+  return [...words]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id))
+    .map(({ id }) => id);
+}
+
 function creationOrder(first: WordEntry, second: WordEntry) {
   return (
     first.createdAt.localeCompare(second.createdAt) ||
@@ -79,7 +106,11 @@ export function buildDailyPlan(
 
   if (assignments) {
     for (const assignment of assignments) {
-      if (!Number.isInteger(assignment.day) || assignment.day < 1 || assignment.day > DAILY_PLAN_DAYS)
+      if (
+        !Number.isInteger(assignment.day) ||
+        assignment.day < 1 ||
+        assignment.day > DAILY_PLAN_DAYS
+      )
         continue;
       const dayWords = byDay.get(assignment.day) ?? [];
       for (const id of assignment.words) {

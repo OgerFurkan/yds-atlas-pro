@@ -1,24 +1,28 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import type { AppScreen } from "@/app/components/app-header";
 
 export function readHashScreen(): AppScreen {
   const hash = window.location.hash.slice(1);
-  return hash === "game" || hash === "library" || hash === "login" || hash === "inspector" ? hash : "home";
+  return hash === "control-center" ||
+    hash === "game" ||
+    hash === "library" ||
+    hash === "login" ||
+    hash === "inspector"
+    ? hash
+    : "home";
 }
 
 /** Keeps the screen in sync with the URL hash so refreshes and back/forward work. */
-export function useHashScreen() {
-  const [screen, setScreen] = useState<AppScreen>(readHashScreen);
+function subscribe(listener: () => void) {
+  window.addEventListener("hashchange", listener);
+  return () => window.removeEventListener("hashchange", listener);
+}
 
-  useEffect(() => {
-    const update = () => setScreen(readHashScreen());
-    window.addEventListener("hashchange", update);
-    return () => window.removeEventListener("hashchange", update);
-  }, []);
+export function useHashScreen() {
+  const screen = useSyncExternalStore(subscribe, readHashScreen);
 
   const navigate = useCallback((next: AppScreen) => {
     window.location.hash = next;
-    setScreen(next);
     window.scrollTo({ top: 0 });
   }, []);
 

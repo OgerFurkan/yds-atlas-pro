@@ -1,0 +1,20 @@
+-- Representative synthetic object families, with an independent surviving tenant.
+SET ROLE supabase_auth_admin;
+CREATE TABLE auth.users(id uuid PRIMARY KEY);
+CREATE TABLE auth.sessions(id uuid PRIMARY KEY,user_id uuid REFERENCES auth.users ON DELETE CASCADE);
+INSERT INTO auth.users VALUES ('11111111-1111-4111-8111-111111111111'),('22222222-2222-4222-8222-222222222222');
+INSERT INTO auth.sessions SELECT id,id FROM auth.users;
+GRANT REFERENCES ON auth.users TO postgres;
+RESET ROLE;
+SET ROLE postgres;
+CREATE TABLE public.words(id integer PRIMARY KEY,user_id uuid REFERENCES auth.users ON DELETE CASCADE,score integer);
+INSERT INTO public.words VALUES (1,'11111111-1111-4111-8111-111111111111',58),(2,'22222222-2222-4222-8222-222222222222',89);
+CREATE TABLE public.atlas_lexicon_entries(id integer PRIMARY KEY,word_key text);
+CREATE TABLE public.atlas_lexicon_entry_revisions(entry_id integer,revision integer,PRIMARY KEY(entry_id,revision));
+CREATE TABLE public.atlas_lexicon_jobs(word_key text PRIMARY KEY,status text);
+CREATE TABLE public.atlas_tooltip_queue(word_key text PRIMARY KEY,status text);
+INSERT INTO public.atlas_lexicon_entries VALUES(1,'measure');
+INSERT INTO public.atlas_lexicon_entry_revisions VALUES(1,2);
+INSERT INTO public.atlas_lexicon_jobs VALUES('measure','ready');
+INSERT INTO public.atlas_tooltip_queue VALUES('old','pending');
+RESET ROLE;

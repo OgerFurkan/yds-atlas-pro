@@ -1,5 +1,6 @@
 import { AlertTriangle, Sparkles } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
 import type { WordFillProgress } from "../model/prepare-word-inputs";
 
 export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
@@ -8,10 +9,7 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
   const percent = total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
   const failedWords = progress.failedWords ?? [];
   const retry = progress.retry;
-  const remaining = Math.max(
-    0,
-    Math.ceil((total - completed - failedWords.length) / batchSize),
-  );
+  const remaining = Math.max(0, Math.ceil((total - completed - failedWords.length) / batchSize));
 
   return (
     <div
@@ -50,10 +48,10 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
             ? t("library.aiProgress.retryRateLimit", { seconds: retry.secondsRemaining })
             : t("library.aiProgress.retryBusy", { seconds: retry.secondsRemaining })
           : remaining > 0
-          ? t("library.aiProgress.hint", { count: remaining })
-          : failedWords.length > 0
-            ? t("library.aiProgress.partial", { completed, total })
-            : t("library.aiProgress.finishing")}
+            ? t("library.aiProgress.hint", { count: remaining })
+            : failedWords.length > 0
+              ? t("library.aiProgress.partial", { completed, total })
+              : t("library.aiProgress.finishing")}
       </p>
       {failedWords.length > 0 && (
         <div
@@ -61,7 +59,11 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
           className="mt-3 rounded-xl border border-[#b88735] bg-[#302517] p-3 text-[#fff8e8] shadow-sm"
         >
           <div className="flex items-start gap-2.5">
-            <AlertTriangle aria-hidden="true" size={17} className="mt-0.5 shrink-0 text-[#ffd17b]" />
+            <AlertTriangle
+              aria-hidden="true"
+              size={17}
+              className="mt-0.5 shrink-0 text-[#ffd17b]"
+            />
             <div className="min-w-0">
               <p className="text-sm font-bold leading-5 text-[#fff8e8]">
                 {t("library.aiProgress.failedTitle", { count: failedWords.length })}
@@ -75,12 +77,13 @@ export function AiFillProgress({ progress }: { progress: WordFillProgress }) {
             aria-label={t("library.aiProgress.failedListLabel")}
             className="mt-2.5 flex max-h-32 flex-wrap items-start gap-1.5 overflow-y-auto"
           >
-            {failedWords.map((word, index) => (
+            {withOccurrenceKeys(failedWords, (word) => word).map(({ item: word, key }) => (
               <li
-                key={`${word}-${index}`}
+                key={key}
                 className="max-w-full break-words rounded-md border border-[#956f34] bg-[#4b3822] px-2.5 py-1 text-xs font-semibold leading-5 text-[#fff8e8]"
               >
                 {word}
+                {progress.failureReasons?.[word] && <> · {progress.failureReasons[word]}</>}
               </li>
             ))}
           </ul>

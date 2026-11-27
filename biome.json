@@ -6,12 +6,13 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!!**/dist"]
+    "includes": ["**", "!!**/dist", "!!**/.artifacts"]
   },
   "formatter": {
     "enabled": true,
     "indentStyle": "space",
     "indentWidth": 2,
+    "lineEnding": "lf",
     "lineWidth": 100
   },
   "linter": {
@@ -30,7 +31,7 @@
   },
   "overrides": [
     {
-      "includes": ["frontend/tests/**"],
+      "includes": ["tests/frontend/**"],
       "linter": {
         "rules": {
           "style": {

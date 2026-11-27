@@ -3,11 +3,13 @@ import { ArrowRight } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { FlashcardBack, FlashcardFront } from "@/features/learning-game/components/flashcard-faces";
 import { useCardFlip } from "@/features/learning-game/hooks/use-card-flip";
-import { PronunciationButtons } from "@/features/word-library/components/pronunciation-buttons";
-import { WordExample } from "@/features/word-library/components/word-example";
-import { hasAtlasTiers, ATLAS_TIER_ORDER } from "@/features/word-library/model/tiered-examples";
+import { ATLAS_TIER_ORDER, hasAtlasTiers } from "@/features/word-library/model/tiered-examples";
+import { withOccurrenceKeys } from "@/shared/lib/occurrence-keys";
 import { cn } from "@/shared/lib/utils";
 import { Button } from "@/shared/ui/button";
+import { PronunciationButtons } from "@/shared/ui/pronunciation-buttons";
+import { WordCredit } from "@/shared/ui/word-credit";
+import { WordExample } from "@/shared/vocabulary/word-example";
 
 interface FlashcardPanelProps {
   word: WordEntry;
@@ -80,16 +82,23 @@ function FlashcardCard({ word, onNext, onFlip, onPronounce }: FlashcardPanelProp
               <WordExample word={word} example={example} allowDuringGame />
             </div>
           )}
+          {word.attribution && <WordCredit credit={word.attribution} />}
           {hasAtlasTiers(word.examples) && (
             <details className="rounded-xl border border-slate-200 bg-white p-4">
-              <summary className="cursor-pointer text-sm font-semibold text-atlas-navy">Tüm 5 seviyeli cümleyi gör</summary>
+              <summary className="cursor-pointer text-sm font-semibold text-atlas-navy">
+                Tüm 5 seviyeli cümleyi gör
+              </summary>
               <ol className="mt-3 space-y-4">
-                {word.examples.slice(0, 5).map((item, index) => (
-                  <li key={index} className="border-t pt-3">
-                    <span className="mb-1 block text-xs font-semibold uppercase text-atlas-blue">{ATLAS_TIER_ORDER[index]}</span>
-                    <WordExample word={word} example={item} compact allowDuringGame />
-                  </li>
-                ))}
+                {withOccurrenceKeys(word.examples.slice(0, 5), (example) => example.sentence).map(
+                  ({ item, key }, index) => (
+                    <li key={key} className="border-t pt-3">
+                      <span className="mb-1 block text-xs font-semibold uppercase text-atlas-blue">
+                        {ATLAS_TIER_ORDER[index]}
+                      </span>
+                      <WordExample word={word} example={item} compact allowDuringGame />
+                    </li>
+                  ),
+                )}
               </ol>
             </details>
           )}

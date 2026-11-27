@@ -1,89 +1,231 @@
-﻿import { assessmentScore, gameSessionSchema, type GameSession } from "@yds-atlas/shared";
-import type { RequestContext } from "../../shared/supabase";
+import {
+  type AssessmentAction,
+  accountStateSchema,
+  DEFAULT_DAILY_GOAL,
+  dailyGoalSchema,
+  type GameSession,
+  gameSessionSchema,
+} from "@yds-atlas/shared";
+import { createAssessmentSnapshot, isGameReady } from "@yds-atlas/shared/game-engine";
 import { databaseError, HttpError } from "../../shared/errors";
-export function completionScores(snapshot: GameSession) {
-  if (snapshot.phase !== "complete" || snapshot.tutorial || snapshot.queue.length)
-    throw new HttpError(400, "Görev henüz tamamlanmadı.", "UNFINISHED_SESSION");
-  return snapshot.words.map((word) => {
-    if (snapshot.version === 2)
-      return {
-        id: word.id,
-        score: Math.max(0, Math.min(100, word.score + (snapshot.scoreChanges[word.id] ?? 0))),
-      };
-    const assessment = snapshot.assessment[word.id];
-    if (
-      !assessment?.matchingDone ||
-      !assessment.meaning ||
-      !assessment.context ||
-      [assessment.meaning, assessment.context].some(
-        (answer) => answer.correct && answer.confidence === null,
-      )
-    )
-      throw new HttpError(400, "Görevin değerlendirmesi eksik.", "INCOMPLETE_ASSESSMENT");
-    return { id: word.id, score: assessmentScore(assessment) };
-  });
+import type { RequestContext } from "../../shared/supabase";
+import { mapWord } from "../words/word-service";
+import { invalidAssessment, replayAssessment } from "./assessment-scoring";
+import type { AssessmentWriter } from "./assessment-writer";
+
+function sessionConflict() {
+  return new HttpError(
+    409,
+    "Görev başka bir sekmede değişti. Sayfayı yenileyip devam et.",
+    "SESSION_CONFLICT",
+  );
 }
-export async function saveSession(ctx: RequestContext, snapshot: GameSession, revision: number) {
-  const { data, error } = await ctx.db.rpc("save_learning_session", {
-    p_id: snapshot.id,
-    p_snapshot: snapshot,
-    p_expected_revision: revision,
-  });
+
+function storedSnapshot(row: { snapshot: GameSession; assessment_protocol: number | null }) {
+  const parsed = gameSessionSchema.safeParse(
+    row.assessment_protocol === 1
+      ? row.snapshot
+      : { ...row.snapshot, assessmentActions: undefined },
+  );
+  if (!parsed.success || (row.assessment_protocol !== null && row.assessment_protocol !== 1))
+    throw new HttpError(503, "Kayıtlı çalışma oturumu doğrulanamadı.", "SESSION_NOT_AVAILABLE");
+  return parsed.data;
+}
+
+async function initialAssessment(
+  ctx: RequestContext,
+  requested: GameSession,
+): Promise<GameSession> {
+  const ids = requested.words.map((word) => word.id);
+  const { data, error } = await ctx.db.from("words").select("*").in("id", ids);
   databaseError(error);
-  return { revision: data as number };
+  if (data?.length !== ids.length) throw new HttpError(404, "Kelime bulunamadı.", "NOT_FOUND");
+  const stored = new Map(data.map((row) => [row.id, mapWord(row)] as const));
+  const words = requested.words.map((requestedWord) => {
+    const word = stored.get(requestedWord.id);
+    if (!word) throw invalidAssessment();
+    if (word.updatedAt !== requestedWord.updatedAt)
+      throw new HttpError(
+        409,
+        "Kelime listen değişti. Görevi güncel kelimelerle yeniden başlat.",
+        "ASSESSMENT_WORD_CHANGED",
+      );
+    if (!isGameReady(word)) throw invalidAssessment();
+    return word;
+  });
+  return {
+    ...createAssessmentSnapshot(words, requested.batchSize, requested.id),
+    day: requested.day,
+    assessmentActions: [],
+  };
 }
-export async function completeSession(ctx: RequestContext, id: string) {
+
+function matchesPrefix(previous: AssessmentAction[], incoming: AssessmentAction[]) {
+  return (
+    previous.length <= incoming.length &&
+    previous.every((entry, index) => JSON.stringify(entry) === JSON.stringify(incoming[index]))
+  );
+}
+
+export async function saveSession(
+  ctx: RequestContext,
+  writer: AssessmentWriter,
+  requested: GameSession,
+  revision: number,
+) {
   const { data, error } = await ctx.db
     .from("learning_sessions")
-    .select("snapshot")
-    .eq("id", id)
+    .select("snapshot,assessment_protocol,revision,completed_at")
+    .eq("id", requested.id)
     .maybeSingle();
   databaseError(error);
-  if (!data) throw new HttpError(404, "Görev bulunamadı.", "NOT_FOUND");
-  const snapshot = gameSessionSchema.parse(data.snapshot);
-  const scores = completionScores(snapshot);
-  const result = await ctx.db.rpc("complete_learning_session", { p_id: id, p_scores: scores });
-  databaseError(result.error);
-  return { scores: result.data as { id: string; score: number }[] };
+
+  const incoming = requested.assessmentActions;
+  const ranked = incoming !== undefined;
+  if (!data && revision !== 0) throw sessionConflict();
+  if (!data && requested.discarded) return { revision: 0 };
+  if (data && (data.assessment_protocol === 1) !== ranked) throw sessionConflict();
+  if (!ranked) {
+    if (data && (data.revision !== revision || data.completed_at)) throw sessionConflict();
+    return {
+      revision: await writer.save(ctx.userId, { ...requested, saved: false }, revision, false),
+    };
+  }
+
+  if (requested.version !== 3) throw invalidAssessment();
+  if (!data && incoming.length) throw invalidAssessment();
+  const snapshot = data ? storedSnapshot(data) : await initialAssessment(ctx, requested);
+  const previous = snapshot.assessmentActions ?? [];
+  if (!matchesPrefix(previous, incoming)) throw sessionConflict();
+  const same = incoming.length === previous.length && snapshot.discarded === requested.discarded;
+  if (data) {
+    if (same && (revision === data.revision || revision === data.revision - 1))
+      return { revision: data.revision as number };
+    if (data.completed_at || data.revision !== revision || snapshot.discarded)
+      throw sessionConflict();
+  }
+  const replayed = replayAssessment(snapshot, incoming.slice(previous.length));
+  if (requested.discarded && replayed.phase === "complete") throw invalidAssessment();
+  const canonical = { ...replayed, assessmentActions: incoming, discarded: requested.discarded };
+  return { revision: await writer.save(ctx.userId, canonical, revision, true) };
 }
 export async function accountState(ctx: RequestContext) {
-  const profile = await ctx.db
-    .from("profiles")
-    .upsert({ user_id: ctx.userId }, { onConflict: "user_id", ignoreDuplicates: true });
-  databaseError(profile.error);
   const [settings, session, progress, days] = await Promise.all([
-    ctx.db.from("profiles").select("daily_goal").single(),
-    ctx.db
-      .from("learning_sessions")
-      .select("snapshot,revision")
-      .order("updated_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    historyRows(ctx, "daily_word_completions", "day,word_id"),
-    historyRows(ctx, "completed_goal_days", "day,goal"),
+    ctx.db.from("profiles").select("daily_goal").eq("user_id", ctx.userId),
+    accountSession(ctx),
+    historyRows(ctx, "daily_word_completions"),
+    historyRows(ctx, "completed_goal_days"),
   ]);
-  for (const result of [settings, session]) databaseError(result.error);
+  databaseError(settings.error);
+  const rows = settings.data;
+  const goal = dailyGoalSchema.safeParse(rows?.[0]?.daily_goal);
+  if (!Array.isArray(rows) || rows.length > 1 || (rows.length === 1 && !goal.success))
+    throw new HttpError(503, "Günlük hedef yüklenemedi. Yeniden dene.", "PROFILE_NOT_AVAILABLE");
   return {
-    dailyGoal: settings.data!.daily_goal as number,
-    session: session.data
-      ? {
-          snapshot: gameSessionSchema.parse(session.data.snapshot),
-          revision: session.data.revision as number,
-        }
-      : null,
+    onlineProtocol: 1 as const,
+    planProtocol: 1 as const,
+    dailyGoal: goal.data ?? DEFAULT_DAILY_GOAL,
+    session,
     progress,
     completedDays: days,
   };
 }
 
-async function historyRows(ctx: RequestContext, table: string, columns: string) {
-  const entries: unknown[] = [];
-  for (let offset = 0; ; offset += 500) {
-    let query = ctx.db.from(table).select(columns).order("day", { ascending: false });
-    if (table === "daily_word_completions") query = query.order("word_id");
-    const { data, error } = await query.range(offset, offset + 499);
+async function accountSession(ctx: RequestContext) {
+  async function latest(unfinishedOnly: boolean) {
+    let query = ctx.db
+      .from("learning_sessions")
+      .select("snapshot,revision,assessment_protocol,completed_at")
+      .eq("user_id", ctx.userId)
+      .order("updated_at", { ascending: false })
+      .order("id")
+      .limit(1);
+    if (unfinishedOnly)
+      query = query
+        .is("completed_at", null)
+        .or("snapshot->>discarded.is.null,snapshot->>discarded.neq.true");
+    const { data, error } = await query;
     databaseError(error);
-    entries.push(...(data ?? []));
-    if ((data?.length ?? 0) < 500) return entries;
+    if (!Array.isArray(data) || data.length > 1 || (data.length && !data[0]))
+      throw new HttpError(503, "Çalışma oturumu okunamadı. Yeniden dene.", "SESSION_NOT_AVAILABLE");
+    return data[0];
+  }
+  let row = await latest(false);
+  if (!row) return null;
+  // An earlier session started on another device may still need to be resumed or cancelled.
+  if (row.completed_at || row.snapshot?.discarded) row = (await latest(true)) ?? row;
+  if (!Number.isSafeInteger(row.revision) || row.revision <= 0)
+    throw new HttpError(503, "Çalışma sürümü doğrulanamadı.", "SESSION_NOT_AVAILABLE");
+  return { snapshot: storedSnapshot(row), revision: row.revision as number };
+}
+
+function incompleteHistory() {
+  return new HttpError(
+    503,
+    "Çalışma geçmişi eksiksiz okunamadı. Yeniden dene.",
+    "INCOMPLETE_HISTORY",
+  );
+}
+
+async function historyRows(
+  ctx: RequestContext,
+  table: "daily_word_completions" | "completed_goal_days",
+) {
+  const progress = table === "daily_word_completions";
+  const columns = progress ? "day,word_id" : "day,goal";
+  const schema = progress
+    ? accountStateSchema.shape.progress
+    : accountStateSchema.shape.completedDays;
+  const entries: ({ day: string; word_id: string } | { day: string; goal: number })[] = [];
+  let total: number | undefined;
+  let last: (typeof entries)[number] | undefined;
+  for (;;) {
+    let query = ctx.db
+      .from(table)
+      .select(columns, last ? {} : { count: "exact" })
+      .eq("user_id", ctx.userId)
+      .order("day", { ascending: false });
+    if (progress) query = query.order("word_id");
+    if (last)
+      query =
+        "word_id" in last
+          ? query.or(`day.lt.${last.day},and(day.eq.${last.day},word_id.gt.${last.word_id})`)
+          : query.lt("day", last.day);
+    const { data, error, count } = await query.limit(500);
+    databaseError(error);
+    if (total === undefined) {
+      if (count === null || !Number.isSafeInteger(count) || count < 0) throw incompleteHistory();
+      total = count;
+      if (total > 250_000)
+        throw new HttpError(413, "Çalışma geçmişi okuma sınırını aşıyor.", "HISTORY_LIMIT");
+    }
+    const page = schema.safeParse(data);
+    if (!page.success || page.data.length > 500 || (!page.data.length && entries.length < total))
+      throw incompleteHistory();
+    const continued = !!last;
+    for (const row of page.data) {
+      if (
+        last &&
+        (row.day > last.day ||
+          (row.day === last.day &&
+            (!("word_id" in row && "word_id" in last) || row.word_id <= last.word_id)))
+      )
+        throw incompleteHistory();
+      entries.push(row);
+      last = row;
+    }
+    if (entries.length > total) throw incompleteHistory();
+    if (entries.length === total) {
+      // Both tables are append-only for a live owner. A changed total invalidates a multi-page read.
+      if (continued) {
+        const check = await ctx.db
+          .from(table)
+          .select("day", { count: "exact", head: true })
+          .eq("user_id", ctx.userId);
+        databaseError(check.error);
+        if (check.count !== total) throw incompleteHistory();
+      }
+      return entries;
+    }
   }
 }

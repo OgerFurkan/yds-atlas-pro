@@ -1,0 +1,140 @@
+import { expect, test } from "bun:test";
+import {
+  buildDailyPlan,
+  clampDailyGroupSize,
+  DAILY_PLAN_DAYS,
+  MAX_DAILY_GROUP_SIZE,
+  MIN_DAILY_GROUP_SIZE,
+} from "../../../frontend/src/features/word-library/model/daily-groups";
+import type { WordEntry } from "../../../packages/shared/src/index";
+
+function word(value: string, score: number, index: number): WordEntry {
+  const createdAt = new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString();
+  return {
+    id: value.toLowerCase(),
+    word: value,
+    alternatives: [],
+    meanings: [`${value} anlamı`],
+    usageNote: "",
+    partOfSpeech: "",
+    cefr: "B1",
+    score,
+    examples: Array.from({ length: 5 }, (_, exampleIndex) => ({
+      sentence: `We use ${value} in example ${exampleIndex}.`,
+      translation: `${value} anlamı · ${exampleIndex}.`,
+      translationFocus: [`${value} anlamı`],
+      difficulty: (["easy", "easy", "medium", "yds", "yds"] as const)[exampleIndex],
+    })),
+    pronunciationUk: "",
+    pronunciationUs: "",
+    sourceUrl: "",
+    createdAt,
+    updatedAt: createdAt,
+  };
+}
+
+test("daily plan keeps 60 days and clamps the group size to 10–40 words", () => {
+  const words = Array.from({ length: 45 }, (_, index) => word(`Word${index}`, 0, index));
+  const plan = buildDailyPlan(words, 50);
+  expect(plan.groups).toHaveLength(DAILY_PLAN_DAYS);
+  expect(plan.groupSize).toBe(MAX_DAILY_GROUP_SIZE);
+  expect(plan.groups[0].total).toBe(MAX_DAILY_GROUP_SIZE);
+  expect(plan.groups[0].words[0].word).toBe("Word0");
+  expect(plan.groups[1].total).toBe(5);
+  expect(plan.activeDays).toBe(2);
+  expect(plan.totalWords).toBe(45);
+  expect(clampDailyGroupSize(1)).toBe(MIN_DAILY_GROUP_SIZE);
+  expect(clampDailyGroupSize(Number.NaN)).toBe(20);
+});
+
+test("group statistics expose learned, hard, review and playable words", () => {
+  const words = [
+    ...Array.from({ length: 15 }, (_, index) => word(`Learned${index}`, 90, index)),
+    ...Array.from({ length: 3 }, (_, index) => word(`Hard${index}`, 10, 15 + index)),
+    ...Array.from({ length: 2 }, (_, index) => word(`Review${index}`, 50, 18 + index)),
+  ];
+  const plan = buildDailyPlan(words, 20);
+  const group = plan.groups[0];
+  expect(group.total).toBe(20);
+  expect(group.learned).toBe(15);
+  expect(group.hard).toBe(3);
+  expect(group.review).toBe(2);
+  expect(group.playable).toBe(5);
+  expect(group.playableWords.every((item) => item.score < 80)).toBeTrue();
+  expect(group.progress).toBe(0.75);
+  expect(plan.completedDays).toBe(0);
+  expect(
+    buildDailyPlan(
+      words.map((item) => ({ ...item, score: 90 })),
+      20,
+    ).completedDays,
+  ).toBe(1);
+});
+
+test("scored study leaves out learned words even across different five-word groups", () => {
+  const learned = new Set([0, 3, 7, 11, 18]);
+  const words = Array.from({ length: 20 }, (_, index) =>
+    word(`Word${index}`, learned.has(index) ? 90 : 0, index),
+  );
+  const group = buildDailyPlan(words, 20).groups[0];
+  expect(group.learned).toBe(5);
+  expect(group.playable).toBe(15);
+  expect(group.playableWords.map((entry) => entry.id)).toEqual(
+    words.filter((_, index) => !learned.has(index)).map((entry) => entry.id),
+  );
+  for (let start = 0; start < 20; start += 5) {
+    const batch = words.slice(start, start + 5);
+    const learnedInBatch = [...learned].filter((index) => index >= start && index < start + 5);
+    expect(
+      group.playableWords.filter((entry) => batch.some((item) => item.id === entry.id)),
+    ).toHaveLength(batch.length - learnedInBatch.length);
+  }
+});
+
+test("completed days keep all words for review and have no scored study candidates", () => {
+  const empty = buildDailyPlan([], 20);
+  expect(empty.groups.every((group) => group.total === 0)).toBe(true);
+  expect(empty.activeDays).toBe(0);
+  expect(empty.completedDays).toBe(0);
+  expect(empty.overflow).toBe(0);
+
+  const words = Array.from({ length: 20 }, (_, index) => word(`Done${index}`, 90, index));
+  const plan = buildDailyPlan(words, 20);
+  expect(plan.completedDays).toBe(1);
+  expect(plan.groups[0].playable).toBe(0);
+  expect(plan.groups[0].words).toHaveLength(20);
+});
+
+test("words beyond the 60-day capacity are reported as overflow", () => {
+  const words = Array.from({ length: 601 }, (_, index) => word(`Extra${index}`, 0, index));
+  const plan = buildDailyPlan(words, MIN_DAILY_GROUP_SIZE);
+  expect(plan.totalWords).toBe(600);
+  expect(plan.activeDays).toBe(60);
+  expect(plan.overflow).toBe(1);
+});
+
+test("explicit assignments keep manual days stable without re-packing other words", () => {
+  const words = [word("A", 10, 1), word("B", 55, 2), word("C", 90, 3)];
+  const plan = buildDailyPlan(words, 20, [
+    { day: 1, words: ["a"] },
+    { day: 3, words: ["c", "b"] },
+  ]);
+  expect(plan.groups[0].words.map((item) => item.id)).toEqual(["a"]);
+  expect(plan.groups[1].total).toBe(0);
+  expect(plan.groups[2].words.map((item) => item.id)).toEqual(["c", "b"]);
+  expect(plan.totalWords).toBe(3);
+  expect(plan.activeDays).toBe(2);
+  expect(buildDailyPlan(words, 10, [{ day: 3, words: ["c"] }]).overflow).toBe(2);
+});
+
+test("invalid assignments and repeated word IDs cannot duplicate library records", () => {
+  const words = [word("A", 10, 1), word("B", 10, 2)];
+  const plan = buildDailyPlan(words, 20, [
+    { day: 0, words: ["b"] },
+    { day: 1, words: ["a", "a", "missing"] },
+    { day: 2, words: ["a", "b"] },
+  ]);
+  expect(plan.groups[0].total).toBe(1);
+  expect(plan.groups[1].total).toBe(1);
+  expect(plan.totalWords).toBe(2);
+});

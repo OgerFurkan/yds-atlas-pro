@@ -25,6 +25,13 @@ function readLanguage(): AppLanguage {
 }
 
 export function AppPreferencesProvider({ children }: { children: ReactNode }) {
+  const [mobileChatVisible, setVisible] = useState(() => {
+    try {
+      return localStorage.getItem("atlas-mobile-chat-hidden") !== "true";
+    } catch {
+      return true;
+    }
+  });
   const [language, setLanguageState] = useState<AppLanguage>(readLanguage);
   const [theme, setThemeState] = useState<ColorTheme>(readTheme);
 
@@ -60,6 +67,15 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
     () => ({
       language,
       theme,
+      mobileChatVisible,
+      setMobileChatVisible: (visible: boolean) => {
+        setVisible(visible);
+        try {
+          localStorage.setItem("atlas-mobile-chat-hidden", String(!visible));
+        } catch {
+          /* In-memory preference still applies. */
+        }
+      },
       setLanguage: (next: AppLanguage) => {
         setLanguageState(next);
         try {
@@ -77,7 +93,7 @@ export function AppPreferencesProvider({ children }: { children: ReactNode }) {
         }
       },
     }),
-    [language, theme],
+    [language, theme, mobileChatVisible],
   );
 
   return <AppPreferencesContext.Provider value={value}>{children}</AppPreferencesContext.Provider>;

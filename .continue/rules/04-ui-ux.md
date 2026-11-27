@@ -1,4 +1,5 @@
 ---
+
 name: Atlas Pro - UI UX Standards
 alwaysApply: false
 globs: ["frontend/**/*.tsx", "frontend/**/*.css"]

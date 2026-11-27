@@ -1,4 +1,4 @@
-﻿import {
+import {
   type AiWordResponse,
   aiNamedWordsRequestSchema,
   aiWordListRequestSchema,
@@ -6,6 +6,7 @@
   aiWordRequestSchema,
   aiWordResponseSchema,
   type DictionarySource,
+  type RequestedWordSense,
   wordInputSchema,
 } from "@yds-atlas/shared";
 import { apiRequest } from "@/shared/api/api-client";
@@ -27,15 +28,27 @@ export async function enrichWithGemini(word: string, signal?: AbortSignal) {
     throw error;
   }
 }
-export async function completeWordsWithGemini(words: string[], signal?: AbortSignal) {
-  const request = aiNamedWordsRequestSchema.parse({ words });
+export async function completeWordsWithGemini(
+  words: string[],
+  signal?: AbortSignal,
+  owner?: string,
+  senses?: RequestedWordSense[],
+) {
+  const request = aiNamedWordsRequestSchema.parse({
+    words,
+    senses: senses?.length ? senses : undefined,
+  });
   try {
     return aiWordListResponseSchema.parse(
-      await apiRequest("/api/ai/words/complete", {
-        method: "POST",
-        body: JSON.stringify(request),
-        signal,
-      }),
+      await apiRequest(
+        "/api/ai/words/complete",
+        {
+          method: "POST",
+          body: JSON.stringify(request),
+          signal,
+        },
+        owner,
+      ),
     );
   } catch (error) {
     if (!signal?.aborted) recordAiIssue(error);
@@ -76,9 +89,10 @@ export function aiSuggestionToWordInput(
     examples: suggestion.examples.map((example, index) => ({
       ...example,
       difficulty: example.difficulty ?? (["easy", "easy", "medium", "yds", "yds"] as const)[index],
-      source: dictionarySentences.has(example.sentence.trim())
-        ? `DictionaryAPI.dev / Wiktionary (${dictionarySource!.licenseName}): ${dictionarySource!.sourceUrl}`
-        : "Gemini · " + model,
+      source:
+        dictionarySource && dictionarySentences.has(example.sentence.trim())
+          ? `DictionaryAPI.dev / Wiktionary (${dictionarySource.licenseName}): ${dictionarySource.sourceUrl}`
+          : "Gemini · " + model,
     })),
   });
 }

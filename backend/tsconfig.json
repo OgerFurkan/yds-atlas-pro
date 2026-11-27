@@ -3,10 +3,12 @@
     "target": "ES2023",
     "module": "Preserve",
     "moduleResolution": "Bundler",
+    "paths": { "@yds-atlas/shared": ["../packages/shared/src/index.ts"] },
     "strict": true,
     "noEmit": true,
+    "allowImportingTsExtensions": true,
     "skipLibCheck": true,
     "types": ["bun"]
   },
-  "include": ["src", "tests"]
+  "include": ["src", "../tests/backend/**/*.ts"]
 }

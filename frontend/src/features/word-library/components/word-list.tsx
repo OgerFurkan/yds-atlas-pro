@@ -3,11 +3,11 @@ import { Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { WordDetails } from "@/features/word-library/components/word-details";
-import { SentenceWordTooltips } from "@/features/word-library/components/sentence-word-tooltips";
 import { WordStatus } from "@/features/word-library/components/word-status";
 import { Button } from "@/shared/ui/button";
 import { Checkbox } from "@/shared/ui/checkbox";
 import { Tabs, TabsList, TabsTrigger } from "@/shared/ui/tabs";
+import { SentenceWordTooltips } from "@/shared/vocabulary/sentence-word-tooltips";
 import { formatWordType } from "../model/word-normalization";
 
 export interface WordListActions {
@@ -78,7 +78,9 @@ function WordTableRow({
       </td>
       <td className="px-2.5 py-3 align-middle">
         <div className="flex min-w-[120px] flex-col gap-0.5">
-          <strong className="text-base font-semibold text-atlas-ink"><SentenceWordTooltips text={word.word} focusWord={word}/></strong>
+          <strong className="text-base font-semibold text-atlas-ink">
+            <SentenceWordTooltips text={word.word} focusWord={word} />
+          </strong>
           {word.alternatives.length > 0 && (
             <small className="text-sm text-atlas-muted">{word.alternatives.join(", ")}</small>
           )}
@@ -93,7 +95,9 @@ function WordTableRow({
             <span className="text-sm italic text-slate-400">{t("library.meaningMissing")}</span>
           )}
           {word.usageNote && (
-            <small className="mt-0.5 block text-xs leading-5 text-atlas-muted">{word.usageNote}</small>
+            <small className="mt-0.5 block text-xs leading-5 text-atlas-muted">
+              {word.usageNote}
+            </small>
           )}
         </div>
       </td>

@@ -1,13 +1,17 @@
 ﻿import { accountStateSchema, type GameSession } from "@yds-atlas/shared";
-import { apiRequest } from "@/shared/api/api-client";
+import { accountRequest } from "@/shared/api/api-client";
 export function createAccountApi(userId: string) {
-  const call = <T>(path: string, init?: RequestInit) => apiRequest<T>(path, init, userId);
+  const call = accountRequest(userId);
   return {
     async load() {
       return accountStateSchema.parse(await call("/api/account"));
     },
     async saveGoal(goal: number) {
-      await call("/api/account/goal", { method: "PUT", body: JSON.stringify({ goal }) });
+      const result = await call<{ goal?: number }>("/api/account/goal", {
+        method: "PUT",
+        body: JSON.stringify({ goal }),
+      });
+      if (result?.goal !== goal) throw new Error("Günlük hedef kaydı doğrulanamadı.");
     },
     saveSession(snapshot: GameSession, revision: number) {
       return call<{ revision: number }>("/api/learning/session", {
@@ -15,10 +19,10 @@ export function createAccountApi(userId: string) {
         body: JSON.stringify({ snapshot, revision }),
       });
     },
-    completeSession(id: string) {
-      return call<{ scores: { id: string; score: number }[] }>(
+    completeSession(id: string, revision: number) {
+      return call<{ scores: { id: string; score: number }[]; practiceOnly: boolean }>(
         "/api/learning/sessions/" + id + "/complete",
-        { method: "POST", body: "{}" },
+        { method: "POST", body: JSON.stringify({ revision }) },
       );
     },
   };

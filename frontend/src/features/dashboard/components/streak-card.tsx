@@ -1,11 +1,10 @@
 import { Check, Flame, Trophy } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { cn } from "@/shared/lib/utils";
-import { getStreak } from "../model/streak";
+import type { getStreak } from "../model/streak";
 
-export function StreakCard({ now }: { now: Date }) {
+export function StreakCard({ streak }: { streak: ReturnType<typeof getStreak> }) {
   const { t } = useTranslation();
-  const streak = getStreak(now);
   const weekdays = t("streak.weekdays", { returnObjects: true }) as string[];
   return (
     <aside

@@ -124,8 +124,11 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
           className="font-display font-semibold leading-tight tracking-tight text-atlas-navy"
         />
         <span className="flex flex-wrap justify-center gap-2">
-          <Badge variant="outline" className="border-slate-200 bg-white/80 text-atlas-navy"
-            style={{ backgroundColor: "#ffffff", borderColor: "#cbd5e1", color: "#123b59" }}>
+          <Badge
+            variant="outline"
+            className="border-slate-200 bg-white/80 text-atlas-navy"
+            style={{ backgroundColor: "#ffffff", borderColor: "#cbd5e1", color: "#123b59" }}
+          >
             {formatWordType(word.partOfSpeech) || t("game.undefinedType")}
           </Badge>
           {hasCefr && (
@@ -154,8 +157,10 @@ export function FlashcardBack({ word, hidden }: { word: WordEntry; hidden: boole
           {meaning || t("game.meaningMissing")}
         </span>
         {word.usageNote && (
-          <span className="mt-3 w-full rounded-xl border border-slate-200 bg-white/75 px-4 py-3 text-left"
-            style={{ backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#cbd5e1" }}>
+          <span
+            className="mt-3 w-full rounded-xl border border-slate-200 bg-white/75 px-4 py-3 text-left"
+            style={{ backgroundColor: "rgba(255,255,255,0.96)", borderColor: "#cbd5e1" }}
+          >
             <span className="mb-1.5 block text-[11px] font-bold uppercase tracking-[0.13em] text-slate-600">
               {t("game.usageNote")}
             </span>

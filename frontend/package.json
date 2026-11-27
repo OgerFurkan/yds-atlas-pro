@@ -4,14 +4,14 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "lint": "oxlint",
-    "test": "bun test tests/unit",
-    "test:e2e": "playwright test",
-    "test:dev": "playwright test --config playwright.dev.config.ts",
+    "dev": "vite --host 127.0.0.1 --strictPort",
+    "build": "node ../scripts/quality/typecheck.mjs frontend && vite build",
+    "lint": "cd .. && oxlint frontend tests/frontend",
+    "test": "bun --no-env-file test ../tests/frontend/unit",
+    "test:e2e": "playwright test --config config/playwright/guest.config.ts",
+    "test:dev": "playwright test --config config/playwright/dev.config.ts",
     "preview": "vite preview",
-    "test:cloud": "playwright test --config playwright.cloud.config.ts"
+    "test:cloud": "playwright test --config config/playwright/cloud.config.ts"
   },
   "dependencies": {
     "@fontsource/dm-sans": "^5.3.0",
@@ -22,7 +22,6 @@
     "@radix-ui/react-dropdown-menu": "^2.2.1",
     "@radix-ui/react-progress": "^1.2.1",
     "@radix-ui/react-select": "^2.4.1",
-    "@radix-ui/react-separator": "^1.2.0",
     "@radix-ui/react-slot": "^1.5.0",
     "@radix-ui/react-tabs": "^1.2.1",
     "@supabase/supabase-js": "2.119.0",

@@ -11,10 +11,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/shared/ui/dialog";
-import { formatWordType } from "../model/word-normalization";
-import { PronunciationButtons } from "./pronunciation-buttons";
-import { WordExample } from "./word-example";
+import { PronunciationButtons } from "@/shared/ui/pronunciation-buttons";
+import { WordCredit } from "@/shared/ui/word-credit";
+import { WordExample } from "@/shared/vocabulary/word-example";
 import { hasAtlasTiers } from "../model/tiered-examples";
+import { formatWordType } from "../model/word-normalization";
 import { WordStatus } from "./word-status";
 
 export function WordDetails({ word }: { word: WordEntry }) {
@@ -53,6 +54,7 @@ export function WordDetails({ word }: { word: WordEntry }) {
               <Badge variant="outline">{word.cefr}</Badge>
               <WordStatus score={word.score} />
             </div>
+            {word.attribution && <WordCredit credit={word.attribution} />}
             {word.usageNote && <p className="text-sm leading-7 text-slate-600">{word.usageNote}</p>}
             <PronunciationButtons
               word={word.word}
@@ -94,7 +96,9 @@ export function WordDetails({ word }: { word: WordEntry }) {
               <p className="text-sm text-slate-500">{t("library.noExamples")}</p>
             )}
             {hasAtlasTiers(word.examples) ? (
-              <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">2 kolay · 1 orta · 2 YDS örneğin kaydedilmiş.</p>
+              <p className="rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+                2 kolay · 1 orta · 2 YDS örneğin kaydedilmiş.
+              </p>
             ) : (
               <p className="rounded-lg border border-sky-200 bg-sky-50 p-3 text-sm text-slate-700">
                 Eski cümlelerin korunuyor. Kütüphane sayfasındaki “Eksik cümleleri 2/1/2 tamamla”

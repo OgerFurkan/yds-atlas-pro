@@ -13,9 +13,15 @@ type RetryableError = { status?: number; code?: string; retryAfterSeconds?: numb
 // a timed retry. In particular AI_NOT_CONFIGURED uses HTTP 503, the same status
 // that a genuinely temporary upstream outage may return.
 const TERMINAL_AI_CODES = new Set([
-  "AI_NOT_CONFIGURED", "AI_AUTH_ERROR", "AI_MODEL_NOT_FOUND",
-  "AI_INVALID_RESPONSE", "AI_REQUEST_REJECTED", "AI_CANCELLED",
-  "UNAUTHENTICATED", "INVALID_RESPONSE",
+  "AI_NOT_CONFIGURED",
+  "AI_AUTH_ERROR",
+  "AI_PERMISSION_DENIED",
+  "AI_MODEL_NOT_FOUND",
+  "AI_INVALID_RESPONSE",
+  "AI_REQUEST_REJECTED",
+  "AI_CANCELLED",
+  "UNAUTHENTICATED",
+  "INVALID_RESPONSE",
 ]);
 
 function asRetryableError(error: unknown): RetryableError {
@@ -24,11 +30,13 @@ function asRetryableError(error: unknown): RetryableError {
   return {
     status: typeof value.status === "number" ? value.status : undefined,
     code: typeof value.code === "string" ? value.code : undefined,
-    retryAfterSeconds: typeof value.retryAfterSeconds === "number" ? value.retryAfterSeconds : undefined,
+    retryAfterSeconds:
+      typeof value.retryAfterSeconds === "number" ? value.retryAfterSeconds : undefined,
   };
 }
 
-const sleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+const sleep = (milliseconds: number) =>
+  new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 /** Maximum one automatic retry for each class of failure. Never loop forever. */
 export async function withAiRecovery<T>(

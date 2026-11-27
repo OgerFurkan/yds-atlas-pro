@@ -1,5 +1,5 @@
 ﻿import { createClient } from "@supabase/supabase-js";
-import { authStorage } from "@/features/auth/model/auth-storage";
+import { authStorage } from "../lib/auth-storage";
 
 const url = import.meta.env.VITE_SUPABASE_URL?.trim();
 const key = (

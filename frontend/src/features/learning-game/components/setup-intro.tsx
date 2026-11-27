@@ -10,12 +10,18 @@ export function SetupIntro({
   onStartGuide,
   onTutorial,
   onResume,
+  discarding,
+  starting,
+  onDiscard,
 }: {
   saved: GameSession | null;
   guideActive: boolean;
   onStartGuide: () => void;
   onTutorial: () => void;
   onResume: () => void;
+  discarding: boolean;
+  starting: boolean;
+  onDiscard: () => void;
 }) {
   const { t } = useTranslation();
   return (
@@ -42,7 +48,7 @@ export function SetupIntro({
           <Button variant="outline" onClick={onStartGuide}>
             <CircleHelp size={17} /> {t("taskIntro.guide")}
           </Button>
-          <Button variant="secondary" onClick={onTutorial}>
+          <Button variant="secondary" disabled={starting || discarding} onClick={onTutorial}>
             <GraduationCap size={18} /> {t("taskIntro.tryGame")}
           </Button>
         </div>
@@ -55,9 +61,16 @@ export function SetupIntro({
               {t("taskIntro.resume", { count: saved.words.length })}
             </p>
           </div>
-          <Button onClick={onResume}>
-            <Play size={16} /> {t("taskIntro.continue")}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button onClick={onResume} disabled={starting || discarding}>
+              <Play size={16} /> {t("taskIntro.continue")}
+            </Button>
+            {saved.phase !== "complete" && (
+              <Button variant="outline" onClick={onDiscard} disabled={starting || discarding}>
+                {t(discarding ? "taskIntro.discarding" : "taskIntro.discard")}
+              </Button>
+            )}
+          </div>
         </div>
       )}
       {saved?.saved && (

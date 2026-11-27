@@ -7,10 +7,12 @@
 **/*.sqlite-wal
 **/test-results*
 **/playwright-report
+**/.artifacts
+**/coverage
 .git
 .codex
 .vscode
 frontend/public
-backend/tests
+tests
 docs
 

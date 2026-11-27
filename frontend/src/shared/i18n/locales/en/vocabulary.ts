@@ -2,6 +2,18 @@
 export const enVocabulary = {
   wordStatus: { hard: "Needs practice", review: "Needs review", learned: "Learned" },
   taskIntro: {
+    chooseSavedTask:
+      "Discard your unfinished task to start the day's study, or continue your saved task.",
+    discard: "Discard task",
+    discarding: "Discarding…",
+    confirmDiscard:
+      "Your answers and unfinished progress in this study session will be lost. Saved scores and learning history are kept.",
+    discardTitle: "End this study session?",
+    discardCancel: "Continue studying",
+    discardConfirm: "End study session",
+    discardChanged: "The task changed in another session. Refresh and try again.",
+    discarded: "Unfinished task discarded.",
+    discardFailed: "The task could not be discarded. Try again.",
     badge: "FOR YOUR DAILY GOAL",
     title: "Daily task",
     description:
@@ -58,6 +70,9 @@ export const enVocabulary = {
     loading: "Loading your words…",
     connectionError: "Could not connect",
     retry: "Try again",
+    recoverEmpty: "Create an empty library",
+    confirmRecoverEmpty:
+      "If you previously saved words in this profile, restore your records and try again. If you are sure the profile was empty, you can create an empty library and keep the existing plan settings. Continue?",
     noMatch: "No words match this search",
     resetHint: "Clear filters and try again.",
     clearFilters: "Clear filters",
@@ -105,7 +120,8 @@ export const enVocabulary = {
       count: "{{completed}} / {{total}} words",
       hint: "{{count}} requests left · Keep this window open.",
       finishing: "Finishing the last request and adding to your library…",
-      retryRateLimit: "AI request limit: only missing words will retry in {{seconds}} seconds. Keep this window open.",
+      retryRateLimit:
+        "AI request limit: only missing words will retry in {{seconds}} seconds. Keep this window open.",
       retryBusy: "Gemini is temporarily busy. Retrying in {{seconds}} seconds.",
       partial: "{{completed}}/{{total}} words ready. Missing words can be retried.",
       failedTitle: "{{count}} words could not be completed",
@@ -125,17 +141,21 @@ export const enVocabulary = {
         tourBulkAction: "Bulk add",
         tourName: "Daily Plan guide",
         tourOverviewTitle: "Welcome to Daily Plan",
-        tourOverviewDescription: "Organize vocabulary across 60 days and track progress. This guide does not modify your data.",
+        tourOverviewDescription:
+          "Organize vocabulary across 60 days and track progress. This guide does not modify your data.",
         tourTargetTitle: "Daily word goal",
-        tourTargetDescription: "Choose 10, 20, 30, or 40 to control automatic placement of new words. Existing days will not change.",
+        tourTargetDescription:
+          "Choose 10, 20, 30, or 40 to control automatic placement of new words. Existing days will not change.",
         tourDaysTitle: "Day cards",
         tourDaysDescription: "Open a day to manage, move, or remove its assigned words.",
         tourBulkTitle: "Add words in bulk",
         tourBulkDescription: "Enter multiple words and optionally assign them to a chosen day.",
         tourStudyTitle: "Study your day's words",
-        tourStudyDescription: "When words are ready, use Study on a day card to launch the learning game.",
+        tourStudyDescription:
+          "When words are ready, use Study on a day card to launch the learning game.",
         heroTitle: "Manage your own learning path",
-        heroDescription: "Add, edit, move, or remove words for each day. Open a day card to manage its words.",
+        heroDescription:
+          "Add, edit, move, or remove words for each day. Open a day card to manage its words.",
         learnedProgress: "{{learned}} / {{total}} words learned",
         plannedShort: "planned",
         activeShort: "active days",
@@ -148,12 +168,14 @@ export const enVocabulary = {
         hideEmpty: "Hide empty days",
         showAll: "Show all 60 days",
         dayTitle: "Day {{day}} words",
-        dayDescription: "Manage your words. Removing a word from a day does not delete it from your library.",
+        dayDescription:
+          "Manage your words. Removing a word from a day does not delete it from your library.",
         wordCountLearned: "words · {{count}} learned",
-        newWord: "New word",
+        addWordMenu: "Add a word",
+        newWord: "Write a new word",
         bulkSelect: "Select from library",
-        bulkWrite: "Enter new words in bulk",
-        studyDay: "Study this day",
+        bulkWrite: "Add words in bulk",
+        studyDay: "Study",
         pickerAria: "Select words in bulk from library",
         pickerSummary: "{{slots}} slots left · {{selected}} selected · max 40 words/day",
         clearSelection: "Clear selection",
@@ -186,7 +208,8 @@ export const enVocabulary = {
         emptyDayTitle: "This day is empty",
         emptyDayHint: "Add a new or existing word above.",
         noSearchResults: "No words match your search.",
-        localOnly: "Note: Day assignments are currently stored locally for this browser and account. Cross-device sync is not available yet.",
+        localOnly:
+          "Note: Day assignments are currently stored locally for this browser and account. Cross-device sync is not available yet.",
         confirmMoveOne: "Move this word from day {{from}} to day {{to}}?",
         confirmMoveMany: "Move {{count}} words from other days into this day?",
         dayCardLabel: "DAY {{day}}",
@@ -203,8 +226,74 @@ export const enVocabulary = {
         hardCount: "{{count}} difficult",
         reviewCount: "{{count}} to review",
         learnedCount: "{{count}} learned",
-        noReadyTitle: "Complete missing word details first",
-        noReadyStudyHelp: "No words in day {{day}} are ready to study yet. Open the day details and add missing Turkish meanings and five suitable example sentences per word. Your scores, progress and unfinished game are preserved.",
+        study_state_learned:
+          "All words on day {{day}} are learned. Use Review for unscored practice.",
+        clearDay: "Clear day",
+        dayMenu: "Day {{day}} actions",
+        dayGameTitle: "Day {{day}} · Daily Plan",
+        dayGameEmpty: "There are no ready study words left in this day.",
+        dayGameBack: "Back to library",
+        clearDayTitle: "Manage or delete day {{day}}",
+        dayRemovalDescription: "Choose what to do with this day.",
+        dayRemovalChoice: "Day action",
+        clearOnly: "Clear day assignments only",
+        clearDayDescription:
+          "Removes the day's assignments. Library words, scores, notes, and learning history are kept.",
+        deleteDayWords: "Delete day and words",
+        deleteDayCount: "{{count}} words will be permanently removed from your library.",
+        deleteDayConfirmTitle: "Permanently delete {{count}} words?",
+        deleteDayConfirmDescription:
+          "Word cards, notes, and their scores are removed. Previous task history is kept. This action cannot be undone.",
+        deleteDayAcknowledge: "I confirm permanent deletion of {{count}} words.",
+        deleteDayConflict:
+          "{{count}} words are assigned to another day. Clear only this day's assignments to keep the other day intact.",
+        deleteDayBlocked_account:
+          "Permanent day deletion is currently unavailable for account libraries. You can clear this day's assignments.",
+        deleteDayBlocked_task:
+          "These words may belong to an unfinished task. Complete or discard it first.",
+        deleteDayChanged:
+          "The day's words or task status changed. Close this dialog and check again.",
+        dayWordsDeleted: "{{count}} words removed from your library.",
+        clearDayActiveTask:
+          "Your unfinished task is kept. You can resume it with the words already saved in it.",
+        confirmCancel: "Cancel",
+        completeDetails: "Complete word details",
+        study_state_guest:
+          "No words are ready. Sign in to prepare automatically, or add Turkish meanings and five suitable example sentences.",
+        study_state_partial_one:
+          "You can start with {{ready}} ready words. {{count}} incomplete word will be left out.",
+        study_state_partial_other:
+          "You can start with {{ready}} ready words. {{count}} incomplete words will be left out.",
+        study_state_prepare:
+          "Missing details will be filled from the shared pool, with Gemini used if needed.",
+        study_state_checking: "Checking the Gemini connection…",
+        study_state_offline: "No words are ready. Gemini is unreachable.",
+        study_state_cooldown: "No words are ready. The Gemini word quota is cooling down.",
+        "study_state_not-configured":
+          "No words are ready. Gemini preparation is not configured in this environment.",
+        "study_state_task-active":
+          "Resume or discard the unfinished task before preparing this day.",
+        prepareStudy: "Prepare and study",
+        prepareCardAria: "Prepare and study day {{day}}",
+        prepare_connecting: "Rechecking the Gemini connection",
+        studyChanged: "The day's word assignments changed. Try again.",
+        prepare_checking: "Checking your words",
+        prepare_generating: "Filling in missing information with AI",
+        prepare_saving: "Saving word details",
+        prepare_cancelled: "Preparation was cancelled. Saved words are still available.",
+        prepare_partial:
+          "Preparation is incomplete. You can edit missing words in the day details.",
+        preparationProgress: "Word preparation progress",
+        preparedCount: "Ready: {{ready}} / {{total}}",
+        completeMissing: "Complete {{count}} incomplete words with AI",
+        missingContent: "Missing meanings: {{meanings}} · Missing example sets: {{examples}}",
+        prepare_done: "The day's word content is complete.",
+        cancelPreparation: "Cancel preparation",
+        prepareTimeout: "Preparation timed out. Saved words are still available.",
+        retryPreparation: "Try again",
+        playReady: "Study ready words",
+        dayCleared: "Day {{day}} cleared.",
+        clearDayFailed: "The day could not be cleared. Try again.",
         studyCardAria: "Study day {{day}} words",
         study: "Study",
         review: "Review",
@@ -217,7 +306,9 @@ export const enVocabulary = {
         reviewFinished: "You reviewed all the words!",
         reviewRestart: "Restart review",
         reviewExit: "Exit",
-        reviewMissing: "{{count}} words have no Turkish meaning. Review has not started; edit those words first.",
+        reviewMissing:
+          "{{count}} words have no Turkish meaning. Review has not started; edit those words first.",
+        reviewMissingAction: "Edit missing word",
         reviewEmpty: "There are no words in this day.",
       },
       tabBadge_one: "{{count}} day filled",

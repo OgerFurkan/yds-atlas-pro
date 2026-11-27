@@ -1,7 +1,8 @@
 ---
+
 name: Atlas Pro - Frontend Standards
 alwaysApply: false
-globs: ["frontend/**/*.ts", "frontend/**/*.tsx", "frontend/**/*.css"]
+globs: ["frontend/**/*.ts", "frontend/**/_.tsx", "frontend/**/_.css"]
 description: Apply to React TypeScript and frontend changes.
 ---
 

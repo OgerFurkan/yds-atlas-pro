@@ -6,10 +6,12 @@ export function LibraryStatus({
   loading,
   loadError,
   onReload,
+  onRecoverEmpty,
 }: {
   loading: boolean;
   loadError: string;
   onReload: () => void;
+  onRecoverEmpty?: () => Promise<void>;
 }) {
   const { t } = useTranslation();
   if (loading)
@@ -27,6 +29,17 @@ export function LibraryStatus({
         <Button variant="link" type="button" onClick={onReload}>
           {t("library.retry")}
         </Button>
+        {onRecoverEmpty && (
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => {
+              if (window.confirm(t("library.confirmRecoverEmpty"))) void onRecoverEmpty();
+            }}
+          >
+            {t("library.recoverEmpty")}
+          </Button>
+        )}
       </div>
     );
   return null;

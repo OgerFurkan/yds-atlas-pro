@@ -1,7 +1,11 @@
 ﻿import type { User } from "@supabase/supabase-js";
 import { Cloud, LogOut } from "lucide-react";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { accountRequest } from "@/shared/api/api-client";
 import { supabase } from "@/shared/api/supabase-client";
+import { downloadJson } from "@/shared/lib/download-json";
+import { readStoredText } from "@/shared/lib/storage";
 import { Button } from "@/shared/ui/button";
 import {
   Dialog,
@@ -21,8 +25,43 @@ export function AccountDialog({
   user: User;
   onImportGuest?: () => Promise<void>;
 }) {
+  const { t } = useTranslation();
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  async function manage(action: "export" | "revoke") {
+    const call = accountRequest(user.id);
+    if (
+      !window.confirm(
+        t(action === "export" ? "accountData.confirmExport" : "accountData.confirmRevoke", {
+          account: user.email,
+        }),
+      )
+    )
+      return;
+    setBusy(true);
+    try {
+      const result = await call<{ owner?: string; format?: number; revoked?: boolean }>(
+        "/api/account/" + action,
+        { method: "POST", body: JSON.stringify({ owner: user.id, confirm: true }) },
+      );
+      if (action === "export") {
+        if (result.owner !== user.id || result.format !== 1)
+          throw new Error("Dışa aktarım doğrulanamadı.");
+        downloadJson("atlas-hesap.json", JSON.stringify(result));
+        setMessage("Hesap verileri indirmeye hazır.");
+      } else {
+        if (!result.revoked) throw new Error("Oturum iptali doğrulanamadı.");
+        const current = await supabase?.auth.getSession();
+        if (current?.data.session?.user.id === user.id)
+          await supabase?.auth.signOut({ scope: "local" });
+        setMessage("Hesaptaki oturumlar kapatıldı.");
+      }
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "İşlem tamamlanamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
@@ -43,6 +82,31 @@ export function AccountDialog({
               kayıtların ayrıca korunur.
             </p>
           </div>
+          <Button
+            variant="outline"
+            disabled={busy}
+            onClick={() => {
+              try {
+                const raw = readStoredText("atlas-preserved-drafts-v1", user.id);
+                if (raw === null) {
+                  setMessage("Bu cihazda korunmuş taslak yok.");
+                  return;
+                }
+                downloadJson("atlas-korunmus-taslaklar.json", raw);
+              } catch (e) {
+                setMessage(e instanceof Error ? e.message : "Taslaklar okunamadı.");
+              }
+            }}
+          >
+            Korunmuş cihaz taslaklarını indir
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={() => void manage("export")}>
+            {t("accountData.export")}
+          </Button>
+          <Button variant="outline" disabled={busy} onClick={() => void manage("revoke")}>
+            {t("accountData.revoke")}
+          </Button>
+          <p className="text-sm">{t("accountData.disabled")}</p>
           {onImportGuest && (
             <Button
               variant="outline"

@@ -2,13 +2,21 @@
 
 ## Quick start
 
-Run from the workspace root:
+Use Bun 1.3.5 (also pinned by CI and the API image), Node.js 24 for the Node tests
+and repository audit, and Git. Run from the directory containing `bun.lock`.
+For an authorized fresh installation, install the locked workspaces once. With an
+existing installation, select checks for the affected surfaces. Browser tests also
+require the Chromium build matching the locked Playwright version.
 
 ```powershell
-bun install
-bun run build
-bun test backend/tests frontend/tests/unit
-bun run --cwd=frontend test:e2e
+bun install --frozen-lockfile
+bun run check
+bun run lint
+bun run build:test
+bun run test
+bun run test:node
+bun run test:e2e
+bun run test:cloud
 node scripts/quality/repository-audit.mjs
 ```
 
@@ -22,7 +30,7 @@ node scripts/quality/repository-audit.mjs
 - `frontend/src/shared/`: code with no dependency on a particular feature.
 - `frontend/src/shared/i18n/locales/{tr,en}/`: both languages, grouped by domain.
 - `backend/src/`: validated server-side features, quotas and ownership.
-- `frontend/tests/` and `backend/tests/`: regression tests.
+- [`tests/`](tests/README.md): regression tests by feature and runner.
 
 ## Review checklist
 

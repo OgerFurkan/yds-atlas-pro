@@ -7,6 +7,9 @@
 - `backend/`: Bun HTTP API, doğrulanmış Supabase Auth bağlamı, RLS altında veri erişimi ve güvenli Gemini çağrıları. Mevcut SQLite veritabanı açılmaz/değiştirilmez.
 - `supabase/`: CLI 3 yapılandırması ve PostgreSQL/RLS/RPC migration'ı.
 
+- `scripts/quality/` merkezi kalite ve Recovery girişlerini taşır. `tests/` backend, frontend ve gerçek izole servis sözleşmelerini kapsar.
+- `docs/ai/current-status.md` güncel kabul ve yol haritasıdır. [Yayın](deployment.md), [kalite](architecture/quality.md) ve [Recovery](architecture/recovery-operations.md) kendi ayrı operasyon sözleşmelerini yürütür.
+
 ## Frontend
 
 ```text
@@ -73,8 +76,6 @@ shadcn bileşenleri resmi CLI'dan alınmış ve marka temasıyla uyarlanmıştı
 
 Biome biçimlendirir; Oxlint React/TypeScript kontrollerini yapar. Playwright üretim derlemesini `4173` portunda açar; backend gerektirmez. Sözlük dosyaları kendi lisanslarıyla `frontend/public/dictionaries/` içinde dağıtılır.
 
-
-
 ## Hesap, API ve AI
 
 - `features/auth/`: Ayrı `/#login` sayfası; `auth-form` görünümü ve `use-auth-form` işlem hook'u, hesap penceresi ve Supabase oturum yaşam döngüsü. Giriş sayfası bulut bootstrap'ından önce gösterilir; şifre yenileme API erişimine bağımlı değildir.
@@ -86,12 +87,9 @@ Biome biçimlendirir; Oxlint React/TypeScript kontrollerini yapar. Playwright ü
 - `backend/src/features/learning/`: Oturum, hesap/ilerleme ve sunucuda sonuç hesabı.
 - `backend/src/features/ai/`: Gemini sağlayıcısı; anahtar, JSON Schema, zaman aşımı ve içerik kontrolü.
 - `backend/src/shared/`: Auth bağlamı, boyut sınırlı JSON okuma ve hata eşleme.
-- `backend/tests/`: Auth/API/Gemini sözleşmeleri ve PGlite üzerinde gerçek PostgreSQL/RLS testleri.
-- `frontend/tests/cloud/`: Yapılandırılmış hesap akışları için masaüstü/mobil HTTP mock testleri.
+- `tests/backend/`: Auth/API/Gemini sözleşmeleri ve PGlite üzerinde PostgreSQL/RLS testleri.
+- `tests/frontend/contracts/`: Hesap akışları için masaüstü/mobil HTTP mock testleri.
 
 Frontend Supabase'i yalnızca Auth için kullanır. Veri istekleri kullanıcı JWT'siyle Bun API'ye gider; normal Supabase veri istemcisi RLS'yi atlamaz. Server secret key ayrı istemcide yalnızca AI kotası içindir. Sonuç SQL işlemi idempotenttir. Kurulum, tablolar ve doğrulama sınırları: [backend.md](backend.md).
 
-
-
 Deploy kaynakları: repo kökünde vercel.json ve render.yaml; Bun API için backend/Dockerfile ve .dockerignore. Ücretsiz deneme sırası ve gereken erişimler [deployment.md](deployment.md) içinde.
-

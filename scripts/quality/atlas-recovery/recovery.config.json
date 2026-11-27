@@ -1,0 +1,74 @@
+{
+  "dockerContext": "desktop-linux",
+  "dockerEndpoint": "npipe:////./pipe/dockerDesktopLinuxEngine",
+  "platform": "linux/amd64",
+  "postgrestImage": "postgrest/postgrest:v16.5",
+  "memoryGiB": 4,
+  "timeoutSeconds": 120,
+  "images": {
+    "current": {
+      "index": "sha256:eca9f664ced0c453ae499e75bb503283831c94f2eef69fc2e69bf86f70278ddc",
+      "manifest": "sha256:c810142497883da1768c1f46bd2d259cf7630f9b298d288c49baf736c1cf03af"
+    },
+    "legacy": {
+      "index": "sha256:7c31363a3f7434ff14945f1b8a4880e6eca8b362e197e88b87c476c77aa3cf8c",
+      "manifest": "sha256:74e865602c403c63bae5958ce98eed75432e49085c403bad35cae0da939255e6"
+    }
+  },
+  "artifacts": [
+    "database.dump",
+    "extension-plan.txt",
+    "history.jsonl",
+    "roles.sql",
+    "source-summary.txt"
+  ],
+  "formats": {
+    "ImageV2": {
+      "header": "atlas-recovery-v8-image-v2",
+      "image": "current",
+      "imageEvidence": true,
+      "rootPrefix": "AtlasV8SyntheticImageV2",
+      "trustPrefix": "AtlasV8SyntheticImageV2Trust",
+      "packagePrefix": "atlas-v8"
+    },
+    "LegacyV7": {
+      "header": "atlas-recovery-v7-synthetic",
+      "image": "legacy",
+      "imageEvidence": false,
+      "rootPrefix": "AtlasV7Synthetic",
+      "trustPrefix": "AtlasV7Trust",
+      "packagePrefix": "atlas-v7"
+    },
+    "LegacyV8": {
+      "header": "atlas-recovery-v8",
+      "image": "legacy",
+      "imageEvidence": false,
+      "rootPrefix": "AtlasV8Synthetic",
+      "trustPrefix": "AtlasV8SyntheticTrust",
+      "packagePrefix": "atlas-v8"
+    }
+  },
+  "files": {
+    "docker.ps1": "BD16860FE00F60DC70384141D8CBD132460C2EC7C19ABFB36096E5535BA68E6D",
+    "packages.ps1": "4FB1F42AE16675C0CD2A38480B85332C028555325A0945CD3765F96891DD2B07",
+    "runtime/archive.sh": "F4EC9C434DF17BA342D3ECA6C2E578F63FABF1AEFF9AD541CE596D9AF4FB92C1",
+    "runtime/history-legacy.sql": "3FDA559DA8FCBCE1745852DE2A88ED72C348B055D7E7D0224726AB3F30AF4B28",
+    "runtime/history.sql": "E4D7F975D1FD372121C2ED9A557F8E35E5D16160CA8E1802686F76BAAB60C9E1",
+    "runtime/postgres.sh": "EF44708040F7A710A5407E60702DBFFDFF3C4DCE16DEE307DC912EAC532D4D98",
+    "runtime/run.sh": "D69E97B77E49FEC41071683BA4342063DC37EF8C607FF6ABE1AD6B3C52E5266F",
+    "runtime/sequences.sql": "F3354936CDC79CC5AE7309F4AC5BB33BB6CF2BBD3B41EF84308FCEDB5A093CA1",
+    "runtime/summary.sql": "09057632F9B274BDB9B35634630D4A6E45CB4517B421A1EB1F79572B8CDEA708",
+    "security.ps1": "5D1458F3BD150A3B85A5225784016C91D4F84A4E274C98C97F73022907C9192C",
+    "tests/general-fixture.sql": "24AD52B855680D5A53F29ED49829D4E9807F8B9A656ECC37C8641391CA4AE6FA",
+    "tests/legacy-checks.sh": "1017B6D4A23019F4386EAA4F3E0887CE0660679A8B9EED47EFFE5215BEFB0B51",
+    "tests/legacy-fixture.sql": "78ECE0859FEF531AB7643B3CF7AE300502BE3A70A0EEFD4FBA5411380B7B50A0",
+    "tests/postgrest.mjs": "C28FAC80C3D5AEA56D3D6BB34A72A5CB9CAABD60649DAC93EFDBBF129DA8CE5C",
+    "tests/regression.sh": "DC4F4BAE22881E284D94E102F874F1FD751679CAF2E83B91C0CBBC9DBBCA7A0E",
+    "deletion-decisions.ps1": "0CFD60F8A724B857CE8BC8FB923A94FD637959636FA7E69E13EA6BC734CA1834",
+    "tests/deletion-fixture.sql": "915152CC2437B2F67B56EBC4CE891FF3A0B95B2325129CB8417566407F3AD00C",
+    "operations.mjs": "FD968C96D4ED67D0085FD5BB82AA20FEF2505340A25CB1E7143798928B56AB4B",
+    "publication.mjs": "40D1FF486124DB69689471C8ED26275F47182C063E0D494F2D156AEA3D7BCF80",
+    "tests/contracts.ps1": "C35F6E38C996C6266F6647CF205C4CB34CFE976D5320178C4BF6855566CFE658",
+    "runtime/vault-getkey.sh": "1FE1D592CE704C75996306D0BD117143C2E1B537679460F52A373CAEE6984991"
+  }
+}

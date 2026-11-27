@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { WordEntry } from "../word-schema";
 
 export const dailyWordGroupSchema = z.object({
   day: z.number().int().min(1).max(60),

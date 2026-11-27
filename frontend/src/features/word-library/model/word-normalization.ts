@@ -1,6 +1,6 @@
-export function wordKey(value: string) {
-  return value.trim().replace(/\s+/g, " ").replace(/[’‘]/g, "'").toLocaleLowerCase("en-US");
-}
+import { wordKey } from "@yds-atlas/shared";
+
+export { wordKey };
 
 export function formatWordType(value: string) {
   return value.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
